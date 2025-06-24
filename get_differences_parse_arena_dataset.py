@@ -7,7 +7,9 @@ import pandas as pd
 import wandb
 from transformers import AutoTokenizer
 from datasets import load_dataset
-
+import litellm
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 # Use the same system prompt as the original script
 one_sided_system_prompt = """You are an expert model behavior analyst. Your task is to meticulously compare two model responses to a given user prompt and identify unique qualitative properties belonging to one model but not the other. For each significant property, you must determine if it's more likely a **general trait** of the model or a **context-specific** behavior triggered by the current prompt.
 
@@ -21,7 +23,7 @@ You will be provided with:
 5.  **Model B Response:** The response from Model B.
 
 **Your Goal:**
-Produce a JSON list of objects. Each object will represent a single distinct property observed in one model's response that is notably absent or different in the other's. Focus on identifying up to 3-4 **key areas** of distinction (e.g., tone, depth, style, approach), which may result in up to 6-8 individual property observations in the output list (e.g., Model A's formal tone would be one entry, Model B's casual tone would be another related entry). If there are fewer significant properties, list only those.
+Produce a JSON list of objects. Each object will represent a single distinct property observed in one model's response that is notably absent or different in the other's. Focus on identifying key areas of distinction, and the individual property observations in the output list (e.g., Model A's formal tone would be one entry, Model B's casual tone would be another related entry). As these are very common and easy to measure with heuristics, please do not include properties like "Model A is more concise than Model B". If applicatble, make sure to also include properties revolving around the models reasoning, interpretation of the prompt/intent, and potential reason for errors if they exist. 
 
 **Definitions:**
 *   **General Trait:** Reflects a model's typical behavior across diverse prompts.
@@ -29,8 +31,10 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
 *   **Context-Specific Difference:** Arises mainly due to *this specific* user prompt.
     *   *Think:* Is this property a direct reaction to *this current prompt*?
 *   **Impact:** How much does this property impact the user's experience?
-    *   *Think:* Is this property a major factor in the user's experience?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually, so use this flag sparingly.
+    *   *Think:* Is this property a major factor in the user's experience? Note that this could depend on the user's intent and the context of the prompt.
+*   **Contains Errors:** Does either model response contain errors?
+    *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
+*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Please use the names of the models in the output rather than "Model A"/"Model B"):**
@@ -44,12 +48,13 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
+    "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
 ]
 ```
 
-**Example JSON Output:**
+**Example JSON Output (Note: This is a simplified example and does not include all possible properties):**
 ```json
 [
   {
@@ -59,7 +64,8 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "evidence": "Quote: 'It is imperative to consider the implications...'",
     "type": "General",
     "reason": "{{Model A Name}}'s response is in a formal register, which is a notable contrast to {{Model B Name}}'s more casual style.",
-    "impact": "Medium",
+    "impact": "Low",
+    "contains_errors": "False",
     "unexpected_behavior": "False"
   },
   {
@@ -69,7 +75,8 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "evidence": "Quote: 'Hey there! So, basically, what you gotta think about is...'",
     "type": "General",
     "reason": "{{Model B Name}}'s response is in an informal, friendly style, which stands out compared to {{Model A Name}}'s formality.",
-    "impact": "Medium",
+    "impact": "Low",
+    "contains_errors": "False",
     "unexpected_behavior": "False"
   },
   {
@@ -80,6 +87,7 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "type": "Context-Specific",
     "reason": "For this data processing task, {{Model A Name}} opted for a functional approach, which was not seen in {{Model B Name}}'s object-oriented solution.",
     "impact": "High",
+    "contains_errors": "False",
     "unexpected_behavior": "False"
   },
   {
@@ -90,6 +98,7 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "type": "Context-Specific",
     "reason": "In response to the coding prompt, {{Model B Name}} chose an object-oriented design, contrasting with {{Model A Name}}'s functional implementation.",
     "impact": "High",
+    "contains_errors": "False",
     "unexpected_behavior": "False"
   },
   {
@@ -99,7 +108,8 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "evidence": "Quote: 'According to the 2023 WHO report... However, this data may vary by region and should be cross-referenced.'",
     "type": "General",
     "reason": "{{Model A Name}} prioritizes accuracy and uncertainty, providing source attribution and disclaimers, unlike {{Model B Name}}'s direct factual statements.",
-    "impact": "High",
+    "impact": "Medium",
+    "contains_errors": "False",
     "unexpected_behavior": "False"
   },
   {
@@ -108,8 +118,9 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
     "category": "Fact Verification",
     "evidence": "Quote: 'The global vaccination rate is 78% and continues to increase rapidly worldwide.'",
     "type": "General",
-    "reason": "{{Model B Name}} states facts without providing sources or acknowledging potential variability, contrasting with {{Model A Name}}'s cautious approach.",
+    "reason": "{{Model B Name}} states flase facts without providing sources or acknowledging potential variability, contrasting with {{Model A Name}}'s cautious approach.",
     "impact": "High",
+    "contains_errors": "True",
     "unexpected_behavior": "False"
   }
 ]
@@ -159,6 +170,51 @@ def parse_json_response(response_text):
     except Exception as e:
         return None, str(e)
 
+def call_openai_api(message, model_name, temperature, top_p, max_tokens):
+    """Call OpenAI API using LiteLLM with error handling."""
+    try:
+        response = litellm.completion(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": one_sided_system_prompt},
+                {"role": "user", "content": message}
+            ],
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            caching=True
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error calling OpenAI API: {str(e)}")
+        return f"ERROR: {str(e)}"
+
+def process_openai_batch(messages, model_name, temperature, top_p, max_tokens, max_workers=10):
+    """Process a batch of messages using OpenAI API with threading."""
+    responses = []
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_index = {
+            executor.submit(call_openai_api, msg, model_name, temperature, top_p, max_tokens): i 
+            for i, msg in enumerate(messages)
+        }
+        
+        # Collect results in order
+        results = [None] * len(messages)
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                result = future.result()
+                results[index] = result
+            except Exception as e:
+                print(f"Error processing message {index}: {str(e)}")
+                results[index] = f"ERROR: {str(e)}"
+        
+        responses = results
+    
+    return responses
+
 def save_intermediate_results(results_df, output_file, batch_num):
     """Save intermediate results to the main output file and log to wandb."""
     # Save to the main output file (overwrite with updated results)
@@ -181,29 +237,48 @@ def save_intermediate_results(results_df, output_file, batch_num):
         "all_results_so_far": wandb.Table(dataframe=results_df.astype(str))  # All results accumulated
     })
 
-def truncate_long_responses(user_prompt, model_a_response, model_b_response, tokenizer, max_model_len, system_prompt, safety_margin=500):
+def truncate_long_responses(user_prompt, model_a_response, model_b_response, tokenizer, max_model_len, system_prompt, model_a_name="ModelA", model_b_name="ModelB", safety_margin=500, use_openai=False):
     """
     Truncate model responses if the total prompt would exceed max_model_len.
     Preserves the user prompt and system prompt, truncating model responses proportionally.
     Returns tuple of (truncated_a_response, truncated_b_response, was_truncated)
     """
-    # Create a test message to estimate token count
-    test_formatted = format_arena_example(
-        user_prompt, "ModelA", model_a_response, "ModelB", model_b_response
-    )
-    test_message = tokenizer.apply_chat_template(
-        [
-            {"role": "system", "content": system_prompt}, 
-            {"role": "user", "content": test_formatted}
-        ],
-        tokenize=False,
-        add_generation_prompt=True,
-        enable_thinking=False,
-    )
     
-    # Count tokens
-    tokens = tokenizer.encode(test_message)
-    current_length = len(tokens)
+    def estimate_token_count(text, tokenizer, use_openai):
+        """Estimate token count for the given text."""
+        if use_openai:
+            # For OpenAI, use simple character-based estimation (roughly 4 chars per token)
+            return len(text) // 4
+        else:
+            # For vLLM, use actual tokenizer
+            return len(tokenizer.encode(text))
+    
+    def create_full_message(user_prompt, model_a_response, model_b_response, system_prompt, use_openai):
+        """Create the full message as it would be sent to the model."""
+        formatted_input = format_arena_example(
+            user_prompt, model_a_name, model_a_response, model_b_name, model_b_response
+        )
+        
+        if use_openai:
+            # For OpenAI, just combine system prompt and formatted input
+            return system_prompt + "\n\n" + formatted_input
+        else:
+            # For vLLM, use chat template
+            return tokenizer.apply_chat_template(
+                [
+                    {"role": "system", "content": system_prompt}, 
+                    {"role": "user", "content": formatted_input}
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+    
+    # Create a test message to estimate token count
+    test_message = create_full_message(
+        user_prompt, model_a_response, model_b_response, system_prompt, use_openai
+    )
+    current_length = estimate_token_count(test_message, tokenizer, use_openai)
     
     # If within limit, return original responses
     if current_length <= max_model_len:
@@ -212,21 +287,12 @@ def truncate_long_responses(user_prompt, model_a_response, model_b_response, tok
     print(f"Prompt too long ({current_length} tokens > {max_model_len}). Truncating responses...")
     
     # Calculate base overhead tokens (everything except the model responses)
-    base_formatted = format_arena_example(
-        user_prompt, "ModelA", "", "ModelB", ""
+    base_message = create_full_message(
+        user_prompt, "", "", system_prompt, use_openai
     )
-    base_message = tokenizer.apply_chat_template(
-        [
-            {"role": "system", "content": system_prompt}, 
-            {"role": "user", "content": base_formatted}
-        ],
-        tokenize=False,
-        add_generation_prompt=True,
-        enable_thinking=False,
-    )
-    base_tokens = len(tokenizer.encode(base_message))
+    base_tokens = estimate_token_count(base_message, tokenizer, use_openai)
     
-    # Calculate available tokens for responses (be more aggressive)
+    # Calculate available tokens for responses
     available_tokens = max_model_len - base_tokens - safety_margin
     
     if available_tokens < 100:  # Minimum total response length
@@ -236,31 +302,24 @@ def truncate_long_responses(user_prompt, model_a_response, model_b_response, tok
     # Split available tokens between the two responses
     tokens_per_response = available_tokens // 2
     
-    # Be more aggressive with initial truncation
-    max_chars_per_response = tokens_per_response * 3  # Rough estimate: ~3 chars per token
+    # Convert tokens to approximate characters
+    if use_openai:
+        max_chars_per_response = tokens_per_response * 4  # ~4 chars per token for OpenAI
+    else:
+        max_chars_per_response = tokens_per_response * 3  # ~3 chars per token for other models
     
-    # Truncate by characters first (faster than iterative token-based approach)
+    # Initial truncation by characters
     truncated_a_response = model_a_response[:max_chars_per_response] + " [TRUNCATED]" if len(model_a_response) > max_chars_per_response else model_a_response
     truncated_b_response = model_b_response[:max_chars_per_response] + " [TRUNCATED]" if len(model_b_response) > max_chars_per_response else model_b_response
     
-    # Now do token-based fine-tuning
-    max_iterations = 3  # Reduce iterations for efficiency
+    # Fine-tune with iterative approach
+    max_iterations = 3
     
     for iteration in range(max_iterations):
-        # Test the current formatted message
-        test_formatted = format_arena_example(
-            user_prompt, "ModelA", truncated_a_response, "ModelB", truncated_b_response
+        test_message = create_full_message(
+            user_prompt, truncated_a_response, truncated_b_response, system_prompt, use_openai
         )
-        test_message = tokenizer.apply_chat_template(
-            [
-                {"role": "system", "content": system_prompt}, 
-                {"role": "user", "content": test_formatted}
-            ],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=False,
-        )
-        current_length = len(tokenizer.encode(test_message))
+        current_length = estimate_token_count(test_message, tokenizer, use_openai)
         
         print(f"Iteration {iteration + 1}: Current message length = {current_length} tokens")
         
@@ -269,7 +328,6 @@ def truncate_long_responses(user_prompt, model_a_response, model_b_response, tok
             return truncated_a_response, truncated_b_response, True
         
         # If still too long, cut both responses by 25%
-        excess_tokens = current_length - max_model_len
         reduction_factor = 0.75  # Keep 75% of current length
         
         current_a_length = len(truncated_a_response)
@@ -283,20 +341,11 @@ def truncate_long_responses(user_prompt, model_a_response, model_b_response, tok
         
         print(f"Reduced response lengths to {new_a_length} and {new_b_length} characters")
     
-    # Final check - if still too long, make it much shorter
-    test_formatted = format_arena_example(
-        user_prompt, "ModelA", truncated_a_response, "ModelB", truncated_b_response
+    # Final check - if still too long, emergency truncation
+    test_message = create_full_message(
+        user_prompt, truncated_a_response, truncated_b_response, system_prompt, use_openai
     )
-    test_message = tokenizer.apply_chat_template(
-        [
-            {"role": "system", "content": system_prompt}, 
-            {"role": "user", "content": test_formatted}
-        ],
-        tokenize=False,
-        add_generation_prompt=True,
-        enable_thinking=False,
-    )
-    final_length = len(tokenizer.encode(test_message))
+    final_length = estimate_token_count(test_message, tokenizer, use_openai)
     
     if final_length > max_model_len:
         print(f"Warning: Could not truncate to fit within {max_model_len} tokens after {max_iterations} iterations (final length: {final_length})")
@@ -310,8 +359,8 @@ def truncate_long_responses(user_prompt, model_a_response, model_b_response, tok
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Compare model responses from arena dataset and identify differences')
-    parser.add_argument('--num_samples', type=int, default=100, 
-                       help='Number of battles to process (default: 100)')
+    parser.add_argument('--num_samples', type=int,
+                       help='Number of battles to process')
     parser.add_argument('--model_name', type=str, default="Qwen/Qwen3-32B",
                        help='Model name to use for the LLM analysis')
     parser.add_argument('--output_file', type=str, default="disguising/misc/arena_model_comparison_differences_continued.csv",
@@ -322,7 +371,7 @@ def main():
                        help='Temperature')
     parser.add_argument('--top_p', type=float, default=0.95,
                        help='Top p')
-    parser.add_argument('--max_tokens', type=int, default=1024,
+    parser.add_argument('--max_tokens', type=int, default=2048,
                        help='Max tokens')
     parser.add_argument('--max_model_len', type=int, default=16384,
                        help='Max model length')
@@ -338,6 +387,8 @@ def main():
                        help='Automatically truncate long prompts to fit within max_model_len')
     parser.add_argument('--truncation_safety_margin', type=int, default=1000,
                        help='Reserve this many tokens as safety margin when truncating (default: 1000)')
+    parser.add_argument('--max_workers', type=int, default=16,
+                       help='Maximum number of threads for OpenAI API calls (default: 10)')
     args = parser.parse_args()
 
     # Initialize wandb
@@ -360,16 +411,32 @@ def main():
         df = df[df['language'] == 'English']
         print(f"After English filter: {len(df)} battles")
 
-    if args.ties_only:
-        df = df[df['winner'].str.contains('tie', na=False)]
-        print(f"After ties only filter: {len(df)} battles")
-    elif args.exclude_ties:
-        df = df[~df['winner'].str.contains('tie', na=False)]
-        print(f"After excluding ties: {len(df)} battles")
+    # if args.ties_only:
+    #     df = df[df['winner'].str.contains('tie', na=False)]
+    #     print(f"After ties only filter: {len(df)} battles")
+    # elif args.exclude_ties:
+    #     df = df[~df['winner'].str.contains('tie', na=False)]
+    #     print(f"After excluding ties: {len(df)} battles")
     
     if args.min_turn:
         df = df[df['turn'] >= args.min_turn]
         print(f"After min_turn filter: {len(df)} battles")
+    
+    models  = [
+        'claude-3-5-sonnet-20240620',
+        'gpt-4o-2024-05-13',
+        'gemini-1.5-pro-api-0514',
+        'llama-3-70b-instruct',
+        'gemini-1.5-pro-exp-0801',
+        'claude-3-opus-20240229',
+        'llama-3.1-405b-instruct',
+        'chatgpt-4o-latest',
+        'gpt-4-turbo-2024-04-09',
+        'deepseek-v2-api-0628',
+        'gpt-4o-2024-08-06',
+        ]
+    df = df[df['model_a'].isin(models) & df['model_b'].isin(models)]
+    print(f"After model filter: {len(df)} battles")
 
     # Remove rows with missing conversation data
     df = df.dropna(subset=['conversation_a', 'conversation_b'])
@@ -380,22 +447,33 @@ def main():
         df = df.head(args.num_samples)
         print(f"Limited to {args.num_samples} battles")
 
-    # Initialize LLM
-    print(f"Initializing LLM: {args.model_name}")
-    llm = LLM(
-        model=args.model_name,
-        tokenizer=args.model_name,
-        max_model_len=args.max_model_len,
-        tensor_parallel_size=args.tensor_parallel_size,
-        enable_prefix_caching=True,
-    )
+    # Check if using OpenAI model
+    use_openai = args.model_name.lower().startswith('gpt')
+    
+    if use_openai:
+        print(f"Using OpenAI API for model: {args.model_name}")
+        print(f"Threading enabled with max_workers: {args.max_workers}")
+        # For OpenAI, we'll use a basic tokenizer for truncation estimation
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")  # Use GPT-2 tokenizer as approximation
+        llm = None  # No vLLM instance needed
+        sampling_params = None
+    else:
+        # Initialize LLM for non-OpenAI models
+        print(f"Initializing vLLM: {args.model_name}")
+        llm = LLM(
+            model=args.model_name,
+            tokenizer=args.model_name,
+            max_model_len=args.max_model_len,
+            tensor_parallel_size=args.tensor_parallel_size,
+            enable_prefix_caching=True,
+        )
 
-    sampling_params = SamplingParams(
-        max_tokens=args.max_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+        sampling_params = SamplingParams(
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     # Process battles in batches
     new_data = {
@@ -439,12 +517,12 @@ def main():
                 user_prompt_b, model_b_response = extract_content_from_conversation(row['conversation_b'])
                 
                 # Debug: Print the first few to see what's happening
-                if batch_start == 0 and len(batch_data["question_id"]) < 3:
-                    print(f"Debug - conversation_a type: {type(row['conversation_a'])}")
-                    print(f"Debug - conversation_a: {row['conversation_a'][:500] if isinstance(row['conversation_a'], str) else str(row['conversation_a'])[:500]}")
-                    print(f"Debug - extracted user_prompt_a: {user_prompt_a}")
-                    print(f"Debug - extracted model_a_response: {model_a_response}")
-                    print("---")
+                # if batch_start == 0 and len(batch_data["question_id"]) < 3:
+                #     print(f"Debug - conversation_a type: {type(row['conversation_a'])}")
+                #     print(f"Debug - conversation_a: {row['conversation_a'][:500] if isinstance(row['conversation_a'], str) else str(row['conversation_a'])[:500]}")
+                #     print(f"Debug - extracted user_prompt_a: {user_prompt_a}")
+                #     print(f"Debug - extracted model_a_response: {model_a_response}")
+                #     print("---")
                 
                 # Skip if we can't extract proper conversation data
                 if not user_prompt_a or not model_a_response or not user_prompt_b or not model_b_response:
@@ -458,7 +536,7 @@ def main():
                 # Truncate responses if necessary
                 if args.auto_truncate:
                     truncated_a_response, truncated_b_response, was_truncated = truncate_long_responses(
-                        user_prompt, model_a_response, model_b_response, tokenizer, args.max_model_len, one_sided_system_prompt, args.truncation_safety_margin
+                        user_prompt, model_a_response, model_b_response, tokenizer, args.max_model_len, one_sided_system_prompt, model_a_name, model_b_name, args.truncation_safety_margin, use_openai
                     )
                     if was_truncated:
                         truncated_count += 1
@@ -471,16 +549,21 @@ def main():
                 )
                 # print(formatted_input)
                 
-                message = tokenizer.apply_chat_template(
-                    [
-                        {"role": "system", "content": one_sided_system_prompt}, 
-                        {"role": "user", "content": formatted_input}
-                    ],
-                    tokenize=False,
-                    add_generation_prompt=True,
-                    enable_thinking=False,
-                )
-                batch_messages.append(message)
+                if use_openai:
+                    # For OpenAI, we just need the formatted input, not the full chat template
+                    batch_messages.append(formatted_input)
+                else:
+                    # For vLLM, apply the chat template
+                    message = tokenizer.apply_chat_template(
+                        [
+                            {"role": "system", "content": one_sided_system_prompt}, 
+                            {"role": "user", "content": formatted_input}
+                        ],
+                        tokenize=False,
+                        add_generation_prompt=True,
+                        enable_thinking=False,
+                    )
+                    batch_messages.append(message)
                 
                 # Store the data for this battle
                 batch_data["question_id"].append(row['question_id'])
@@ -504,12 +587,18 @@ def main():
         valid_messages = []
         valid_indices = []
         for i, message in enumerate(batch_messages):
-            token_count = len(tokenizer.encode(message))
+            if use_openai:
+                # For OpenAI, estimate token count more simply (4 chars per token)
+                full_message = one_sided_system_prompt + "\n\n" + message
+                token_count = len(full_message) // 4
+            else:
+                token_count = len(tokenizer.encode(message))
+            
             if token_count <= args.max_model_len:
                 valid_messages.append(message)
                 valid_indices.append(i)
             else:
-                print(f"Warning: Skipping message {i} with {token_count} tokens (exceeds {args.max_model_len})")
+                print(f"Warning: Skipping message {i} with ~{token_count} tokens (exceeds {args.max_model_len})")
         
         if not valid_messages:
             print(f"No valid messages in batch {batch_start//batch_size + 1} after token validation, skipping...")
@@ -519,7 +608,21 @@ def main():
         
         # Get LLM responses for the batch
         print(f"Getting LLM responses for {len(valid_messages)} battles...")
-        batch_responses = llm.generate(valid_messages, sampling_params=sampling_params)
+        
+        if use_openai:
+            # Use OpenAI API with threading
+            batch_responses = process_openai_batch(
+                valid_messages, 
+                args.model_name, 
+                args.temperature, 
+                args.top_p, 
+                args.max_tokens,
+                args.max_workers
+            )
+        else:
+            # Use vLLM
+            vllm_responses = llm.generate(valid_messages, sampling_params=sampling_params)
+            batch_responses = [resp.outputs[0].text for resp in vllm_responses]
         
         # Process the responses (only for valid indices)
         for response_idx, response in enumerate(batch_responses):
@@ -527,7 +630,11 @@ def main():
             if original_idx >= len(batch_data["question_id"]):  # Safety check
                 break
                 
-            cleaned_response = remove_thinking_from_output(response.outputs[0].text)
+            if use_openai:
+                cleaned_response = remove_thinking_from_output(response)
+            else:
+                cleaned_response = remove_thinking_from_output(response)
+            
             parsed_json, parse_error = parse_json_response(cleaned_response)
             
             # Add to main data structure

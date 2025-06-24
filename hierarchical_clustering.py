@@ -48,40 +48,50 @@ except ImportError:
 # MAIN CLUSTERING FUNCTIONS
 # =============================================================================
 
-def bertopic_hierarchical_cluster_categories(df, column_name, min_cluster_size=30, min_topic_size=10,
-                                           max_coarse_topics=25, max_fine_topics_per_coarse=20,
+def bertopic_hierarchical_cluster_categories(df, column_name, min_cluster_size=10, min_topic_size=10,
+                                           max_coarse_topics=25, max_fine_topics_per_coarse=50,
                                            verbose=True, embedding_model="openai", 
                                            include_embeddings=True, cache_embeddings=True,
-                                           use_llm_summaries=False, context=None):
+                                           use_llm_summaries=False, context=None,
+                                           use_llm_coarse_clustering=False, max_coarse_clusters=15,
+                                           input_model_name=None):
     """
-    RECOMMENDED: Hierarchical clustering using BERTopic with HDBSCAN.
+    Two-stage hierarchical clustering using BERTopic: coarse topics → fine subtopics.
     
-    Creates natural topic hierarchies with automatic keyword-based labeling.
+    Best for: Well-defined categories with natural subcategories.
     
     Args:
         df: DataFrame containing the data
         column_name: Name of the column to cluster on
-        min_cluster_size: Minimum cluster size for HDBSCAN (default: 30)
-        min_topic_size: Minimum topic size for BERTopic (default: 10)
-        max_coarse_topics: Maximum broad topics to extract (default: 25)
-        max_fine_topics_per_coarse: Maximum subtopics per broad topic (default: 20)
-        verbose: Whether to print progress (default: True)
+        min_cluster_size: Minimum cluster size for BERTopic (default: 30)
+        min_topic_size: Minimum size for fine-level topics (default: 10)
+        max_coarse_topics: Maximum number of coarse topics (default: 25)
+        max_fine_topics_per_coarse: Maximum fine topics per coarse topic (default: 20)
+        verbose: Print progress information (default: True)
         embedding_model: "openai", "all-MiniLM-L6-v2", or "all-mpnet-base-v2" (default: "openai")
         include_embeddings: Include embeddings in output (default: True)
         cache_embeddings: Save/load embeddings from disk (default: True)
-        use_llm_summaries: Use LLM to generate cluster summaries instead of keywords (default: False)
+        use_llm_summaries: Use LLM to generate human-readable cluster names (default: False)
         context: Optional context for LLM summaries (e.g., "properties seen in AI responses")
+        use_llm_coarse_clustering: Use LLM-only approach to create coarse clusters from fine cluster names (default: False)
+        max_coarse_clusters: Maximum coarse clusters when using LLM coarse clustering (default: 15)
+        input_model_name: Optional name of the input model being analyzed (for cache differentiation)
     
     Returns:
-        DataFrame with new columns:
-        - {column_name}_coarse_topic_label: Broad topic labels
-        - {column_name}_fine_topic_label: Specific subtopic labels
-        - {column_name}_coarse_topic_id: Numeric coarse topic IDs
-        - {column_name}_fine_topic_id: Numeric fine topic IDs
+        DataFrame with added columns:
+        - {column_name}_coarse_topic_id: Coarse topic ID (-1 for outliers)
+        - {column_name}_coarse_topic_label: Human-readable coarse topic name
+        - {column_name}_fine_topic_id: Fine topic ID (-1 for outliers) 
+        - {column_name}_fine_topic_label: Human-readable fine topic name
         - {column_name}_embedding: Vector embeddings (if include_embeddings=True)
+    
+    Example:
+        >>> df_clustered = bertopic_hierarchical_cluster_categories(
+        ...     df, 'response_text', verbose=True, use_llm_summaries=True
+        ... )
     """
     if not HAS_BERTOPIC:
-        raise ImportError("Please install: pip install bertopic sentence-transformers hdbscan umap-learn")
+        raise ImportError("Please install: pip install bertopic sentence-transformers")
     
     start_time = time.time()
     unique_values = df[column_name].unique()
@@ -92,7 +102,7 @@ def bertopic_hierarchical_cluster_categories(df, column_name, min_cluster_size=3
     
     # Get embeddings (with caching)
     embeddings, embedding_model_obj = _setup_embeddings_with_cache(
-        unique_strings, embedding_model, column_name, cache_embeddings, verbose
+        unique_strings, embedding_model, column_name, cache_embeddings, verbose, input_model_name
     )
     
     # Step 1: Coarse-level clustering
@@ -123,8 +133,64 @@ def bertopic_hierarchical_cluster_categories(df, column_name, min_cluster_size=3
         min_topic_size, max_fine_topics_per_coarse, verbose
     )
     
+    # Step 4: Optional LLM coarse clustering from fine topics
+    if use_llm_coarse_clustering:
+        if verbose:
+            print("Step 4: Using LLM to create coarse clusters from fine topic names...")
+        
+        # Get fine topic names
+        fine_topic_names = list(fine_topic_labels.values())
+        unique_fine_names = list(set(fine_topic_names))
+        
+        # Use LLM to create coarse clusters from fine topic names
+        fine_to_coarse_assignments, coarse_cluster_names = llm_coarse_cluster_from_fine(
+            unique_fine_names, max_coarse_clusters, context, verbose
+        )
+        
+        # Create mapping from fine topic ID to coarse cluster
+        fine_name_to_coarse_id = dict(zip(unique_fine_names, fine_to_coarse_assignments))
+        fine_name_to_coarse_name = {}
+        for fine_name, coarse_id in fine_name_to_coarse_id.items():
+            if coarse_id == -1:
+                fine_name_to_coarse_name[fine_name] = "Outliers"
+            else:
+                fine_name_to_coarse_name[fine_name] = coarse_cluster_names[coarse_id]
+        
+        # Override coarse topics with LLM-based clustering
+        new_coarse_topics = []
+        new_coarse_topic_info = pd.DataFrame()
+        coarse_topic_labels = {}
+        
+        for i, fine_topic_id in enumerate(fine_topics):
+            fine_topic_name = fine_topic_labels.get(fine_topic_id, f"topic_{fine_topic_id}")
+            coarse_cluster_name = fine_name_to_coarse_name.get(fine_topic_name, "Outliers")
+            coarse_cluster_id = fine_name_to_coarse_id.get(fine_topic_name, -1)
+            new_coarse_topics.append(coarse_cluster_id)
+            coarse_topic_labels[coarse_cluster_id] = coarse_cluster_name
+        
+        # Create new coarse topic info DataFrame
+        coarse_counts = defaultdict(int)
+        for topic_id in new_coarse_topics:
+            coarse_counts[topic_id] += 1
+        
+        topic_data = []
+        for topic_id, count in coarse_counts.items():
+            topic_name = coarse_topic_labels.get(topic_id, f"Topic {topic_id}")
+            topic_data.append({
+                'Topic': topic_id,
+                'Count': count,
+                'Name': topic_name
+            })
+        
+        coarse_topic_info = pd.DataFrame(topic_data)
+        coarse_topics = new_coarse_topics
+        
+        if verbose:
+            n_coarse = len(set(coarse_topics)) - (1 if -1 in coarse_topics else 0)
+            print(f"✅ Created {n_coarse} LLM-based coarse clusters from fine topics")
+
     # Step 3: Optional LLM-based summarization
-    if use_llm_summaries:
+    elif use_llm_summaries:
         if verbose:
             print("Step 3: Generating LLM-based cluster summaries...")
         coarse_topic_info, fine_topic_labels = _generate_llm_summaries(
@@ -150,7 +216,9 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
                               embedding_model="openai", verbose=True, 
                               include_embeddings=True, use_llm_summaries=False, context=None,
                               precomputed_embeddings=None, enable_dim_reduction=False,
-                              assign_outliers=False, hierarchical=False, min_grandparent_size=5):
+                              assign_outliers=False, hierarchical=False, min_grandparent_size=5,
+                              use_llm_coarse_clustering=False, max_coarse_clusters=15,
+                              input_model_name=None):
     """
     Fast HDBSCAN clustering for medium to large datasets.
     
@@ -170,6 +238,9 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
         assign_outliers: Assign HDBSCAN outliers to their nearest clusters using distance-based assignment
         hierarchical: Enable hierarchical clustering (cluster the clusters) (default: False)
         min_grandparent_size: Minimum size for grandparent clusters (default: 5)
+        use_llm_coarse_clustering: Use LLM-only approach to create coarse clusters from fine cluster names (default: False)
+        max_coarse_clusters: Maximum coarse clusters when using LLM coarse clustering (default: 15)
+        input_model_name: Optional name of the input model being analyzed (for cache differentiation)
     """
     if not HAS_BERTOPIC:  # hdbscan comes with bertopic
         raise ImportError("Please install: pip install hdbscan sentence-transformers")
@@ -210,9 +281,11 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
         if verbose:
             print(f"Embeddings shape: {embeddings.shape}")
     else:
+        # For non-precomputed embeddings, we'll need to implement caching here too
+        # For now, just use the regular _get_embeddings function
         embeddings = _get_embeddings(unique_strings, embedding_model, verbose)
         embeddings = np.array(embeddings)
-
+    
     # Normalize embeddings
     if verbose:
         print("Normalizing embeddings...")
@@ -442,6 +515,46 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
     if hierarchical:
         value_to_grandparent_label = {v: grandparent_label_map[c] for v, c in value_to_grandparent.items()}
     
+    # Optional: Use LLM to create coarse clusters from fine cluster names
+    if use_llm_coarse_clustering and not hierarchical:  # Don't use both hierarchical and LLM coarse clustering
+        if verbose:
+            print("Using LLM to create coarse clusters from fine cluster names...")
+        
+        # Get unique fine cluster names (excluding outliers initially)
+        fine_cluster_names = list(set(value_to_label.values()))
+        
+        # Use LLM to create coarse clusters from fine cluster names
+        fine_to_coarse_assignments, coarse_cluster_names = llm_coarse_cluster_from_fine(
+            fine_cluster_names, max_coarse_clusters, context, verbose
+        )
+        
+        # Create mapping from fine cluster name to coarse cluster
+        fine_name_to_coarse_id = dict(zip(fine_cluster_names, fine_to_coarse_assignments))
+        fine_name_to_coarse_name = {}
+        for fine_name, coarse_id in fine_name_to_coarse_id.items():
+            if coarse_id == -1:
+                fine_name_to_coarse_name[fine_name] = "Outliers"
+            else:
+                fine_name_to_coarse_name[fine_name] = coarse_cluster_names[coarse_id]
+        
+        # Map original values to coarse clusters through fine clusters
+        value_to_coarse_label = {}
+        value_to_coarse_id = {}
+        for value, fine_label in value_to_label.items():
+            coarse_label = fine_name_to_coarse_name.get(fine_label, "Outliers") 
+            coarse_id = fine_name_to_coarse_id.get(fine_label, -1)
+            value_to_coarse_label[value] = coarse_label
+            value_to_coarse_id[value] = coarse_id
+        
+        # Set up coarse cluster variables for output
+        hierarchical = True  # Enable coarse cluster output
+        value_to_grandparent_label = value_to_coarse_label
+        value_to_grandparent = value_to_coarse_id
+        
+        if verbose:
+            n_coarse = len(set(value_to_coarse_id.values())) - (1 if -1 in value_to_coarse_id.values() else 0)
+            print(f"✅ Created {n_coarse} LLM-based coarse clusters")
+    
     # Create output DataFrame
     df_copy = df.copy()
     df_copy[f'{column_name}_fine_cluster_label'] = df_copy[column_name].map(value_to_label)
@@ -455,6 +568,12 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
         # Use original_embeddings (full embeddings) instead of potentially reduced embeddings
         value_to_embedding = dict(zip(unique_values, original_embeddings.tolist()))
         df_copy[f'{column_name}_embedding'] = df_copy[column_name].map(value_to_embedding)
+        
+        # Get embeddings for cluster names
+        unique_cluster_names = list(set(value_to_label.values()))
+        cluster_name_embeddings = _get_embeddings(unique_cluster_names, embedding_model, verbose)
+        cluster_name_to_embedding = dict(zip(unique_cluster_names, cluster_name_embeddings))
+        df_copy[f'{column_name}_fine_cluster_label_embedding'] = df_copy[f'{column_name}_fine_cluster_label'].map(cluster_name_to_embedding)
     
     if verbose:
         n_clusters = len(set(initial_cluster_labels)) - (1 if -1 in initial_cluster_labels else 0)
@@ -471,29 +590,34 @@ def hdbscan_cluster_categories(df, column_name, min_cluster_size=30,
 
 def hierarchical_cluster_categories(df, column_name, n_coarse_clusters=10, n_fine_clusters=50,
                                    embedding_model="openai", verbose=True, 
-                                   include_embeddings=True):
+                                   include_embeddings=True, use_llm_summaries=False, 
+                                   context='properties seen in AI responses',
+                                   input_model_name=None):
     """
-    Traditional agglomerative hierarchical clustering.
+    Basic hierarchical clustering using sklearn's AgglomerativeClustering.
     
-    Best for: Small datasets (<10k unique values), exact cluster counts.
+    Best for: Small to medium datasets with known cluster counts.
     
     Args:
         df: DataFrame containing the data
         column_name: Name of the column to cluster on
-        n_coarse_clusters: Number of broad clusters (default: 10)
-        n_fine_clusters: Number of specific clusters (default: 50)
+        n_coarse_clusters: Number of coarse clusters (default: 10)
+        n_fine_clusters: Number of fine clusters (default: 50)
         embedding_model: Embedding method (default: "openai")
         verbose: Print progress (default: True)
         include_embeddings: Include embeddings in output (default: True)
+        use_llm_summaries: Use LLM to generate cluster summaries (default: False)
+        context: Optional context for LLM summaries (e.g., "properties seen in AI responses")
+        input_model_name: Optional name of the input model being analyzed (for cache differentiation)
     """
     start_time = time.time()
     unique_values = df[column_name].unique()
     unique_strings = [str(value) for value in unique_values]
     
     if verbose:
-        print(f"Agglomerative clustering for {len(unique_values)} unique values...")
+        print(f"Hierarchical clustering for {len(unique_values)} unique values...")
     
-    # Get embeddings
+    # Get embeddings - note: this doesn't use caching yet, could be enhanced
     embeddings = _get_embeddings(unique_strings, embedding_model, verbose)
     embeddings = np.array(embeddings)
     
@@ -504,12 +628,64 @@ def hierarchical_cluster_categories(df, column_name, n_coarse_clusters=10, n_fin
     coarse_clusters = coarse_clustering.fit_predict(embeddings)
     fine_clusters = fine_clustering.fit_predict(embeddings)
     
+    # Create basic mappings
+    value_to_coarse_id = dict(zip(unique_values, coarse_clusters))
+    value_to_fine_id = dict(zip(unique_values, fine_clusters))
+    
+    # Generate cluster labels (either LLM or generic)
+    if use_llm_summaries:
+        if verbose:
+            print("Generating LLM-based cluster summaries...")
+        
+        # Group values by coarse clusters
+        coarse_cluster_values = defaultdict(list)
+        for value, cluster_id in zip(unique_values, coarse_clusters):
+            coarse_cluster_values[cluster_id].append(value)
+        
+        # Group values by fine clusters  
+        fine_cluster_values = defaultdict(list)
+        for value, cluster_id in zip(unique_values, fine_clusters):
+            fine_cluster_values[cluster_id].append(value)
+        
+        # Generate coarse cluster summaries
+        coarse_label_map = {}
+        for cluster_id, values in coarse_cluster_values.items():
+            if len(values) < 5:  # Skip very small clusters
+                coarse_label_map[cluster_id] = f"coarse_cluster_{cluster_id}"
+                continue
+                
+            summary = _get_llm_cluster_summary(values, column_name, "broad", context, 50)
+            coarse_label_map[cluster_id] = summary
+            
+            if verbose:
+                print(f"    Coarse cluster {cluster_id}: {summary} ({len(values)} items)")
+        
+        # Generate fine cluster summaries
+        fine_label_map = {}
+        for cluster_id, values in fine_cluster_values.items():
+            if len(values) < 3:  # Skip very small clusters
+                fine_label_map[cluster_id] = f"fine_cluster_{cluster_id}"
+                continue
+                
+            summary = _get_llm_cluster_summary(values, column_name, "specific", context, 30)
+            fine_label_map[cluster_id] = summary
+            
+            if verbose and cluster_id % 5 == 0:  # Print progress for every 5th cluster
+                print(f"    Fine cluster {cluster_id}: {summary} ({len(values)} items)")
+        
+        value_to_coarse_label = {v: coarse_label_map[c] for v, c in value_to_coarse_id.items()}
+        value_to_fine_label = {v: fine_label_map[c] for v, c in value_to_fine_id.items()}
+    else:
+        # Use generic cluster labels
+        value_to_coarse_label = {v: f"coarse_cluster_{c}" for v, c in value_to_coarse_id.items()}
+        value_to_fine_label = {v: f"fine_cluster_{c}" for v, c in value_to_fine_id.items()}
+    
     # Create output
     df_copy = df.copy()
-    df_copy[f'{column_name}_coarse_cluster_id'] = df_copy[column_name].map(dict(zip(unique_values, coarse_clusters)))
-    df_copy[f'{column_name}_fine_cluster_id'] = df_copy[column_name].map(dict(zip(unique_values, fine_clusters)))
-    df_copy[f'{column_name}_coarse_cluster_label'] = df_copy[f'{column_name}_coarse_cluster_id'].apply(lambda x: f"coarse_cluster_{x}")
-    df_copy[f'{column_name}_fine_cluster_label'] = df_copy[f'{column_name}_fine_cluster_id'].apply(lambda x: f"fine_cluster_{x}")
+    df_copy[f'{column_name}_coarse_cluster_id'] = df_copy[column_name].map(value_to_coarse_id)
+    df_copy[f'{column_name}_fine_cluster_id'] = df_copy[column_name].map(value_to_fine_id)
+    df_copy[f'{column_name}_coarse_cluster_label'] = df_copy[column_name].map(value_to_coarse_label)
+    df_copy[f'{column_name}_fine_cluster_label'] = df_copy[column_name].map(value_to_fine_label)
     
     if include_embeddings:
         value_to_embedding = dict(zip(unique_values, embeddings.tolist()))
@@ -551,7 +727,11 @@ def _get_llm_cluster_summary(values, column_name, cluster_type, context=None, sa
     #     else:
     #         prompt = f"These values are grouped together in a {cluster_type} cluster: {values_text}. Please provide a short (up to 6 words) high-level label that best describes what these values have in common. Do NOT give labels that would apply to all clusters (e.g. 'Properties of AI responses', 'a variety of AI responses')."
     # prompt = f"These are a sample of properties seen in the responses of LLM A but not LLM B for the same prompt. I want to summarize the properties in a way that is easy to understand and use for a user. Please provide a short (up to 10 words) description that best describes most or all of the properties. Remeber that these should still be formatted as properties of model responses that could be seen in the response of model A but not model B for the same prompt. Do NOT give labels that would apply to all clusters (e.g. 'Properties of AI responses', 'a variety of AI responses') or talk about the variation within the cluster (e.g. 'variations of model tone' is not useful but 'enthusiastic tone' is if the majority of the properties mention enthusiasm). Please output your decription and nothing else. Here are the values: {values_text}"
-    prompt = f"""Given a large list of properties seen in the responses of an LLM, I have clustered these properties and now want to come up with a summary of the property that each cluster represents. Below are a list of properties that all belong to the same cluster. Please come up with a clear description (up to 8 words) of a LLM output property that accurately describes most or all of the properties in the cluster. This should be a property of a model response, not a category of properties. For instance "Speaking Tone and Emoji Usage" is a category of properties, but "uses an enthusiastic tone" or "uses emojis" is a property of a model response. Similarily, "various types of reasoning" is a category of properties, but "uses deductive reasoning to solve problems" or "uses inductive reasoning to solve problems" is a property of a model response. Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. 
+    prompt = f"""Given a large list of properties seen in the responses of an LLM, I have clustered these properties and now want to come up with a summary of the property that each cluster represents. Below are a list of properties that all belong to the same cluster. Please come up with a clear description (up to 8 words) of a LLM output property that accurately describes most or all of the properties in the cluster. This should be a property of a model response (up to 6 words), not a category of properties.
+    
+For instance "Speaking Tone and Emoji Usage" is a category of properties, but "uses an enthusiastic tone" or "uses emojis" is a property of a model response. Similarily, "various types of reasoning" is a category of properties, but "uses deductive reasoning to solve problems" or "uses inductive reasoning to solve problems" is a property of a model response. Similarly, descriptions like  "Provides detailed math responses" is not informative because it could be applied to many different clusters, so it is better to describe the property in a way that is specific to the cluster and more informative, even if it does not apply to all properties in the cluster.
+
+Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. 
 
 Output the cluster property description and nothing else.
 
@@ -574,11 +754,135 @@ Here are the values:\n{values_text}"""
         print(f"Warning: Failed to get LLM summary for {cluster_type} cluster: {e}")
         return f"{cluster_type}_cluster_auto"  # Fallback name
 
+def llm_coarse_cluster_from_fine(fine_cluster_names, max_coarse_clusters=15, context=None, verbose=True, model="gpt-4.1"):
+    """
+    Create coarse clusters from fine cluster names using LLM-only approach.
+    
+    Args:
+        fine_cluster_names: List of fine cluster names to group into coarse clusters
+        max_coarse_clusters: Maximum number of coarse clusters to create (default: 15)
+        context: Optional context for the clustering task
+        verbose: Whether to print progress
+        
+    Returns:
+        tuple: (cluster_assignments, coarse_cluster_names) where cluster_assignments maps
+               each fine cluster to a coarse cluster index
+    """
+    if not HAS_LITELLM:
+        raise ImportError("Please install: pip install litellm")
+    
+    if verbose:
+        print(f"Creating coarse clusters from {len(fine_cluster_names)} fine cluster names using LLM...")
+    
+    # Filter out outlier/noise labels
+    valid_fine_names = [name for name in fine_cluster_names if name not in ["Outliers", "outlier", "Noise"]]
+    
+    if len(valid_fine_names) <= max_coarse_clusters:
+        if verbose:
+            print(f"Only {len(valid_fine_names)} valid fine clusters, using 1:1 mapping")
+        # If we have fewer fine clusters than desired coarse clusters, use 1:1 mapping
+        assignments = list(range(len(fine_cluster_names)))
+        coarse_names = fine_cluster_names
+        return assignments, coarse_names
+    
+    fine_names_text = '\n'.join(valid_fine_names)
+    
+    # Create context-aware prompt
+    
+    if context:
+        prompt = f"""Below is a list of fine-grained cluster names, each representing {context}. I want to group these into at most {max_coarse_clusters} broader, coarse-grained clusters. Please create coarse cluster names that capture the higher-level themes and group the fine clusters appropriately.
 
-def _setup_embeddings_with_cache(texts, embedding_model, column_name, cache_embeddings, verbose=False):
+Each coarse cluster name should be a clear, descriptive label (up to 6 words) that encompasses multiple fine clusters. Think about what the most informative label would be for a user to understand the most of the items in each cluster and how they differ from other clusters. Avoid overly broad or vague labels like "includes detailed analysis" which could be applied to more than one cluster. 
+
+Output your final coarse cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+Here are the fine cluster names to group:
+{fine_names_text}"""
+    else:
+        prompt = f"""Below is a list of fine-grained cluster names. I want to group these into at most {max_coarse_clusters} broader, coarse-grained clusters. Please create coarse cluster names that capture the higher-level themes and group the fine clusters appropriately.
+
+    Each coarse cluster name should be a clear, descriptive label (up to 6 words) that encompasses multiple fine clusters. Think about what the most informative label would be for a user to understand the most of the items in each cluster and how they differ from other clusters. Avoid overly broad or vague labels like "includes detailed analysis" which could be applied to more than one cluster. 
+
+Output your final coarse cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+Here are the fine cluster names to group:
+{fine_names_text}"""
+    
+    try:
+        response = litellm.completion(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            caching=True,
+            max_tokens=300
+        )
+        
+        # Parse response into cluster names
+        coarse_cluster_names = [name.strip() for name in response.choices[0].message.content.strip().split('\n') if name.strip()]
+        
+        if verbose:
+            print(f"Generated {len(coarse_cluster_names)} coarse cluster names")
+            for i, name in enumerate(coarse_cluster_names):
+                print(f"  {i}: {name}")
+        
+        # Get embeddings for fine and coarse cluster names
+        fine_embeddings = _get_embeddings(valid_fine_names, "openai", verbose=False)
+        coarse_embeddings = _get_embeddings(coarse_cluster_names, "openai", verbose=False)
+        
+        # Calculate cosine similarities and assign fine clusters to coarse clusters
+        fine_embeddings = np.array(fine_embeddings)
+        coarse_embeddings = np.array(coarse_embeddings)
+        
+        # Normalize embeddings for cosine similarity
+        fine_embeddings = fine_embeddings / np.linalg.norm(fine_embeddings, axis=1, keepdims=True)
+        coarse_embeddings = coarse_embeddings / np.linalg.norm(coarse_embeddings, axis=1, keepdims=True)
+        
+        cosine_similarities = np.dot(fine_embeddings, coarse_embeddings.T)
+        fine_to_coarse_assignments = np.argmax(cosine_similarities, axis=1)
+        
+        # Create full assignment list including outliers
+        full_assignments = []
+        valid_idx = 0
+        for name in fine_cluster_names:
+            if name in ["Outliers", "outlier", "Noise"]:
+                full_assignments.append(-1)  # Keep outliers as outliers
+            else:
+                full_assignments.append(fine_to_coarse_assignments[valid_idx])
+                valid_idx += 1
+        
+        # Add "Outliers" to coarse cluster names if needed
+        if -1 in full_assignments:
+            coarse_cluster_names_with_outliers = coarse_cluster_names + ["Outliers"]
+        else:
+            coarse_cluster_names_with_outliers = coarse_cluster_names
+        
+        if verbose:
+            print("Fine cluster to coarse cluster mapping:")
+            for fine_name, coarse_idx in zip(fine_cluster_names, full_assignments):
+                if coarse_idx == -1:
+                    coarse_name = "Outliers"
+                else:
+                    coarse_name = coarse_cluster_names[coarse_idx]
+                print(f"  '{fine_name}' -> '{coarse_name}'")
+        
+        return full_assignments, coarse_cluster_names_with_outliers
+        
+    except Exception as e:
+        if verbose:
+            print(f"Warning: Failed to generate LLM-based coarse clusters: {e}")
+        # Fallback: create simple numeric coarse clusters
+        assignments = [i % max_coarse_clusters for i in range(len(fine_cluster_names))]
+        coarse_names = [f"coarse_cluster_{i}" for i in range(max_coarse_clusters)]
+        return assignments, coarse_names
+
+def _setup_embeddings_with_cache(texts, embedding_model, column_name, cache_embeddings, verbose=False, input_model_name=None):
     """Setup embeddings with caching support."""
-    # Create cache filename
-    cache_filename = f"embeddings_cache_{column_name}_{embedding_model}_{len(texts)}.pkl"
+    # Create cache filename - include input_model_name if provided to avoid collisions
+    if input_model_name:
+        # Clean the model name for filename usage
+        clean_model_name = input_model_name.replace('/', '_').replace('\\', '_').replace(':', '_')
+        cache_filename = f"embeddings_cache_{column_name}_{embedding_model}_{clean_model_name}_{len(texts)}.pkl"
+    else:
+        cache_filename = f"embeddings_cache_{column_name}_{embedding_model}_{len(texts)}.pkl"
     
     # Try to load from cache first
     if cache_embeddings and os.path.exists(cache_filename):
@@ -595,6 +899,7 @@ def _setup_embeddings_with_cache(texts, embedding_model, column_name, cache_embe
         except Exception as e:
             if verbose:
                 print(f"⚠️ Failed to load cache: {e}. Computing fresh embeddings...")
+    print(f"saving embeddings to cache: {cache_filename}")
     
     # Compute embeddings if not cached
     embeddings, embedding_model_obj = _setup_embeddings(texts, embedding_model, verbose)
@@ -608,6 +913,7 @@ def _setup_embeddings_with_cache(texts, embedding_model, column_name, cache_embe
                 'embeddings': embeddings,
                 'embedding_model_obj': embedding_model_obj,
                 'embedding_model': embedding_model,
+                'input_model_name': input_model_name,
                 'num_texts': len(texts)
             }
             with open(cache_filename, 'wb') as f:
@@ -852,9 +1158,18 @@ def load_clustered_results(parquet_path):
 
 def save_clustered_results(df, base_filename, include_embeddings=True):
     """Save clustered results in multiple formats."""
+
+    os.makedirs(f"cluster_results/{base_filename}", exist_ok=True)
+    
+    # Convert problematic columns to strings
+    df = df.copy()
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            df[col] = df[col].astype(str)
+    
     # Save full results with embeddings
     if include_embeddings:
-        full_path = f"{base_filename}_with_embeddings.parquet"
+        full_path = f"cluster_results/{base_filename}/{base_filename}_with_embeddings.parquet"
         df.to_parquet(full_path, compression='snappy')
         print(f"Saved full results to: {full_path}")
     
@@ -862,9 +1177,9 @@ def save_clustered_results(df, base_filename, include_embeddings=True):
     embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
     df_light = df.drop(columns=embedding_cols) if embedding_cols else df
     
-    light_parquet = f"{base_filename}_lightweight.parquet"
-    light_csv_gz = f"{base_filename}.csv.gz"
-    light_jsonl = f"{base_filename}.jsonl"
+    light_parquet = f"cluster_results/{base_filename}/{base_filename}_lightweight.parquet"
+    light_csv_gz = f"cluster_results/{base_filename}/{base_filename}.csv.gz"
+    light_jsonl = f"cluster_results/{base_filename}/{base_filename}.jsonl"
     
     df_light.to_parquet(light_parquet, compression='snappy')
     df_light.to_csv(light_csv_gz, index=False, compression='gzip')
@@ -973,7 +1288,7 @@ def main():
     parser.add_argument('--method', '-m', choices=['bertopic', 'hdbscan', 'hierarchical'], 
                        default='hdbscan',
                        help='Clustering method (default: hdbscan)')
-    parser.add_argument('--min-cluster-size', type=int, default=30,
+    parser.add_argument('--min-cluster-size', type=int, default=10,
                        help='Minimum cluster size (default: 15)')
     parser.add_argument('--embedding-model', default='openai',
                        help='Embedding model: openai, all-MiniLM-L6-v2, etc. (default: openai)')
@@ -987,7 +1302,7 @@ def main():
                        help='Context for LLM summaries (default: "properties seen in AI responses")')
     parser.add_argument('--max-coarse-topics', type=int, default=40,
                        help='Max coarse topics for BERTopic (default: 40)')
-    parser.add_argument('--max-fine-topics', type=int, default=20,
+    parser.add_argument('--max-fine-topics', type=int, default=50,
                        help='Max fine topics per coarse topic for BERTopic (default: 20)')
     parser.add_argument('--precomputed-embeddings', 
                        help='Path to precomputed embeddings file (.pkl or .npy)')
@@ -999,6 +1314,12 @@ def main():
                        help='Enable hierarchical HDBSCAN clustering (cluster the clusters) (default: False)')
     parser.add_argument('--min-grandparent-size', type=int, default=5,
                        help='Minimum size for grandparent clusters in hierarchical mode (default: 5)')
+    parser.add_argument('--use-llm-coarse-clustering', action='store_true',
+                       help='Use LLM-only approach to create coarse clusters from fine cluster names (default: False)')
+    parser.add_argument('--max-coarse-clusters', type=int, default=15,
+                       help='Maximum coarse clusters when using LLM coarse clustering (default: 15)')
+    parser.add_argument('--input-model-name', 
+                       help='Name of the input model being analyzed (for cache differentiation)')
     
     args = parser.parse_args()
     
@@ -1033,7 +1354,10 @@ def main():
             verbose=True,
             include_embeddings=include_embeddings,
             use_llm_summaries=use_llm_summaries,
-            context=args.context
+            context=args.context,
+            use_llm_coarse_clustering=args.use_llm_coarse_clustering,
+            max_coarse_clusters=args.max_coarse_clusters,
+            input_model_name=args.input_model_name
         )
         method_name = "bertopic"
         
@@ -1051,7 +1375,10 @@ def main():
             enable_dim_reduction=args.enable_dim_reduction,
             assign_outliers=args.assign_outliers,
             hierarchical=args.hierarchical,
-            min_grandparent_size=args.min_grandparent_size
+            min_grandparent_size=args.min_grandparent_size,
+            use_llm_coarse_clustering=args.use_llm_coarse_clustering,
+            max_coarse_clusters=args.max_coarse_clusters,
+            input_model_name=args.input_model_name
         )
         method_name = "hdbscan"
         
@@ -1061,7 +1388,10 @@ def main():
             df, args.column,
             embedding_model=args.embedding_model,
             verbose=True,
-            include_embeddings=include_embeddings
+            include_embeddings=include_embeddings,
+            use_llm_summaries=use_llm_summaries,
+            context=args.context,
+            input_model_name=args.input_model_name
         )
         method_name = "hierarchical"
     
@@ -1146,3 +1476,202 @@ def _generate_llm_summaries(unique_values, coarse_topics, fine_topics, coarse_to
             print(f"    Fine topic {topic_id}: {summary} ({len(values)} items)")
     
     return updated_coarse_info, updated_fine_labels 
+
+# def llm_coarse_cluster_from_fine(fine_cluster_names, max_coarse_clusters=15, context=None, verbose=True):
+#     """
+#     Create coarse clusters from fine cluster names using LLM-only approach.
+    
+#     Args:
+#         fine_cluster_names: List of fine cluster names to group into coarse clusters
+#         max_coarse_clusters: Maximum number of coarse clusters to create (default: 15)
+#         context: Optional context for the clustering task
+#         verbose: Whether to print progress
+        
+#     Returns:
+#         tuple: (cluster_assignments, coarse_cluster_names) where cluster_assignments maps
+#                each fine cluster to a coarse cluster index
+#     """
+#     if not HAS_LITELLM:
+#         raise ImportError("Please install: pip install litellm")
+    
+#     if verbose:
+#         print(f"Creating coarse clusters from {len(fine_cluster_names)} fine cluster names using LLM...")
+    
+#     # Filter out outlier/noise labels
+#     valid_fine_names = [name for name in fine_cluster_names if name not in ["Outliers", "outlier", "Noise"]]
+    
+#     if len(valid_fine_names) <= max_coarse_clusters:
+#         if verbose:
+#             print(f"Only {len(valid_fine_names)} valid fine clusters, using 1:1 mapping")
+#         # If we have fewer fine clusters than desired coarse clusters, use 1:1 mapping
+#         assignments = list(range(len(fine_cluster_names)))
+#         coarse_names = fine_cluster_names
+#         return assignments, coarse_names
+    
+#     fine_names_text = '\n'.join(valid_fine_names)
+    
+#     # Create context-aware prompt
+#     if context:
+#         prompt = f"""Below is a list of fine-grained cluster names, each representing {context}. I want to group these into at most {max_coarse_clusters} broader, coarse-grained clusters. Please create coarse cluster names that capture the higher-level themes and group the fine clusters appropriately.
+
+# Each coarse cluster name should be a clear, descriptive label (up to 8 words) that encompasses multiple fine clusters. Think about what the most informative label would be for a user to understand the most of the items in the cluster. Avoid overly broad or vague labels like "includes detailed analysis". 
+
+# Output your final coarse cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+# Here are the fine cluster names to group:
+# {fine_names_text}"""
+#     else:
+#         prompt = f"""Below is a list of fine-grained cluster names. I want to group these into at most {max_coarse_clusters} broader, coarse-grained clusters. Please create coarse cluster names that capture the higher-level themes and group the fine clusters appropriately.
+
+# Each coarse cluster name should be a clear, descriptive label (up to 8 words) that encompasses multiple fine clusters. Think about the broader categories or themes that emerge from the fine clusters.
+
+# Output your final coarse cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+# Here are the fine cluster names to group:
+# {fine_names_text}"""
+    
+#     try:
+#         response = litellm.completion(
+#             model="gpt-4.1",
+#             messages=[{"role": "user", "content": prompt}],
+#             caching=True,
+#             max_tokens=300
+#         )
+        
+#         # Parse response into cluster names
+#         coarse_cluster_names = [name.strip() for name in response.choices[0].message.content.strip().split('\n') if name.strip()]
+        
+#         if verbose:
+#             print(f"Generated {len(coarse_cluster_names)} coarse cluster names")
+#             for i, name in enumerate(coarse_cluster_names):
+#                 print(f"  {i}: {name}")
+        
+#         # Get embeddings for fine and coarse cluster names
+#         fine_embeddings = _get_embeddings(valid_fine_names, "openai", verbose=False)
+#         coarse_embeddings = _get_embeddings(coarse_cluster_names, "openai", verbose=False)
+        
+#         # Calculate cosine similarities and assign fine clusters to coarse clusters
+#         fine_embeddings = np.array(fine_embeddings)
+#         coarse_embeddings = np.array(coarse_embeddings)
+        
+#         # Normalize embeddings for cosine similarity
+#         fine_embeddings = fine_embeddings / np.linalg.norm(fine_embeddings, axis=1, keepdims=True)
+#         coarse_embeddings = coarse_embeddings / np.linalg.norm(coarse_embeddings, axis=1, keepdims=True)
+        
+#         cosine_similarities = np.dot(fine_embeddings, coarse_embeddings.T)
+#         fine_to_coarse_assignments = np.argmax(cosine_similarities, axis=1)
+        
+#         # Create full assignment list including outliers
+#         full_assignments = []
+#         valid_idx = 0
+#         for name in fine_cluster_names:
+#             if name in ["Outliers", "outlier", "Noise"]:
+#                 full_assignments.append(-1)  # Keep outliers as outliers
+#             else:
+#                 full_assignments.append(fine_to_coarse_assignments[valid_idx])
+#                 valid_idx += 1
+        
+#         # Add "Outliers" to coarse cluster names if needed
+#         if -1 in full_assignments:
+#             coarse_cluster_names_with_outliers = coarse_cluster_names + ["Outliers"]
+#         else:
+#             coarse_cluster_names_with_outliers = coarse_cluster_names
+        
+#         if verbose:
+#             print("Fine cluster to coarse cluster mapping:")
+#             for fine_name, coarse_idx in zip(fine_cluster_names, full_assignments):
+#                 if coarse_idx == -1:
+#                     coarse_name = "Outliers"
+#                 else:
+#                     coarse_name = coarse_cluster_names[coarse_idx]
+#                 print(f"  '{fine_name}' -> '{coarse_name}'")
+        
+#         return full_assignments, coarse_cluster_names_with_outliers
+        
+#     except Exception as e:
+#         if verbose:
+#             print(f"Warning: Failed to generate LLM-based coarse clusters: {e}")
+#         # Fallback: create simple numeric coarse clusters
+#         assignments = [i % max_coarse_clusters for i in range(len(fine_cluster_names))]
+#         coarse_names = [f"coarse_cluster_{i}" for i in range(max_coarse_clusters)]
+#         return assignments, coarse_names
+
+
+def llm_only_cluster_summaries(df, column_name, max_clusters=30, context=None, verbose=True):
+    """
+    Get LLM-based cluster summaries for a column - improved version.
+    
+    Args:
+        df: DataFrame containing the data
+        column_name: Name of the column to cluster on
+        max_clusters: Maximum number of clusters to create (default: 30)
+        context: Optional context describing what the values represent
+        verbose: Whether to print progress
+        
+    Returns:
+        tuple: (cluster_assignments, cluster_names) where cluster_assignments maps
+               each unique value to a cluster index and cluster_names contains the cluster labels
+    """
+    if not HAS_LITELLM:
+        raise ImportError("Please install: pip install litellm")
+        
+    unique_values = df[column_name].unique()
+    unique_strings = [str(value) for value in unique_values]
+    values_text = '\n'.join(unique_strings)
+    
+    if context:
+        prompt = f"""Below is a list of {context}. I want to cluster these into at most {max_clusters} clusters. Please come up with cluster names, where each cluster name is a clear description (up to 6 words) that accurately describes most or all of the items in the cluster.
+
+Think about the natural groupings and themes that emerge from the data. Each cluster should provide a unique insight that is not already provided by the other clusters. Avoid overly broad categories that could apply to most items.
+
+Output your final cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+Here are the values: {values_text}"""
+    else:
+        prompt = f"""Below is a list of values that I want to cluster into at most {max_clusters} clusters. Please come up with cluster names, where each cluster name is a clear description (up to 6 words) that accurately describes most or all of the items in the cluster.
+
+Think about the natural groupings and themes that emerge from the data. Each cluster should provide a unique insight that is not already provided by the other clusters.
+
+Output your final cluster descriptions as a list with each cluster name on a new line. Do not put numbers or bullet points in front of the cluster names. Do not include any other text in your response.
+
+Here are the values: {values_text}"""
+    
+    try:
+        response = litellm.completion(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            caching=True,
+            max_tokens=400
+        )
+        
+        # Parse the response into a list of cluster names
+        cluster_names = [name.strip() for name in response.choices[0].message.content.strip().split('\n') if name.strip()]
+        
+        if verbose:
+            print(f"Generated {len(cluster_names)} cluster names")
+            for i, name in enumerate(cluster_names):
+                print(f"  {i}: {name}")
+        
+        # Embed the strings and the cluster names and assign them based on cosine similarity
+        embeddings = _get_embeddings(unique_strings, "openai", verbose)
+        cluster_embeddings = _get_embeddings(cluster_names, "openai", verbose)
+        
+        embeddings = np.array(embeddings)
+        cluster_embeddings = np.array(cluster_embeddings)
+        
+        # Normalize for cosine similarity
+        embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+        cluster_embeddings = cluster_embeddings / np.linalg.norm(cluster_embeddings, axis=1, keepdims=True)
+        
+        cosine_similarities = np.dot(embeddings, cluster_embeddings.T)
+        cluster_assignments = np.argmax(cosine_similarities, axis=1)
+        
+        return cluster_assignments, cluster_names
+        
+    except Exception as e:
+        if verbose:
+            print(f"Warning: Failed to generate LLM-based clusters: {e}")
+        # Fallback to simple clustering
+        cluster_assignments = [0] * len(unique_values)
+        cluster_names = ["default_cluster"]
+        return cluster_assignments, cluster_names 
