@@ -62,3 +62,22 @@ python post_processing.py --input_file differences/results.jsonl
 which should save it to `differences/results_processed.jsonl`
 
 ## Step 3: Clustering
+
+```
+python hierarchical_clustering.py \
+    --file differences/results_processed.jsonl \
+    --method hdbscan \
+    --hierarchical \
+    --assign-outliers \
+    --enable-dim-reduction \
+    --embedding-model all-MiniLM-L6-v2 \
+    --min-cluster-size 15
+```
+
+## Step 4: visualize clusters
+
+To get an interactive visualization that is probably not broken, run
+<!-- cluster_results/test_processed_hdbscan_clustered/test_processed_hdbscan_clustered_lightweight.parquet -->
+```
+python interactive_cluster_visualization.py --file cluster_results/results_processed_hdbscan_clustered/results_processed_hdbscan_clustered_lightweight.parquet
+```
