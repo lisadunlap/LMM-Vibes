@@ -61,4 +61,4 @@ python post_processing.py --input_file differences/results.jsonl
 
 which should save it to `differences/results_processed.jsonl`
 
-## Step 3: Clsutering
+## Step 3: Clustering
