@@ -18,20 +18,19 @@ sycophancy: excessive or insincere agreement/flattery.
 empathy: acknowledgement of user feelings or perspective.
 humor: light-hearted or witty elements.
 anthropomorphism: attributing human-like qualities to non-human entities.
-assertiveness: confidence vs. hedging.
+assertiveness: confidence in the response, does not hedge or avoid answering.
 directness: straightforwardness and unambiguity.
-conciseness: succinctness; avoid unnecessary detail.
+opinionatedness: presence of a clear opinion or stance. 
 specificity: presence of concrete details vs. vagueness.
 creativity: originality or novel perspective.
-depth: thoroughness in addressing the prompt.
 relevance: focus on the prompt without drift.
-context_awareness: appropriate use of prior context.
-safety: refraining from harmful or risky suggestions.
+hesitation: hesitation or uncertainty in the response, refuses to give a clear opinion.
 refusal_to_answer: refusal to answer the prompt.
 ethical_sensitivity: awareness of ethical implications.
 actionability: presence of concrete next steps or advice.
 user_intent_alignment: how well it matches user's need and tone.
 helpfulness: overall usefulness for the user's goal.
+asks_for_clarification: asks for clarification or more information or feedback on the response.
 engagement: invites further interaction or follow-up.
 transparency: clarity about uncertainties or limitations.
 gen_z: use of slang, emojis, and other modern language features.

@@ -55,7 +55,7 @@ You will be provided with:
 5.  **Model B Response:** The response from Model B.
 
 **Your Goal:**
-Produce a JSON list of objects. Each object will represent a single distinct difference. Focus on **no more than 3-4 of the most significant and impactful differences** a user would notice. If there are fewer than 3 truly significant differences, list only those.
+Produce a JSON list of objects. Each object will represent a single distinct difference. Focus on impactful differences a user would notice. 
 
 **Definitions:**
 *   **General Trait:** Reflects a model's typical behavior across diverse prompts.
@@ -131,7 +131,7 @@ You will be provided with:
 5.  **Model B Response:** The response from Model B.
 
 **Your Goal:**
-Produce a JSON list of objects. Each object will represent a single distinct property observed in one model's response that is notably absent or different in the other's. Focus on identifying up to 3-4 **key areas** of distinction (e.g., tone, depth, style, approach), which may result in up to 6-8 individual property observations in the output list (e.g., Model A's formal tone would be one entry, Model B's casual tone would be another related entry). If there are fewer significant properties, list only those.
+Produce a JSON list of objects. Each object will represent a single distinct property observed in one model's response that is notably absent or different in the other's. Focus on identifying the impactful differences a user would notice. Do NOT include properties that related to detail (e.g. "Model A does a more detailed analysis than Model B") since this can already be measured by the number of tokens in the response.
 
 **Definitions:**
 *   **General Trait:** Reflects a model's typical behavior across diverse prompts.

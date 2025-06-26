@@ -742,6 +742,7 @@ def main():
         epilog="""
 Examples:
   # Analyze single axis
+  
   python bradley_terry_leaderboard.py --data comparisons.jsonl --axis helpfulness
   
   # Analyze with custom bootstrap iterations
