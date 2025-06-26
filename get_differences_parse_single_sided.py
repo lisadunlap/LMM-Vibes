@@ -303,9 +303,9 @@ def main():
                        help='Model 1 file')
     parser.add_argument('--model2_file', type=str, default="disguising/model-responses/base_500_all_models/microsoft_phi-4_responses.csv",
                        help='Model 2 file')
-    parser.add_argument('--model1_name', type=str, default="meta-llama/Llama-3.1-8B-Instruct",
+    parser.add_argument('--model1_name', type=str,
                        help='Model 1 name')
-    parser.add_argument('--model2_name', type=str, default="microsoft/phi-4",
+    parser.add_argument('--model2_name', type=str,
                        help='Model 2 name')
     args = parser.parse_args()
 
@@ -324,10 +324,10 @@ def main():
 
     df1 = pd.read_csv(args.model1_file).drop_duplicates(subset=["prompt", "model_response"])
     df1["prompt"] = df1["prompt"].astype(str).str.replace(r'^"|"$', '', regex=True).str.strip()
-    df1["model"] = args.model1_name
+    # df1["model"] = args.model1_name
     df2 = pd.read_csv(args.model2_file).drop_duplicates(subset=["prompt", "model_response"])
     df2["prompt"] = df2["prompt"].astype(str).str.replace(r'^"|"$', '', regex=True).str.strip()
-    df2["model"] = args.model2_name
+    # df2["model"] = args.model2_name
     df = pd.concat([df1, df2])
     prompts = df["prompt"].unique().tolist()
     models = df["model"].unique().tolist()
@@ -360,14 +360,14 @@ def main():
     # Process prompts in batches of 10 for periodic saving
     new_data = {"prompt": [], "model_1_response": [], "model_2_response": [], "model_1_name": [], "model_2_name": [], "differences": [], "parsed_differences": [], "parse_error": []}
 
-    batch_size = 10
+    batch_size = 100
     for batch_start in range(0, len(prompts), batch_size):
         batch_end = min(batch_start + batch_size, len(prompts))
         batch_prompts = prompts[batch_start:batch_end]
         batch_messages = []
         batch_data = {"prompt": [], "model_1_response": [], "model_2_response": [], "model_1_name": [], "model_2_name": []}
         
-        print(f"Processing batch {batch_start//batch_size + 1}: prompts {batch_start+1}-{batch_end}")
+        print(f"Processing batch {batch_start//batch_size + 1}: prompts {batch_start+1}-{batch_end} / {len(prompts)}")
         
         for prompt in batch_prompts:
             try:
