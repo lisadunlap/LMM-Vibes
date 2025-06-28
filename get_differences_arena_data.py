@@ -2,7 +2,7 @@ import re
 import argparse
 import os
 import json
-from vllm import LLM, SamplingParams
+import ast
 import pandas as pd
 import wandb
 from transformers import AutoTokenizer
@@ -128,6 +128,11 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
 
 def extract_content_from_conversation(conversation):
     """Extract the user prompt and assistant response from conversation format."""
+    # If conversation is a string, parse it as Python literal first
+    if isinstance(conversation, str):
+        # Fix malformed syntax: replace newline+space between dict entries with comma
+        conversation = re.sub(r'}\s*\n\s*{', '}, {', conversation)
+        conversation = ast.literal_eval(conversation)
     
     return conversation[0]['content'], conversation[1]['content']
 
@@ -324,44 +329,49 @@ def main():
     # Make output directory if it doesn't exist
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
 
-    # Load the arena dataset
-    print("Loading arena dataset...")
-    dataset = load_dataset("lmarena-ai/arena-human-preference-100k", split="train")
-    df = dataset.to_pandas()
-    print(f"Loaded {len(df)} battles from arena dataset")
+    # # Load the arena dataset
+    # print("Loading arena dataset...")
+    # dataset = load_dataset("lmarena-ai/arena-human-preference-100k", split="train")
+    # df = dataset.to_pandas()
+    # print(f"Loaded {len(df)} battles from arena dataset")
 
-    # Apply filters
-    if args.filter_english:
-        df = df[df['language'] == 'English']
-        print(f"After English filter: {len(df)} battles")
+    # # Apply filters
+    # if args.filter_english:
+    #     df = df[df['language'] == 'English']
+    #     print(f"After English filter: {len(df)} battles")
 
-    # if args.ties_only:
-    #     df = df[df['winner'].str.contains('tie', na=False)]
-    #     print(f"After ties only filter: {len(df)} battles")
-    # elif args.exclude_ties:
-    #     df = df[~df['winner'].str.contains('tie', na=False)]
-    #     print(f"After excluding ties: {len(df)} battles")
+    # # if args.ties_only:
+    # #     df = df[df['winner'].str.contains('tie', na=False)]
+    # #     print(f"After ties only filter: {len(df)} battles")
+    # # elif args.exclude_ties:
+    # #     df = df[~df['winner'].str.contains('tie', na=False)]
+    # #     print(f"After excluding ties: {len(df)} battles")
     
-    models  = [
-        'claude-3-5-sonnet-20240620',
-        'gpt-4o-2024-05-13',
-        'gemini-1.5-pro-api-0514',
-        'llama-3-70b-instruct',
-        'gemini-1.5-pro-exp-0801',
-        'claude-3-opus-20240229',
-        'llama-3.1-405b-instruct',
-        'chatgpt-4o-latest',
-        'gpt-4-turbo-2024-04-09',
-        'deepseek-v2-api-0628',
-        'gpt-4o-2024-08-06',
-        ]
+    # models  = [
+    #     'claude-3-5-sonnet-20240620',
+    #     'gpt-4o-2024-05-13',
+    #     'gemini-1.5-pro-api-0514',
+    #     'llama-3-70b-instruct',
+    #     'gemini-1.5-pro-exp-0801',
+    #     'claude-3-opus-20240229',
+    #     'llama-3.1-405b-instruct',
+    #     'chatgpt-4o-latest',
+    #     'gpt-4-turbo-2024-04-09',
+    #     'deepseek-v2-api-0628',
+    #     'gpt-4o-2024-08-06',
+    #     ]
     
-    df = df[df['model_a'].isin(models) & df['model_b'].isin(models)]
-    print(f"After model filter: {len(df)} battles")
+    # df = df[df['model_a'].isin(models) & df['model_b'].isin(models)]
+    # print(f"After model filter: {len(df)} battles")
 
-    # Remove rows with missing conversation data
-    df = df.dropna(subset=['conversation_a', 'conversation_b'])
-    print(f"After removing missing conversations: {len(df)} battles")
+    # # Remove rows with missing conversation data
+    # df = df.dropna(subset=['conversation_a', 'conversation_b'])
+    # print(f"After removing missing conversations: {len(df)} battles")
+
+    df = pd.read_csv("out/filtered_conversations_and_category.csv")
+    # only keep the "narrower_category_id"==1 in df
+    df = df[df['narrower_category_id'] == 5] #Unrestricted AI and Ethical Boundaries
+    print(f"After category filter: {len(df)} battles")
 
     # Limit to specified number of samples
     if args.num_samples and args.num_samples < len(df):
@@ -381,6 +391,11 @@ def main():
     else:
         # Initialize LLM for non-OpenAI models
         print(f"Initializing vLLM: {args.model_name}")
+        try:
+            from vllm import LLM, SamplingParams
+        except ImportError:
+            raise ImportError("vLLM is required for non-OpenAI models. Install with: pip install vllm")
+        
         llm = LLM(
             model=args.model_name,
             tokenizer=args.model_name,
