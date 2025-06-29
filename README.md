@@ -1,3 +1,6 @@
+# Step 0: Cluster Prompts
+Add category labels (broad_category_id	broad_category	narrower_category_id	narrower_category) to each prompt in the dataframe.
+
 # Step 1:Get Differences
 
 This tool analyzes and identifies key differences between two language models' responses to the same prompt. It processes data from the Arena dataset to extract meaningful comparisons.
