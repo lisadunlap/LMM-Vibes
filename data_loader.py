@@ -1,9 +1,17 @@
 import pandas as pd
 from datasets import load_dataset
+import ast
+import re
 
 
 def _extract_content_arena(conversation):
     """Extract content for standard arena data."""
+    # If conversation is a string, parse it as Python literal first
+    if isinstance(conversation, str):
+        # Fix malformed syntax: replace newline+space between dict entries with comma
+        conversation = re.sub(r'}\s*\n\s*{', '}, {', conversation)
+        conversation = ast.literal_eval(conversation)
+    
     return conversation[0]["content"], conversation[1]["content"]
 
 
@@ -70,8 +78,24 @@ def load_webdev_data(args):
 
     return df, _extract_content_webdev, "webdev_system_prompt_no_examples"
 
+def load_arena_coding_data(args):
+    """Loads and preprocesses the coding arena dataset."""
+    print("Loading coding arena dataset...")
+    df = pd.read_csv("out/filtered_conversations_and_category.csv")
+    print(f"Loaded {len(df)} battles from coding arena dataset")
+    df = df[df['narrower_category_id'] == 0] 
+    return df, _extract_content_arena, "coding_system_prompt"
 
-DATASET_LOADERS = {"arena": load_arena_data, "webdev": load_webdev_data}
+
+def load_arena_fictional_data(args):
+    """Loads and preprocesses the fictional arena dataset."""
+    print("Loading fictional arena dataset...")
+    df = pd.read_csv("out/filtered_conversations_and_category.csv")
+    print(f"Loaded {len(df)} battles from fictional arena dataset")
+    df = df[df['narrower_category_id'] == 1] 
+    return df, _extract_content_arena, "fictional_system_prompt"
+
+DATASET_LOADERS = {"arena": load_arena_data, "webdev": load_webdev_data, "coding": load_arena_coding_data, "fictional": load_arena_fictional_data}
 
 
 def load_data(dataset_name, args):

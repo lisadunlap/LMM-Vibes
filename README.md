@@ -1,6 +1,12 @@
 # Step 0: Cluster Prompts
 Add category labels (broad_category_id	broad_category	narrower_category_id	narrower_category) to each prompt in the dataframe.
 
+```bash
+python cluster_prompts.py \
+  --save-path './test' \
+  --min-cluster-size 50 
+```
+
 # Step 1:Get Differences
 
 This tool analyzes and identifies key differences between two language models' responses to the same prompt. It processes data from various Arena datasets to extract meaningful comparisons.
@@ -41,6 +47,31 @@ python generate_differences.py \
   --model_name gpt-4o-mini \
   --exclude_ties \
   --output_file differences/webdev_results.csv
+```
+
+Process coding dataset:
+```bash
+python generate_differences.py \
+  --dataset coding \
+  --num_samples 100 \
+  --model_name gpt-4o-mini \
+  --output_file differences/coding_results_no_example.csv
+```
+
+```bash
+python generate_differences.py \
+  --dataset coding \
+  --num_samples 100 \
+  --model_name gpt-4o-mini \
+  --output_file differences/coding_results.csv
+```
+
+```bash
+python generate_differences.py \
+  --dataset fictional \
+  --num_samples 100 \
+  --model_name gpt-4o-mini \
+  --output_file differences/fictional_results.csv
 ```
 
 ### Advanced Usage
@@ -117,7 +148,19 @@ With the output file, run post_processing.py to get it in the right format for c
 python post_processing.py --input_file differences/arena_results.jsonl
 ```
 
-This should save it to `differences/arena_results_processed.jsonl`
+```bash
+python post_processing.py --input_file differences/coding_results_no_example.jsonl
+```
+
+```bash
+python post_processing.py --input_file differences/coding_results.jsonl
+```
+
+```bash
+python post_processing.py --input_file differences/fictional_results.jsonl
+```
+
+This should save it to f`{input_file}_processed.jsonl`
 
 ## Step 3: Clustering
 
@@ -132,6 +175,17 @@ python hierarchical_clustering.py \
     --min-cluster-size 15
 ```
 
+```bash
+python hierarchical_clustering.py \
+    --file differences/coding_results_processed.jsonl \
+    --method hdbscan \
+    --hierarchical \
+    --assign-outliers \
+    --enable-dim-reduction \
+    --embedding-model all-MiniLM-L6-v2 \
+    --min-cluster-size 2
+```
+
 ## Step 4: Visualize Clusters
 
 To get an interactive visualization, run:
@@ -139,4 +193,9 @@ To get an interactive visualization, run:
 ```bash
 python interactive_cluster_visualization.py \
     --file cluster_results/arena_results_processed_hdbscan_clustered/arena_results_processed_hdbscan_clustered_lightweight.parquet
+```
+
+```bash
+python interactive_cluster_visualization.py \
+    --file cluster_results/coding_results_processed_hdbscan_clustered/coding_results_processed_hdbscan_clustered_lightweight.parquet
 ```

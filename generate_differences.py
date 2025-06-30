@@ -1,7 +1,6 @@
 import argparse
 import os
 import json
-from vllm import LLM, SamplingParams
 import pandas as pd
 import wandb
 from transformers import AutoTokenizer
@@ -15,6 +14,9 @@ from prompts import (
     webdev_system_prompt,
     one_sided_system_prompt_no_examples,
     webdev_system_prompt_no_examples,
+    coding_system_prompt,
+    coding_system_prompt_no_examples,
+    fictional_system_prompt,
 )
 from data_loader import load_data
 
@@ -184,7 +186,7 @@ def main():
         "--dataset",
         type=str,
         required=True,
-        choices=["arena", "webdev"],
+        choices=["arena", "webdev", "coding", "fictional"],
         help="Name of the dataset to process.",
     )
     parser.add_argument("--num_samples", type=int, help="Number of battles to process.")
@@ -253,6 +255,9 @@ def main():
         "one_sided_system_prompt_no_examples": one_sided_system_prompt_no_examples,
         "webdev_system_prompt": webdev_system_prompt,
         "webdev_system_prompt_no_examples": webdev_system_prompt_no_examples,
+        "coding_system_prompt": coding_system_prompt,
+        "coding_system_prompt_no_examples": coding_system_prompt_no_examples,
+        "fictional_system_prompt": fictional_system_prompt,
     }
 
     df, extract_content_from_conversation, system_prompt_name = load_data(
@@ -379,8 +384,14 @@ def main():
         print(f"Using OpenAI API for model: {args.model_name}")
         tokenizer = AutoTokenizer.from_pretrained("gpt2")
         llm = None
+        sampling_params = None
     else:
         print(f"Initializing vLLM: {args.model_name}")
+        try:
+            from vllm import LLM, SamplingParams
+        except ImportError:
+            raise ImportError("vLLM is required for non-OpenAI models. Install with: pip install vllm")
+        
         llm = LLM(
             model=args.model_name,
             tokenizer=args.model_name,
@@ -388,12 +399,11 @@ def main():
             tensor_parallel_size=args.tensor_parallel_size,
         )
         tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-
-    sampling_params = SamplingParams(
-        max_tokens=args.max_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-    ) if not use_openai else None
+        sampling_params = SamplingParams(
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
     
     # new_data = {
     #     "question_id": [], "user_prompt": [], "model_a_name": [], "model_b_name": [],

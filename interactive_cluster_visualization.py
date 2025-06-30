@@ -40,11 +40,13 @@ def create_interactive_bar_chart(df, column_name, title=None, save_path=None):
     if coarse_label_col not in df.columns or fine_label_col not in df.columns:
         raise ValueError(f"Required columns not found. Need {coarse_label_col} and {fine_label_col}")
     
-    # Prepare data - filter out outliers clusters
+    # Prepare data - get all coarse clusters
     all_coarse_counts = df[coarse_label_col].value_counts().sort_values(ascending=False).to_dict()
-    # Filter out clusters containing "outliers" (case-insensitive)
-    coarse_counts = {k: v for k, v in all_coarse_counts.items() 
-                    if 'outliers' not in str(k).lower()}
+    # Only filter out "outliers" if there are other meaningful clusters; if it's the only cluster, keep it
+    coarse_counts = all_coarse_counts
+    if len(all_coarse_counts) > 1:
+        coarse_counts = {k: v for k, v in all_coarse_counts.items() 
+                        if str(k).lower().strip() != 'outliers'}
     
     # Get fine clusters for each coarse cluster
     fine_by_coarse = {}
@@ -53,9 +55,11 @@ def create_interactive_bar_chart(df, column_name, title=None, save_path=None):
     for coarse_label in coarse_counts.keys():
         coarse_subset = df[df[coarse_label_col] == coarse_label]
         all_fine_counts = coarse_subset[fine_label_col].value_counts().sort_values(ascending=False).to_dict()
-        # Filter out fine clusters containing "outliers" (case-insensitive)
-        fine_counts = {k: v for k, v in all_fine_counts.items() 
-                      if 'outliers' not in str(k).lower()}
+        # Only filter out "outliers" if there are other meaningful clusters; if it's the only cluster, keep it
+        fine_counts = all_fine_counts
+        if len(all_fine_counts) > 1:
+            fine_counts = {k: v for k, v in all_fine_counts.items() 
+                          if str(k).lower().strip() != 'outliers'}
         fine_by_coarse[coarse_label] = fine_counts
         
         # Get sample values for each fine cluster

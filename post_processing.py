@@ -34,12 +34,30 @@ def main():
     # Load and process data
     df = pd.read_json(args.input_file, lines=True)
     new_df = df.explode("parsed_differences")
-    new_df.rename(columns={
-        "model_a_name": "model_1_name",
-        "model_b_name": "model_2_name",
-        "model_a_response": "model_1_response",
-        "model_b_response": "model_2_response"
-    }, inplace=True)
+    # new_df.rename(columns={
+    #     "model_a_name": "model_1_name",
+    #     "model_b_name": "model_2_name",
+    #     "model_a_response": "model_1_response",
+    #     "model_b_response": "model_2_response"
+    # }, inplace=True)
+    # Flexible column renaming - handle both "model_a_name" and "model_a" cases
+    rename_mapping = {}
+    if "model_a_name" in new_df.columns:
+        rename_mapping["model_a_name"] = "model_1_name"
+    elif "model_a" in new_df.columns:
+        rename_mapping["model_a"] = "model_1_name"
+        
+    if "model_b_name" in new_df.columns:
+        rename_mapping["model_b_name"] = "model_2_name"
+    elif "model_b" in new_df.columns:
+        rename_mapping["model_b"] = "model_2_name"
+        
+    if "model_a_response" in new_df.columns:
+        rename_mapping["model_a_response"] = "model_1_response"
+    if "model_b_response" in new_df.columns:
+        rename_mapping["model_b_response"] = "model_2_response"
+    
+    new_df.rename(columns=rename_mapping, inplace=True)
     new_df = new_df[new_df["parsed_differences"].apply(lambda x: isinstance(x, dict))]
     behaviors = pd.DataFrame(new_df["parsed_differences"].tolist())
 
