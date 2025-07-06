@@ -330,6 +330,55 @@ class LLMJsonParser(PipelineStage):
         pass
 ```
 
+### 5.4 Metrics Stage
+
+The metrics stage computes how strongly each model exhibits different behavioral properties compared to its peers in side-by-side comparisons:
+
+```python
+from lmmvibes.metrics import SideBySideMetrics
+
+# Configure metrics computation
+metrics_stage = SideBySideMetrics(output_dir="outputs/metrics")
+
+# Run on clustered dataset
+result = metrics_stage(dataset)
+
+# Access computed statistics
+for model_name, stats in result.model_stats.items():
+    print(f"\nModel: {model_name}")
+    
+    # Fine-grained cluster metrics
+    for stat in stats["fine"][:5]:  # Top 5 clusters
+        print(f"  • {stat.property_description}")
+        print(f"    Score: {stat.score:.2f} | Size: {stat.size} | Proportion: {stat.proportion:.3f}")
+        print(f"    Examples: {stat.examples}")
+    
+    # Coarse cluster metrics (if hierarchical clustering was used)
+    if "coarse" in stats:
+        for stat in stats["coarse"][:3]:
+            print(f"  Coarse: {stat.property_description} (score: {stat.score:.2f})")
+```
+
+**Metric Definition:**
+- `proportion(model, cluster)` = (# questions where model shows cluster behavior) / (# questions answered by model)
+- `score(model, cluster)` = proportion(model, cluster) / median_proportion(all_models, cluster)
+
+A score > 1 means the model is **over-represented** in that cluster, score < 1 means **under-represented**.
+
+**Output Files:**
+The stage automatically writes JSONL files for each model containing all cluster statistics:
+- `{model_name}_fine_metrics.jsonl` - Fine-grained cluster metrics
+- `{model_name}_coarse_metrics.jsonl` - Coarse cluster metrics (if hierarchical)
+
+Each ModelStats object contains:
+- `property_description`: Cluster label/description
+- `model_name`: Name of the model
+- `score`: Relative score compared to other models
+- `size`: Number of properties in this cluster for this model
+- `proportion`: Fraction of model's responses showing this behavior
+- `examples`: Up to 3 example property IDs from this cluster
+- `metadata`: Additional cluster information (ID, level, global size)
+
 ---
 
 ## 6. Pipeline orchestration (advanced use)
@@ -626,28 +675,28 @@ With this README you have both:
 
 ### ✅ Already implemented in the new package
 
-* Core data objects (`ConversationRecord`, `Property`, `PropertyDataset`)
+* Core data objects (`ConversationRecord`, `Property`, `PropertyDataset`, `ModelStats`)
 * `PipelineStage` interface & `Pipeline` / `PipelineBuilder`
 * Mixin stack (Logging, Timing, ErrorHandling, Wandb, Cache) using the new *mixin-first* pattern
 * Working stages
   * `OpenAIExtractor` (rewritten from `generate_differences.py`)
   * `LLMJsonParser` (from `post_processing.py`)
   * `PropertyValidator`
+  * `HDBSCANClusterer` (from `clustering/hierarchical_clustering.py`)
+  * `SideBySideMetrics` (computes model behavior scores for each cluster)
 * End-to-end `explain()` public API with wandb logging
-* Tests: extraction → parsing integration, mix-in initialisation
+* Tests: extraction → parsing → clustering → metrics integration
 * **Interactive Streamlit viewer** (`lmmvibes.viz.interactive_app`)
 
 ### 🔜 Still to integrate from the original notebooks / scripts
 
 | Component | Source file | Target module |
 |-----------|-------------|---------------|
-| HDBSCAN clustering logic | `clustering/hierarchical_clustering.py` | `lmmvibes.clusterers.hdbscan` |
-| Native / hierarchical clustering | same | `lmmvibes.clusterers.hdbscan_native_hierarchical` |
-| Metrics computation | ad-hoc in notebooks | `lmmvibes.metrics.side_by_side`, `single_model` |
+| Native / hierarchical clustering | `clustering/hierarchical_clustering.py` | `lmmvibes.clusterers.hdbscan_native_hierarchical` |
+| Single model metrics | ad-hoc in notebooks | `lmmvibes.metrics.single_model` |
 | Batch & vLLM extractors | `generate_differences.py` / `vllm` | `lmmvibes.extractors.batch`, `vllm` |
 | Data-loader helpers | `data_loader.py` | `lmmvibes.datasets.*` (arena, webdev, etc.) |
 | CLI + YAML runner | n/a | `lmmvibes.cli` |
-| Streamlit / viz | n/a | `lmmvibes.viz` |
 | Comprehensive test suite | n/a | `tests/` |
 
 Nice-to-have polish after migration:
