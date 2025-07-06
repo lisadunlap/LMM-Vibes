@@ -2,3 +2,6 @@ cluster_results/*
 random_data/*
 wandb/*
 differences/*
+
+__pycache__/
+**/__pycache__/

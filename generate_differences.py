@@ -23,7 +23,7 @@ def format_example(
     user_prompt, model_a_name, model_a_response, model_b_name, model_b_response
 ):
     """Format the arena data into the expected format for the LLM."""
-    return f"Prompt: {user_prompt}\n{model_a_name} response: {model_a_response}\n\n{model_b_name} response: {model_b_response}"
+    return f"Prompt: {user_prompt}\n\n{model_a_name} response: {model_a_response}\n\n{model_b_name} response: {model_b_response}"
 
 
 def remove_thinking_from_output(output):
