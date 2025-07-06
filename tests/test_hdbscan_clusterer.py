@@ -33,26 +33,8 @@ def test_hdbscan_clusterer_basic():
     # Save clustering results to file
     result.save("tests/outputs/hdbscan_clustered_results.parquet", format="parquet")
 
-    print(result.to_dataframe(type="clusters").columns)
-
-    # print("result.properties ", result.properties[0])
-
-    # Build a DataFrame from Property objects with all relevant keys and cluster info
-    prop_df = pd.DataFrame([
-        {
-            "question_id": p.question_id,
-            "model": p.model,
-            "property_description": p.property_description,
-            "fine_cluster_id": getattr(p, "fine_cluster_id", None),
-            "fine_cluster_label": getattr(p, "fine_cluster_label", None),
-            "coarse_cluster_id": getattr(p, "coarse_cluster_id", None),
-            "coarse_cluster_label": getattr(p, "coarse_cluster_label", None),
-        }
-        for p in result.properties if p.property_description
-    ])
-
     # Convert clustered PropertyDataset to DataFrame
-    df = result.to_dataframe()
+    df = result.to_dataframe(type="clusters")
     print("results cols ", df.columns)
 
     # Save the enriched DataFrame

@@ -30,6 +30,7 @@ def test_first_10_arena_rows():
 
     # get properties
     dataset = PropertyDataset.from_dataframe(first10, method="side_by_side")
+    print("..done loading properties")
 
     # ------------------------------------------------------------------
     # Extract, parse and save results WITH wandb (preferred path)
@@ -42,7 +43,7 @@ def test_first_10_arena_rows():
 
     dataset_after_extract = extractor(dataset)
     dataset_after_parse = parser(dataset_after_extract)
-    print(f"Dataset after parse: {dataset_after_parse}")
+    # print(f"Dataset after parse: {dataset_after_parse}")
 
     # ------------------------------------------------------------
     # Save results for downstream clustering / analysis

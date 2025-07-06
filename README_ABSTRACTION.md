@@ -56,7 +56,7 @@ class ConversationRecord:
     scores: Dict[str, Any]     # {score_name: score_value}
     meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc.
 
-@dataclass
+@dataclass  
 class Property:
     """An extracted behavioral property from a model response."""
     id: str
@@ -568,7 +568,7 @@ def test_hdbscan_clusterer_basic():
             
     # Save results for inspection
     result.save("tests/outputs/hdbscan_clustered_results.parquet", format="parquet")
-    
+
     # Create detailed CSV for manual review
     df = result.to_dataframe(type="clusters")
     df.to_csv("tests/outputs/property_with_clusters.csv", index=False)

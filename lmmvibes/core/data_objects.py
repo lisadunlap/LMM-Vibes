@@ -16,15 +16,15 @@ class ConversationRecord:
     """A single conversation with prompt, responses, and metadata."""
     question_id: str
     prompt: str
-    model: str | tuple[str, str]  # model name(s) - single string or tuple for side-by-side comparisons
-    responses: str | tuple[str, str] # {model_name: response}
+    model: str | List[str]  # model name(s) - single string or tuple for side-by-side comparisons
+    responses: str | List[str] # {model_name: response}
     scores: Dict[str, Any]     # {score_name: score_value}
     meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc.
 
 @dataclass
 class Property:
     """An extracted behavioral property from a model response."""
-    id: str
+    id: str # unique id for the property
     question_id: str
     model: str
     # Parsed fields (filled by LLMJsonParser)
@@ -73,6 +73,20 @@ class Cluster:
 
     def to_dict(self):
         return asdict(self)
+    
+@dataclass
+class ModelStats:
+    """Model statistics."""
+    property_description: str # name of proprty cluster (either fine or coarse)
+    model_name: str # name of model we are comparing
+    score: float # score of the property cluster
+    size: int # number of properties in the cluster
+    proportion: float # proportion of all properties that are in the cluster
+    examples: List[str] # example property id's in the cluster
+    metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
+
+    def to_dict(self):
+        return asdict(self)
 
 @dataclass
 class PropertyDataset:
@@ -100,7 +114,7 @@ class PropertyDataset:
             PropertyDataset with populated conversations
         """
         conversations = []
-        
+        print("LISA ITS HERE", df.columns)
         if method == "side_by_side":
             all_models = list(set(df["model_a"].unique().tolist() + df["model_b"].unique().tolist()))
             # Expected columns: question_id, prompt, model_a, model_b, 
@@ -109,8 +123,8 @@ class PropertyDataset:
                 conversation = ConversationRecord(
                     question_id=str(row.get('question_id', row.name)),
                     prompt=str(row.get('prompt', row.get('user_prompt', ''))),
-                    model=(row.get('model_a', 'model_a'), row.get('model_b', 'model_b')),
-                    responses=(row.get('model_a_response', ''), row.get('model_b_response', '')),
+                    model=[row.get('model_a', 'model_a'), row.get('model_b', 'model_b')],
+                    responses=[row.get('model_a_response', ''), row.get('model_b_response', '')],
                     scores=row.get('score', {}),
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model_a', 'model_b', 
@@ -187,31 +201,30 @@ class PropertyDataset:
                     prop_map[key] = []
                 prop_map[key].append(prop)
             
-            # Add property columns
-            property_cols = [
-                'property_description', 'category', 'type', 'impact', 
-                'reason', 'evidence', 'contains_errors', 'unexpected_behavior', 'user_preference_direction'
-            ]
-            
             # create property df
             prop_df = pd.DataFrame([p.to_dict() for p in self.properties])
             print("len df before merge ", len(df))
-            print("prop_df ", prop_df.columns)
-            df = df.merge(prop_df, on="question_id", how="left")
+            df = df.merge(prop_df, on="question_id", how="left").drop_duplicates(subset="id")
             print("len df after merge ", len(df))
-            print("df ", df.columns)
 
         if self.clusters and type in ["all", "clusters"]:
-            # create cluster df
-            cluster_df = pd.DataFrame([c.to_dict() for c in self.clusters])
-            cluster_df.rename(columns={"id": "fine_cluster_id", "label": "fine_cluster_label", "size": "fine_cluster_size", "parent_id": "coarse_cluster_id", "parent_label": "coarse_cluster_label", "property_descriptions": "property_description"}, inplace=True)
-            cluster_df = cluster_df.explode("property_description")
-            print("len df before merge ", len(df))
-            print("cluster_df ", cluster_df.columns)
-            print("df ", df.columns)
-            df = df.merge(cluster_df, on=["property_description"], how="left")
-            print("len df after merge ", len(df))
-            print("df ", df.columns)
+            # If cluster columns already exist (e.g. after reload from parquet)
+            # skip the merge to avoid duplicate _x / _y columns.
+            if "fine_cluster_id" not in df.columns:
+                cluster_df = pd.DataFrame([c.to_dict() for c in self.clusters])
+                cluster_df.rename(
+                    columns={
+                        "id": "fine_cluster_id",
+                        "label": "fine_cluster_label",
+                        "size": "fine_cluster_size",
+                        "parent_id": "coarse_cluster_id",
+                        "parent_label": "coarse_cluster_label",
+                        "property_descriptions": "property_description",
+                    },
+                    inplace=True,
+                )
+                cluster_df = cluster_df.explode("property_description")
+                df = df.merge(cluster_df, on=["property_description"], how="left")
         
         return df
     
@@ -298,5 +311,46 @@ class PropertyDataset:
             if not isinstance(obj, cls):
                 raise TypeError("Pickle file does not contain a PropertyDataset object")
             return obj
+        elif fmt == "parquet":
+            # Load DataFrame and reconstruct minimal PropertyDataset with clusters
+            import pandas as pd
+            df = pd.read_parquet(path)
+
+            # Attempt to detect method
+            method = "side_by_side" if {"model_a", "model_b"}.issubset(df.columns) else "single_model"
+
+            dataset = cls.from_dataframe(df, method=method)
+
+            # Reconstruct Cluster objects if cluster columns are present
+            required_cols = {
+                "fine_cluster_id",
+                "fine_cluster_label",
+                "property_description",
+            }
+            if required_cols.issubset(df.columns):
+                clusters_dict = {}
+                for _, row in df.iterrows():
+                    fid = row["fine_cluster_id"]
+                    if pd.isna(fid):
+                        continue
+                    cluster = clusters_dict.setdefault(
+                        fid,
+                        Cluster(
+                            id=int(fid),
+                            label=row.get("fine_cluster_label", str(fid)),
+                            size=0,
+                            parent_id=row.get("coarse_cluster_id"),
+                            parent_label=row.get("coarse_cluster_label"),
+                        ),
+                    )
+                    cluster.size += 1
+                    pd_desc = row.get("property_description")
+                    if pd_desc and pd_desc not in cluster.property_descriptions:
+                        cluster.property_descriptions.append(pd_desc)
+                    cluster.question_ids.append(str(row.get("question_id", "")))
+
+                dataset.clusters = list(clusters_dict.values())
+
+            return dataset
         else:
             raise ValueError(f"Unsupported format: {format}. Use 'json' or 'pickle'.") 

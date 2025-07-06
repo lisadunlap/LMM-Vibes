@@ -109,7 +109,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             prop = Property(
                 id=str(uuid.uuid4()),
                 question_id=conv.question_id,
-                model="_raw_",       # placeholder, updated after parsing
+                model=conv.model,   
                 raw_response=raw,
             )
             properties.append(prop)

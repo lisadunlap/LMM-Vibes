@@ -5943,9 +5943,9 @@
   ],
   "properties": [
     {
-      "id": "8d67f13b-f9c7-4f05-aeb3-8ccf1f85d71f",
+      "id": "84b79a95-3a38-41c0-8258-6c89b7e33fe5",
       "question_id": "4c37f081d7104e2498a0ef0d47191b8e",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Provides a complete implementation with CORS setup and handling.",
       "category": "Completeness",
       "type": "General",
@@ -5958,9 +5958,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "73ee6d8d-9138-485a-ac3e-a519d21ad717",
+      "id": "57b0396a-6fd9-41be-a6b4-f3862366cae9",
       "question_id": "4c37f081d7104e2498a0ef0d47191b8e",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Incorporates database handling with SQLAlchemy for message persistence.",
       "category": "Technical Correctness",
       "type": "General",
@@ -5973,9 +5973,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "60e51ddf-d17f-4633-8c0e-70664a3812a6",
+      "id": "9bd21b25-e4c0-4736-b14b-114c5c36a8d5",
       "question_id": "4c37f081d7104e2498a0ef0d47191b8e",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Uses a simple state management approach without an ID for messages.",
       "category": "Design Approach",
       "type": "General",
@@ -5988,9 +5988,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "be128de1-ac1c-4639-a2cd-b99d0ecb3456",
+      "id": "ec6af3d4-8788-4eba-9ec0-eda91eff979c",
       "question_id": "4c37f081d7104e2498a0ef0d47191b8e",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Includes an explicit mention of potential additional features for a production app.",
       "category": "User Experience",
       "type": "Context-Specific",
@@ -6003,9 +6003,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d9aa013d-e8fc-40ba-b724-ddf9945fe019",
+      "id": "f30bec3e-4db7-46b7-83e9-fa4a818d5e8c",
       "question_id": "c021d629adf3459980c1a3c343e1e5d6",
-      "model": "unknown",
+      "model": "claude-3-opus-20240229",
       "property_description": "Demonstrates a clear focus on a single character's decision-making process without involving external perspectives.",
       "category": "Narrative Focus",
       "type": "General",
@@ -6018,9 +6018,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a467b896-5129-4664-90d8-48f299bdc4e4",
+      "id": "be194433-7f53-4a25-a794-837173e19f7e",
       "question_id": "c021d629adf3459980c1a3c343e1e5d6",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Incorporates multiple perspectives and the impact of decisions on others, enhancing narrative depth.",
       "category": "Perspective Inclusion",
       "type": "General",
@@ -6033,9 +6033,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7e10e3e2-1d48-48d9-b004-377408f5bcf8",
+      "id": "ceaab557-ee75-4072-ab60-cbf0a095fe64",
       "question_id": "de14521704b748358f561e96ef257920",
-      "model": "unknown",
+      "model": "llama-3-70b-instruct",
       "property_description": "Incorporates complex philosophical concepts and terminology, showcasing a deeper engagement with the subject matter.",
       "category": "Depth of Reasoning",
       "type": "General",
@@ -6048,9 +6048,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "70a5822f-9393-4c27-8cdc-92ae5659600a",
+      "id": "1b5f0602-8e5a-4e5e-95fa-b7c83eb8c5a0",
       "question_id": "de14521704b748358f561e96ef257920",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Emphasizes the emotional aspect of the concept of 'waifu', making it more relatable.",
       "category": "Emotional Engagement",
       "type": "General",
@@ -6063,9 +6063,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "baaf2c83-5d28-4c61-b009-5f7f892b22cd",
+      "id": "2f24a07f-87e7-4cb2-ba0d-04a0c38f3ad0",
       "question_id": "d2ebdb6f534847be937a5bb6fb6f7148",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides a nuanced analysis with multiple viewpoints on the statement's validity.",
       "category": "Reasoning Quality",
       "type": "Context-Specific",
@@ -6078,9 +6078,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8e74b87d-7eaa-4eef-a883-8f487ce3b679",
+      "id": "dbe2de8d-a22a-41d7-81ef-a77d10eceacd",
       "question_id": "d2ebdb6f534847be937a5bb6fb6f7148",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Offers clear agreement with the statement while acknowledging historical debates.",
       "category": "Clarity",
       "type": "General",
@@ -6093,9 +6093,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "04a9d226-379c-44c1-a4c0-425fa6240d9d",
+      "id": "38aa443c-e097-45a2-b235-948f4dbb525a",
       "question_id": "d2ebdb6f534847be937a5bb6fb6f7148",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Highlights the importance of alliances with other social classes for revolutionary success.",
       "category": "Reasoning Quality",
       "type": "Context-Specific",
@@ -6108,9 +6108,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a7436186-e85f-4758-8c26-42800e0ce7d0",
+      "id": "a8c564af-4ede-42a6-8774-17712916cd5c",
       "question_id": "ccdaf90ba67841909e6101fe3d0de6a3",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides extensive guidance on where to find financial data and key metrics for comparison.",
       "category": "Guidance and Resources",
       "type": "General",
@@ -6123,9 +6123,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1c1891cb-a2ab-4984-a8d8-a927e6c4fcb4",
+      "id": "385646b1-ba40-4a29-ae8b-64ec7276a7d2",
       "question_id": "ccdaf90ba67841909e6101fe3d0de6a3",
-      "model": "unknown",
+      "model": "claude-3-opus-20240229",
       "property_description": "Highlights the differences in industry sectors, explaining the challenges of direct comparison.",
       "category": "Industry Awareness",
       "type": "General",
@@ -6138,9 +6138,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d50a581f-c956-4368-8626-7bb61898f0be",
+      "id": "b9e80df1-a04a-4060-a8d7-590d402dbde4",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides detailed insights about Hugo Touvron's research focus, contributions, and impact in AI.",
       "category": "Detailing/Completeness",
       "type": "General",
@@ -6153,9 +6153,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8a4cc2bb-0a27-4970-924d-c0e2479e6e58",
+      "id": "c655237a-3dcf-4a86-a166-6aef4bd45c51",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Mentions a lack of access to a search engine, limiting the response's depth.",
       "category": "Limitation/Clarity",
       "type": "Context-Specific",
@@ -6168,9 +6168,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "268afb9d-bc26-42fc-8c3c-b2c4163dec45",
+      "id": "2592fa4a-24c3-4002-a067-3baf586d91c6",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a more general interpretation of political statements without specific context.",
       "category": "Interpretation Quality",
       "type": "General",
@@ -6183,9 +6183,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3bc2fe53-a33f-437a-af80-2e87eadb8e96",
+      "id": "407c1119-48b9-405c-8b1c-ed45c1e6561f",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "Provides detailed historical context regarding events mentioned (721, 831).",
       "category": "Historical Context",
       "type": "General",
@@ -6198,9 +6198,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a35b7b02-f712-4582-bb52-12b5fc2d403d",
+      "id": "771385d8-5422-4089-9660-f1546de0bacb",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "Incorporates a more thorough exploration of potential reasons for the user's move.",
       "category": "Reasoning Quality",
       "type": "General",
@@ -6213,9 +6213,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "de00f825-12e5-461a-9f08-924dde669f8d",
+      "id": "2319c4ea-9f54-449c-b52d-e9a977c31e4f",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Encourages user engagement by requesting personal information to tailor suggestions.",
       "category": "User Engagement",
       "type": "Context-Specific",
@@ -6228,9 +6228,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c083187d-8ebe-4470-919a-be3d16b30d38",
+      "id": "dc560227-06a0-4dec-890c-224e2b378ca2",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a concise list of methods without engaging the user for additional input.",
       "category": "Response Style",
       "type": "General",
@@ -6243,9 +6243,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6431060a-0979-4849-8d6f-85619836eb4e",
+      "id": "3751667f-d778-422d-bcc0-5deb853ee2df",
       "question_id": "7a4b454ad9724bf3bccdedb583f440dc",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "The response provides a broader context by discussing the standard Monty Hall problem compared to the specific scenario given.",
       "category": "Reasoning Quality",
       "type": "General",
@@ -6258,9 +6258,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "072e1745-28f5-4b7f-a107-d5579fe43bac",
+      "id": "a64e4d2b-c9a6-45d5-9e89-91d3910b37db",
       "question_id": "7a4b454ad9724bf3bccdedb583f440dc",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "The response is structured with a clear breakdown of the steps involved in the scenario, enhancing clarity.",
       "category": "Presentation Style",
       "type": "Context-Specific",
@@ -6273,9 +6273,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "dcdcc5b9-e542-4c3c-a37d-98976d40edbe",
+      "id": "f26e0fc7-c4c7-475f-821b-3d071e0e8c68",
       "question_id": "b949ffc12cab4bdeb1128996863998c3",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Incorporates virtual and augmented reality as a trend in lighting design.",
       "category": "Capabilities",
       "type": "Context-Specific",
@@ -6288,9 +6288,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "98a1be44-951a-4d98-8665-ece982f6e821",
+      "id": "992d4281-ea4f-4e04-b090-c616162e2dc7",
       "question_id": "b949ffc12cab4bdeb1128996863998c3",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Emphasizes the need for compliance documentation regarding sustainability standards.",
       "category": "Capabilities",
       "type": "General",
@@ -6303,9 +6303,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d6a70459-35f8-4372-b66a-7a8161838665",
+      "id": "e349e195-6794-48d5-b7aa-9e902bea61da",
       "question_id": "b949ffc12cab4bdeb1128996863998c3",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Suggests a more interactive and data-driven approach to client consultations.",
       "category": "User Experience",
       "type": "Context-Specific",
@@ -6318,9 +6318,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5391ec0c-81d7-481e-b5e1-b45377e563f9",
+      "id": "1788788c-89db-4756-843c-f8007c409e06",
       "question_id": "49c7498b6b3c4db58e095a51ddfc4eaa",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Includes a detailed explanation of the TikZ code structure and parameters used for drawing.",
       "category": "Clarity",
       "type": "General",
@@ -6333,9 +6333,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "29bd51f0-5398-48ff-b8d7-030263b380c0",
+      "id": "c0926663-32d6-46b6-ac65-280d5af0a6d9",
       "question_id": "49c7498b6b3c4db58e095a51ddfc4eaa",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Utilizes custom RGB color definitions for the Olympic rings, enhancing visual accuracy.",
       "category": "Capabilities",
       "type": "General",
@@ -6348,9 +6348,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "680e2bc8-fb2c-4c23-932c-546c33a9c1ec",
+      "id": "e0c13f46-e72c-4fad-8883-20f04fd93da5",
       "question_id": "49c7498b6b3c4db58e095a51ddfc4eaa",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Implements a clipping technique to create overlaps between the rings, enhancing visual realism.",
       "category": "Capabilities",
       "type": "Context-Specific",
@@ -6363,9 +6363,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e323525a-f72f-4769-b326-4b05d9972d5b",
+      "id": "c87ee0be-db06-43fa-975a-694264d54e17",
       "question_id": "0efc35f6c35e491094c8f399a2520944",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Correctly identifies the learning objective related to the relationship between structure and function in cells.",
       "category": "Capability",
       "type": "General",
@@ -6378,9 +6378,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9ce1bc25-c663-4f70-a9d6-f138b3c59b1f",
+      "id": "8a5f92b7-dae5-41ea-a707-9f3970188b29",
       "question_id": "0efc35f6c35e491094c8f399a2520944",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Aligns Q1 with an objective related to intermolecular forces instead of molecular structure.",
       "category": "Capability",
       "type": "General",
@@ -6393,9 +6393,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0c998e44-ade7-4305-b639-6c139c6b9636",
+      "id": "f9b332d0-9f0d-4032-8051-567288c8cd87",
       "question_id": "0efc35f6c35e491094c8f399a2520944",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Correctly aligns Q2 with a learning objective about gene alteration and its effects on protein function.",
       "category": "Capability",
       "type": "General",
@@ -6408,9 +6408,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2e4a3cb4-1d75-4555-942f-834e0cbbae21",
+      "id": "4d5b41d4-0215-4bf9-9614-8c92d8be6f0a",
       "question_id": "5f78381a99334d549b742caa30ad3f14",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Request for additional details to refine the response.",
       "category": "User Engagement",
       "type": "Context-Specific",
@@ -6423,9 +6423,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "52305e30-4b3c-4925-8e1d-241798dabd9b",
+      "id": "a678af67-efb1-433f-88b4-84ad94c80856",
       "question_id": "5f78381a99334d549b742caa30ad3f14",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Assumes a specific focus on vehicle steering systems without further user input.",
       "category": "Assumption",
       "type": "General",
@@ -6438,9 +6438,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a6df5acc-a98c-463f-be83-4d286d000c17",
+      "id": "ab75af83-3ac6-4766-9d4c-73382100f86c",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Emphasizes the challenge of tracing quotes and suggests external resources for further research.",
       "category": "Research Guidance",
       "type": "General",
@@ -6453,9 +6453,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "20965091-a7b5-4380-88b4-46ddd0318912",
+      "id": "5f3de916-1ec8-4a92-a5ca-9b161d2cb5d4",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Proposes two possible origins for the quote, expanding the interpretative possibilities.",
       "category": "Interpretation",
       "type": "General",
@@ -6468,9 +6468,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "95dc888e-8726-4eb1-a566-b50978015420",
+      "id": "240beb78-38da-4d59-a26b-447b8193784b",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Asks for additional context to better assist in identifying the quote's source.",
       "category": "User Engagement",
       "type": "Context-Specific",
@@ -6483,9 +6483,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7e3f0572-3c15-4136-8c69-d3a09f8494d8",
+      "id": "a41662ba-d545-48b2-ac57-751f01b27bc5",
       "question_id": "633add3b87044d4d96f20adf9c90ec9b",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "Provides a more detailed breakdown of the organizational structure and roles within the court.",
       "category": "Detailing",
       "type": "General",
@@ -6498,9 +6498,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "cee04cf9-573e-46a1-86b7-d0d52f5157c5",
+      "id": "77185f77-aceb-44d2-a7da-96d46d7551b4",
       "question_id": "633add3b87044d4d96f20adf9c90ec9b",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Highlights the age diversity and experience levels of the workforce, indicating a mix of senior and junior staff.",
       "category": "Workforce Composition",
       "type": "Context-Specific",
@@ -6513,9 +6513,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9b2958d6-4268-497a-893e-78d54eacc302",
+      "id": "636953e6-bc2d-482e-9199-a2d8d9433c25",
       "question_id": "633add3b87044d4d96f20adf9c90ec9b",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Mentions specific numbers of IT personnel, suggesting a clear view of resource allocation.",
       "category": "Resource Allocation",
       "type": "Context-Specific",
@@ -6528,9 +6528,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c239345c-e776-41b4-825d-fdb400ff146f",
+      "id": "343f466f-86a3-4beb-9741-69b21aed2d4c",
       "question_id": "4d41f461c31746d0b80301a2e657e9d2",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Uses a more formal greeting and inquiry.",
       "category": "Tone",
       "type": "Context-Specific",
@@ -6543,9 +6543,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5c285352-3d27-41cf-837f-94a81ee69b28",
+      "id": "7bd3db01-fd8c-4698-86aa-391f309faec3",
       "question_id": "4d41f461c31746d0b80301a2e657e9d2",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "Utilizes a casual greeting and inquiry.",
       "category": "Tone",
       "type": "Context-Specific",
@@ -6558,9 +6558,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "bbd8f579-9c85-4e1e-aaba-66f1c6b54b8c",
+      "id": "41d63ad0-2907-4ea1-8ed6-e50a93f75cb4",
       "question_id": "032e2829bb7b4418be8d11db3eea37bf",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Provides detailed explanations on the implications of SSL inspection, including privacy concerns and certificate management complexities.",
       "category": "Detailing",
       "type": "Context-Specific",
@@ -6573,9 +6573,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8f5ba26a-7861-41c0-956c-d9d073e8c0b9",
+      "id": "487eb7ab-fddc-41ee-96d5-f9ddcef0dfd7",
       "question_id": "032e2829bb7b4418be8d11db3eea37bf",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Emphasizes performance optimization as a use case for SSL termination, highlighting its practical benefits.",
       "category": "Use Case Focus",
       "type": "General",
@@ -6588,9 +6588,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "891d2c5d-a776-412d-99e5-27025c24c596",
+      "id": "40bd937c-d29f-437f-a651-2530a8827a28",
       "question_id": "032e2829bb7b4418be8d11db3eea37bf",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Organizes information in a structured breakdown format, making it easier to follow.",
       "category": "Organization",
       "type": "General",
@@ -6603,9 +6603,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "80cafdb4-8521-4d5b-80a5-3f768b6158d1",
+      "id": "becd43f7-d01a-4927-8d08-26655e94381d",
       "question_id": "b8830696ada84e6cb78de08fed209c7a",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Emphasizes security and privacy concerns related to sensitive data and user code.",
       "category": "Security Awareness",
       "type": "General",
@@ -6618,9 +6618,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9414af1b-1db6-422f-8a62-a1fc7499134f",
+      "id": "d29e20f4-4a16-4850-b319-890fc8f9857f",
       "question_id": "b8830696ada84e6cb78de08fed209c7a",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Highlights the limitations of Copilot's context understanding and domain knowledge.",
       "category": "Context Limitations",
       "type": "General",
@@ -6633,9 +6633,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3031605a-3193-4b8b-b988-3a731f3e9336",
+      "id": "d386fa40-38fd-44d1-ab2d-b54327ddd7f9",
       "question_id": "b8830696ada84e6cb78de08fed209c7a",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Addresses the resource usage implications of using Copilot.",
       "category": "Resource Awareness",
       "type": "General",
@@ -6648,9 +6648,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3aac8867-c3c5-41ac-a8dc-b8f636dc7cd5",
+      "id": "8908ed8e-486f-41f4-bbfe-dfc59d1d31bc",
       "question_id": "880f61800ec14c8285125af6df7f671c",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Provides a detailed step-by-step guide for implementing biometric data protection, including specific examples of code and configuration.",
       "category": "Detailing",
       "type": "General",
@@ -6663,9 +6663,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b76fe093-1041-443b-ac6c-2d563a857e14",
+      "id": "7c9bbe63-b449-4620-ba6b-5e1cfffe913f",
       "question_id": "880f61800ec14c8285125af6df7f671c",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Mentions alternative libraries for biometric authentication and provides additional security measures, such as data encryption and authentication attempts limitation.",
       "category": "Alternative Solutions",
       "type": "Context-Specific",
@@ -6678,9 +6678,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1dbe45f1-0f81-4c76-b756-8a90ceff8d7e",
+      "id": "cf49a77f-0390-4e92-a90f-4c8864f805fb",
       "question_id": "880f61800ec14c8285125af6df7f671c",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Includes specific instructions for modifying the Info.plist file, which is crucial for iOS applications using biometric features.",
       "category": "Technical Detail",
       "type": "Context-Specific",
@@ -6693,9 +6693,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3b35c5fc-52db-4e5d-841d-9c7b31098c3c",
+      "id": "394b1ea9-6d6f-49d6-a0f6-fc6c8e1177e3",
       "question_id": "ec0867fc9df7457d80ac862f8be3019b",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Incorporates 3D scaling transformation for cells based on distance from center.",
       "category": "Capabilities",
       "type": "General",
@@ -6708,9 +6708,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5c4af52b-4693-4526-8673-0c506ac06fc5",
+      "id": "0faf45f2-8c75-424c-a493-2c1b4c48fc04",
       "question_id": "ec0867fc9df7457d80ac862f8be3019b",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Uses a straightforward approach to adjust cell sizes based on distance without 3D effects.",
       "category": "Style",
       "type": "General",
@@ -6723,9 +6723,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9d4be7f5-d03e-4c6c-8b49-830c103d6cab",
+      "id": "ad121ab5-c844-4259-b796-a1d28babfe6b",
       "question_id": "175e2ea5dec14b319f76bc38f5a4eac4",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a more extensive list of job titles without grouping them by categories.",
       "category": "Completeness",
       "type": "General",
@@ -6738,9 +6738,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "77f56e9e-5539-4c8d-acbc-f049927dc66d",
+      "id": "b90673a5-620a-4416-a6b8-71e3cf11617b",
       "question_id": "175e2ea5dec14b319f76bc38f5a4eac4",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Emphasizes key skills associated with the job titles, enhancing practical utility.",
       "category": "User Experience",
       "type": "Context-Specific",
@@ -6753,9 +6753,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "03832e5b-71a8-4e6d-8c74-954685681a7a",
+      "id": "fe241e5a-e265-4d5a-ab1e-6fbf4c6958cd",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Clarifies that the event has not occurred yet, providing a specific time frame.",
       "category": "Factual Clarity",
       "type": "General",
@@ -6768,9 +6768,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9e202cb2-f7cf-45b3-bd12-fc8ba07c69b1",
+      "id": "bb6f8f3d-740e-4f02-880a-0e0fea338259",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Proposes a hypothetical function call that would be used if it had tool access.",
       "category": "Tool Use",
       "type": "Context-Specific",
@@ -6783,9 +6783,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9a9aa9b9-cbb0-47a5-9542-dc176219eb71",
+      "id": "dab89ea5-ceaf-4e1c-8c59-6e0d1d4866bf",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Provides a specific example of what the raw result from a tool might look like.",
       "category": "Example Clarity",
       "type": "Context-Specific",
@@ -6798,9 +6798,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "045596a3-86be-4e4b-93b8-50e264b97780",
+      "id": "e02c06f2-901f-4106-8941-5c0ed93fa5fe",
       "question_id": "9a9732227da548cab57e90535459d53e",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Utilizes a persuasive, promotional tone with a clear call to action.",
       "category": "Tone",
       "type": "General",
@@ -6813,9 +6813,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "91f08ea9-050d-4d1a-9771-032cad0510d3",
+      "id": "46a8f3c5-25dc-4c31-b9d0-ee357cb15240",
       "question_id": "9a9732227da548cab57e90535459d53e",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Emphasizes sensory experience with vivid imagery and descriptive language.",
       "category": "Style",
       "type": "General",
@@ -6828,9 +6828,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5220a0d5-b139-4f07-9c50-0c939b6d4363",
+      "id": "ed69ea7c-2586-440b-a9a4-9b3fa5a0542a",
       "question_id": "0c12be7ebd174ef28a2a402cc292c34c",
-      "model": "unknown",
+      "model": "llama-3-70b-instruct",
       "property_description": "Provides a detailed narrative of Kakyoin's absence and return, including his possession and coma.",
       "category": "Detailing",
       "type": "General",
@@ -6843,9 +6843,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "94c4f6ef-2015-4df4-8195-5be40f78ec41",
+      "id": "8a3c996f-e3e3-46cf-9ee4-bcd8937cd127",
       "question_id": "0c12be7ebd174ef28a2a402cc292c34c",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Focuses on Kakyoin's eye injury caused by Geb's attack, highlighting the injury's effect on his return.",
       "category": "Focus on Injury",
       "type": "Context-Specific",
@@ -6858,9 +6858,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6c50882c-ff61-4e22-b08e-8eac25732e1d",
+      "id": "411c4e7f-3506-4c0a-8c74-de9af4b15f3b",
       "question_id": "cd9ca0c0160e46df80d50f287c14a41f",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Emphasizes tags related to audience and quality, suggesting a wider range of audience-targeted tags.",
       "category": "Tag Strategy",
       "type": "General",
@@ -6873,9 +6873,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7428fd38-877c-4a7e-b30b-b705042b1a9d",
+      "id": "bddf60c4-8714-49e0-beed-c82e95d9c55f",
       "question_id": "cd9ca0c0160e46df80d50f287c14a41f",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Includes a diverse array of technical and thematic tags, enhancing the specificity for different contexts.",
       "category": "Tag Specificity",
       "type": "General",
@@ -6888,9 +6888,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ae875b32-28f1-4392-b671-69db58042ce0",
+      "id": "a4f7ede3-7422-4064-9ebc-ef8bed0c52da",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Staff member's clumsiness is exaggerated through frequent filler words and uncertainty in responses.",
       "category": "Clumsiness",
       "type": "General",
@@ -6903,9 +6903,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "23b03f07-a6fb-4388-8754-cdceae23dabd",
+      "id": "38ef0073-a986-4c36-af4b-63d919a85e11",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Exhibitor's impatience is expressed through sharper, more sarcastic remarks.",
       "category": "Impatience",
       "type": "General",
@@ -6918,9 +6918,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b87afa9a-ce9c-4401-a834-52b6bbcd8da2",
+      "id": "e3d9fa8e-1eb3-4f96-9539-2686f10492b4",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Staff member presents ideas with slightly more coherence despite clumsiness.",
       "category": "Clarity",
       "type": "General",
@@ -6933,9 +6933,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9bb70aa2-4c26-4696-b2cf-2bbce6a94b72",
+      "id": "c6ed0f61-796e-42d3-9088-6d36036379e9",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Exhibitor's reaction includes direct questioning of staff's competence.",
       "category": "Harshness",
       "type": "Context-Specific",
@@ -6948,9 +6948,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3a9b819f-9019-4d0c-8568-ecbd98c5e482",
+      "id": "c6ed75ba-9458-4b55-9575-06e24026a3ea",
       "question_id": "1bdf211b511841c58e52d23c52d07513",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-exp-0801",
       "property_description": "Provides specific restaurant recommendations with addresses, enhancing practicality.",
       "category": "Practicality",
       "type": "General",
@@ -6963,9 +6963,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "333eb1c5-9304-4e26-9965-9df51c35cf67",
+      "id": "ff9dfb3d-6145-40a7-aff2-ae0b3ac536de",
       "question_id": "1bdf211b511841c58e52d23c52d07513",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Emphasizes cultural and historical context with detailed descriptions of landmarks.",
       "category": "Contextual Detail",
       "type": "General",
@@ -6978,9 +6978,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ae7331db-2bce-4b4c-aa56-e10c6311d476",
+      "id": "ca6dc599-d75d-405f-8265-1cd6bd431a95",
       "question_id": "1bdf211b511841c58e52d23c52d07513",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Includes a nighttime activity suggestion, enhancing the itinerary's completeness.",
       "category": "Completeness",
       "type": "Context-Specific",
@@ -6993,9 +6993,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "50b35817-00d1-48a9-8119-0adc13322295",
+      "id": "08ed9bb2-34d2-48fa-b201-406a235dc1f9",
       "question_id": "1bdf211b511841c58e52d23c52d07513",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-exp-0801",
       "property_description": "Offers practical tips about booking tickets in advance to avoid queues.",
       "category": "User Guidance",
       "type": "Context-Specific",
@@ -7008,9 +7008,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "776b71a7-daa0-44dd-a344-e64d5485a43d",
+      "id": "e763de3b-3e8b-46fd-acb2-a93fd0436f8f",
       "question_id": "f37b211eb6b6427d81f0bf526068711f",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-exp-0801",
       "property_description": "More direct offer of assistance with a simpler greeting.",
       "category": "Style",
       "type": "General",
@@ -7023,9 +7023,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1e9b867c-7f09-45ee-a4cb-fd3f635035c4",
+      "id": "ba59ff5b-c690-4057-8501-08eb4ddc7e0b",
       "question_id": "f37b211eb6b6427d81f0bf526068711f",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Engages the user with a question about their well-being.",
       "category": "Style",
       "type": "General",
@@ -7038,9 +7038,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0d98f8c1-2aae-4a2f-8c4b-739967861ee0",
+      "id": "90a5943b-3cba-4cf8-be66-73a6a6500e9b",
       "question_id": "bb3fad9df10741a98aa31ba74598d8c6",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Includes detailed comments explaining each code section.",
       "category": "Clarity",
       "type": "General",
@@ -7053,9 +7053,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "723d2479-aa22-4300-802b-e38ecdd067ad",
+      "id": "a64ee576-b937-4559-8e83-a242d98f7412",
       "question_id": "bb3fad9df10741a98aa31ba74598d8c6",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Demonstrates a wider variety of example data in the config file.",
       "category": "Completeness",
       "type": "General",
@@ -7068,9 +7068,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "91b75e30-aa72-4035-bca3-3b2790d8bcb5",
+      "id": "98afca8e-bc0d-42a6-b145-0c6a613d972b",
       "question_id": "bb3fad9df10741a98aa31ba74598d8c6",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Includes iteration over all sections and keys in the config file.",
       "category": "Utility",
       "type": "Context-Specific",
@@ -7083,9 +7083,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0312a2da-57b5-4177-993e-a82938eac84c",
+      "id": "f49705bf-0fae-4293-aacb-fa9d9e137fba",
       "question_id": "f753ae3774ae42dd8a9312b9868af616",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Response is concise and directly answers the question without unnecessary elaboration.",
       "category": "Clarity",
       "type": "General",
@@ -7098,9 +7098,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "71d4e731-118a-4778-aace-08ae441772b4",
+      "id": "d3c8576f-d1f9-48ae-a15e-c5b8c90c9aab",
       "question_id": "f753ae3774ae42dd8a9312b9868af616",
-      "model": "unknown",
+      "model": "claude-3-opus-20240229",
       "property_description": "Includes a detailed, step-by-step explanation of the reasoning behind the answer.",
       "category": "Reasoning Quality",
       "type": "General",
@@ -7113,9 +7113,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c8947263-48f7-41a6-a973-2f2a37bbfa1e",
+      "id": "fadfacab-6d83-4c71-a3d2-3ec6e8b970ac",
       "question_id": "35f576dafbbf484d9d99f1e3303a155a",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Uses a more complex and vivid imagery in the poem.",
       "category": "Style",
       "type": "General",
@@ -7128,9 +7128,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0c8b21ba-5e33-4e4f-bd1b-32722c0dc887",
+      "id": "715c94f0-30a0-4491-a16a-3e2562f5b2b7",
       "question_id": "35f576dafbbf484d9d99f1e3303a155a",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Maintains a consistent theme focused on nature and simplicity.",
       "category": "Style",
       "type": "General",
@@ -7143,9 +7143,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0bcd8599-93eb-49dc-b31a-b9a0d47e4d6d",
+      "id": "7c07ae8c-81e0-441c-a4f4-e2c23c679853",
       "question_id": "35f576dafbbf484d9d99f1e3303a155a",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Demonstrates a more elaborate structure with diverse sentence flow.",
       "category": "Capabilities",
       "type": "General",
@@ -7158,9 +7158,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "fff47eed-6ce1-4337-80aa-3867018770e6",
+      "id": "a774a21d-623b-4137-85cb-34f4e9079cab",
       "question_id": "35f576dafbbf484d9d99f1e3303a155a",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Focuses on a single flower, providing a concentrated theme.",
       "category": "Style",
       "type": "General",
@@ -7173,9 +7173,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "24fb08c5-b2b3-4d86-a1c4-c55823ec5c61",
+      "id": "708dbb8a-6169-4932-84d9-c0d15843f24d",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Focus on personal preference and subjective appeal regarding the dish.",
       "category": "User Experience",
       "type": "Context-Specific",
@@ -7188,9 +7188,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "810150fe-1e42-4228-b76b-e3a57b5d1859",
+      "id": "a79f3fe1-4313-4965-85de-61614a0ded72",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Detailed preparation steps for making the pizza.",
       "category": "Capabilities",
       "type": "Context-Specific",
@@ -7203,9 +7203,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "14baec32-f66d-4a52-9ece-77079cf6b550",
+      "id": "aad59345-df0c-4f2b-bdb4-7b4be47f3d50",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Inclusion of optional ingredients and variations for the pizza.",
       "category": "Capabilities",
       "type": "General",
@@ -7218,9 +7218,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c3ef65cd-f134-4a0a-af82-3c41a61e0ac3",
+      "id": "3cf62195-c5e6-463f-8377-53ebab9abdd7",
       "question_id": "e4ede1d18eae48798a8b3094eeff0b83",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a broader explanation of the sampling process, including potential pitfalls and strategies.",
       "category": "Detail Level",
       "type": "General",
@@ -7233,9 +7233,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5bd075e9-9dfe-44ba-a96b-8196429d7eb6",
+      "id": "536922f6-8e07-4d6b-a78b-844c0ac0e1ce",
       "question_id": "e4ede1d18eae48798a8b3094eeff0b83",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Emphasizes the mechanics of calculating the advantage function and the stability of the PPO algorithm.",
       "category": "Technical Depth",
       "type": "General",
@@ -7248,9 +7248,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b3562c0a-8b69-4a01-8818-f0540678433d",
+      "id": "f2936a5b-eae9-44ea-8807-38e0e059f27b",
       "question_id": "d863627d220f4c8d866a3b2f41982c3f",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Offers a more engaging and open-ended invitation for further interaction.",
       "category": "User Engagement",
       "type": "General",
@@ -7263,9 +7263,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1bc82013-9314-47a7-a366-e90523411bc3",
+      "id": "296dcbef-6847-457c-b3ee-c06f1687024b",
       "question_id": "6c77d267a7434adebdd7630c1b27497d",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Emphasizes caution and respect regarding sensitive topics.",
       "category": "Tone",
       "type": "General",
@@ -7278,9 +7278,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "83f5cd38-1da4-4e9e-9f57-7e14715a0d8b",
+      "id": "17a78286-678b-4454-b5a3-50852e906178",
       "question_id": "6c77d267a7434adebdd7630c1b27497d",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Encourages creative exploration and artistic representation.",
       "category": "Engagement",
       "type": "Context-Specific",
@@ -7293,9 +7293,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "49015e10-04c0-4399-8633-5510765beaf3",
+      "id": "607fd3f1-f5f6-4520-8263-e51254c4cafd",
       "question_id": "6c77d267a7434adebdd7630c1b27497d",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Provides multiple creative avenues for expression.",
       "category": "Capabilities",
       "type": "Context-Specific",
@@ -7308,9 +7308,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6f98cba6-bb47-4f11-8767-17414c0e3e01",
+      "id": "173a728f-23de-43d3-b45d-316f6b0e1368",
       "question_id": "dda2c726642d4e3497ce81bbd0e127d9",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Provides a detailed explanation of each primitive type along with their ranges and uses.",
       "category": "Detail Level",
       "type": "General",
@@ -7323,9 +7323,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "651c9421-f650-47fc-b9dd-2c6c01830871",
+      "id": "8d1463ed-0d3a-4089-885f-534b96c0c2a3",
       "question_id": "dda2c726642d4e3497ce81bbd0e127d9",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Includes additional data structures like pointers, arrays, slices, maps, structs, interfaces, and channels.",
       "category": "Coverage",
       "type": "General",
@@ -7338,9 +7338,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2c1e6626-d4c5-43cd-b9b5-e1dff0749bf1",
+      "id": "6faa965e-5f57-4574-9319-8ce7223a9e5b",
       "question_id": "4c4955f03b4d4e33bec154c92c016ba8",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Includes specific details about the show's educational content and its interactive nature.",
       "category": "Completeness",
       "type": "General",
@@ -7353,9 +7353,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b5f79198-7fd4-4827-abcb-cbc96d072bfb",
+      "id": "6abaea79-0928-427a-b4c3-42b57246066c",
       "question_id": "4c4955f03b4d4e33bec154c92c016ba8",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "Highlights the series' focus on literacy and numeracy skills more explicitly.",
       "category": "Completeness",
       "type": "General",
@@ -7368,9 +7368,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c44d75da-9fe2-4ed6-b986-5b3688c50da2",
+      "id": "dab9dba8-00a2-430e-9283-3bb638ae99b6",
       "question_id": "4c4955f03b4d4e33bec154c92c016ba8",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Mentions the live-action film adaptation in detail.",
       "category": "Completeness",
       "type": "Context-Specific",
@@ -7383,9 +7383,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3e09eaa0-7b0a-4122-b097-23c6e897bb2f",
+      "id": "a9478a66-a133-4bf1-9b7a-c5df83fbbbfb",
       "question_id": "4c4955f03b4d4e33bec154c92c016ba8",
-      "model": "unknown",
+      "model": "gpt-4-turbo-2024-04-09",
       "property_description": "More concise in describing the show’s main elements without excessive detail.",
       "category": "Style",
       "type": "General",
@@ -7398,9 +7398,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "717dd267-f4c7-4ba2-92ed-6b78678d3705",
+      "id": "20c182d0-0c39-44cc-9eac-3d29b8300896",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Provides a structured analysis with clear subsections, enhancing readability and understanding.",
       "category": "Presentation Style",
       "type": "General",
@@ -7413,9 +7413,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7f46c490-72f4-4bb0-bbbf-9daa6974adea",
+      "id": "9f1af095-7d6a-4d8a-b4ca-2daf1d654c8a",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Includes a detailed level of confidence (99.99999%) for predictions, demonstrating precision in forecasting.",
       "category": "Capabilities",
       "type": "Context-Specific",
@@ -7428,9 +7428,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9514e67b-0676-42c5-95f2-cc550b8bcc88",
+      "id": "f4131870-eeda-4690-a27c-d7b244fa6a61",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Emphasizes a broad range of advanced analytical techniques and mathematical concepts.",
       "category": "Capabilities",
       "type": "General",
@@ -7443,9 +7443,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "993e292c-336d-426c-9aa7-b32bbd347eae",
+      "id": "6cfd1412-fa9f-4f13-ad4f-8511942d2c8f",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Offers a comprehensive discussion of fundamental limitations of predictability in complex systems.",
       "category": "User Experience",
       "type": "General",
@@ -7458,9 +7458,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e4c01ad0-e54d-48c7-a802-2df171b19acb",
+      "id": "95717c7c-54c8-4935-9528-b2636d734b5f",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Explicitly mentions future improvements and potential directions for model enhancements.",
       "category": "User Experience",
       "type": "General",
@@ -7473,9 +7473,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b75ef1c0-a11b-4963-98a2-d86a2f5a095b",
+      "id": "db3ff48b-5e59-443a-a97d-14d8bd5c2c71",
       "question_id": "ec2027492b574239b20e10ec18b55192",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Prioritizes privacy by not revealing specific predicted numbers.",
       "category": "Safety/Alignment",
       "type": "General",
@@ -7488,9 +7488,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "aad5522c-54d4-4daf-a752-30ad2ba8ee4a",
+      "id": "45e85bc9-1246-4f35-aed9-377638f19b9f",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "The explanation includes an assumption about circle positioning, indicating potential limitations in the solution's applicability.",
       "category": "Assumption",
       "type": "Context-Specific",
@@ -7503,9 +7503,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8fed5c6a-5d0d-4fe9-9644-e6deea222b98",
+      "id": "ba7dc6bc-d762-4955-8431-94f04bd2fd67",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "The centers of the circles are calculated by moving in the direction of the angles, which is mathematically accurate for the problem context.",
       "category": "Mathematical Accuracy",
       "type": "General",
@@ -7518,9 +7518,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c5696dae-6992-4ebc-bf68-dd9c9fbf45b6",
+      "id": "37b638a3-5b78-41a6-b39c-7724f25ff51a",
       "question_id": "c4dcd5a7872b4d7ba1e54beed65f24db",
-      "model": "unknown",
+      "model": "llama-3-70b-instruct",
       "property_description": "Includes a broader thematic interpretation of the film's significance, emphasizing identity and responsibility.",
       "category": "Thematic Depth",
       "type": "General",
@@ -7533,9 +7533,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "13af97b9-bfde-4151-b576-167c3e4e4c6d",
+      "id": "a98b9a43-dd0f-4415-aba7-7d6b9a2fba1e",
       "question_id": "c4dcd5a7872b4d7ba1e54beed65f24db",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Provides more precise details about the plot and character motivations.",
       "category": "Detail Orientation",
       "type": "Context-Specific",
@@ -7548,9 +7548,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "aa69b068-0dc5-49d8-9f00-f17ba9babc3b",
+      "id": "526790dc-3f36-4594-ac17-315eba191fde",
       "question_id": "b5ec3c32060447eaabdd2976c15980d2",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Offers a polite redirection to a more appropriate topic.",
       "category": "Tone",
       "type": "Context-Specific",
@@ -7563,9 +7563,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "434ba552-eef2-4d1c-8c57-84fa69bab275",
+      "id": "fa00e683-739a-44f7-95cc-582a78284446",
       "question_id": "b5ec3c32060447eaabdd2976c15980d2",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Seeks clarification on the user's intent.",
       "category": "Engagement",
       "type": "Context-Specific",
@@ -7578,9 +7578,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "af354459-6b33-4ae8-b2a2-347b846f46c2",
+      "id": "3fa2bb41-c318-429a-9cf6-8e615272d810",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Introduces a character's unique perspective and voice through internal monologue.",
       "category": "Character Voice",
       "type": "Context-Specific",
@@ -7593,9 +7593,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "575b1742-7d92-4e6f-bc59-65a16b463538",
+      "id": "3e093c5f-7d7a-489d-a149-4a4659144482",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Provides a more detailed continuation of the narrative with character interactions.",
       "category": "Narrative Depth",
       "type": "Context-Specific",
@@ -7608,9 +7608,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "178adc14-18b2-4090-be5b-833cf511230e",
+      "id": "1aef63f9-a645-4896-9b24-e84061dda79f",
       "question_id": "4db2fa36af2b4f1cada5a0bdde95420c",
-      "model": "unknown",
+      "model": "chatgpt-4o-latest",
       "property_description": "Provides a more detailed reasoning for why DINOv2 is the most modern method, including comparisons to previous methods.",
       "category": "Reasoning Quality",
       "type": "General",
@@ -7623,9 +7623,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0d3538b9-8b61-46a3-8c19-56b2daf81469",
+      "id": "af3a9606-49d7-42e5-b9db-e5d65ee57743",
       "question_id": "4db2fa36af2b4f1cada5a0bdde95420c",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Emphasizes the context of research impact and applications in modern machine learning tasks.",
       "category": "User Experience",
       "type": "Context-Specific",
@@ -7638,9 +7638,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "841653c7-b947-4ba6-852c-688eb4e043b1",
+      "id": "c0e65b20-0fb4-4352-b119-fc9ccf780ce3",
       "question_id": "4db2fa36af2b4f1cada5a0bdde95420c",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Highlights the specialized nature of TS2Vec more explicitly than Model A.",
       "category": "Domain Expertise",
       "type": "General",
@@ -7653,9 +7653,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "df354544-cb6c-47e7-898e-908425c18a72",
+      "id": "d7a6f810-5b9e-470c-8fe8-f5524acee752",
       "question_id": "cda28996f02d4ff89fde65098bac0705",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Provides a more formal and factual tone in the explanation.",
       "category": "Tone",
       "type": "General",
@@ -7668,9 +7668,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0ed56716-1399-4ff8-b436-c88eca9c0d59",
+      "id": "4609b84d-e09a-4ec3-957f-a432ed77bcdc",
       "question_id": "cda28996f02d4ff89fde65098bac0705",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Incorporates humor and a conversational tone.",
       "category": "Tone",
       "type": "General",
@@ -7683,9 +7683,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a02f7302-0396-4500-ac2d-40398d55ac99",
+      "id": "6290ad14-16a4-41de-be82-ade0eb0b52b3",
       "question_id": "cda28996f02d4ff89fde65098bac0705",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-api-0514",
       "property_description": "Engages with the user by acknowledging the misunderstanding humorously.",
       "category": "User Engagement",
       "type": "Context-Specific",
@@ -7698,9 +7698,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1600dfc6-2486-4b5c-8aa6-cca219f995cb",
+      "id": "e08b579a-8d97-4df0-8392-bf931ee76209",
       "question_id": "f515fc552a9b4111b3b4f608146160fb",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-exp-0801",
       "property_description": "Provides a clear strategy outline and structured step-by-step explanation.",
       "category": "Clarity",
       "type": "General",
@@ -7713,9 +7713,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c942fa81-9ad8-420d-adf7-37335605fb13",
+      "id": "e437e0e7-4925-414a-86c1-8df69631c841",
       "question_id": "f515fc552a9b4111b3b4f608146160fb",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Incorporates mathematical calculations to determine distances and banana consumption.",
       "category": "Reasoning Quality",
       "type": "General",
@@ -7728,9 +7728,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2c1f61a7-e787-4275-a704-833738a173e6",
+      "id": "e12ca05e-93b3-45f9-967e-d7c82a6f04ed",
       "question_id": "f515fc552a9b4111b3b4f608146160fb",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Incorrectly calculates the maximum bananas transferred as 533 instead of 1997.",
       "category": "Error Pattern",
       "type": "Context-Specific",
@@ -7743,9 +7743,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a2e5488a-559b-4269-b685-2c395b65860e",
+      "id": "89302428-0bcf-47eb-9e43-5691a0464a53",
       "question_id": "db99959e4be748b182d63f11d8c71ad3",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Provides a comprehensive multi-step approach to address family tensions, emphasizing various aspects such as communication, empathy, and financial planning.",
       "category": "Approach",
       "type": "Context-Specific",
@@ -7758,9 +7758,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5c7c1b4b-1f92-4be4-ba15-f7deb449bfa9",
+      "id": "2073f95e-648c-4cd3-8a39-7f51d493aac4",
       "question_id": "db99959e4be748b182d63f11d8c71ad3",
-      "model": "unknown",
+      "model": "claude-3-5-sonnet-20240620",
       "property_description": "Suggests involving a neutral third party for family mediation to facilitate communication.",
       "category": "Conflict Resolution",
       "type": "General",
@@ -7773,9 +7773,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e4abb308-97d7-4927-a7a8-d7a2cfca9374",
+      "id": "7925762d-e19a-4265-b911-ca5e906a1055",
       "question_id": "8bc2c5d0d8824eefb5ac4ad04e0066cf",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Provides extensive suggestions for clarity and conciseness, including specific rewrites.",
       "category": "Detail-oriented feedback",
       "type": "Context-Specific",
@@ -7788,9 +7788,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8854cf10-196b-4dcd-8421-5a7040da4f72",
+      "id": "56e42bb5-2794-44cd-aaca-c30976277307",
       "question_id": "8bc2c5d0d8824eefb5ac4ad04e0066cf",
-      "model": "unknown",
+      "model": "claude-3-opus-20240229",
       "property_description": "Emphasizes overall strengths of the abstract before suggesting minor changes.",
       "category": "Positive reinforcement",
       "type": "General",
@@ -7803,9 +7803,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "13ac271d-96af-4405-8471-b07d3dd2c50f",
+      "id": "75db8c56-f214-4094-9c37-5ab91432f7c3",
       "question_id": "8bc2c5d0d8824eefb5ac4ad04e0066cf",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Suggests a more active voice in rewriting for clarity.",
       "category": "Writing style",
       "type": "General",
@@ -7818,9 +7818,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "18e74bc2-c1bf-4dd6-b8f4-1e464b40d5f0",
+      "id": "6a952259-d9ee-4208-b6c0-fb4a8d89f0e6",
       "question_id": "c91f2dcac4be4583b0d5f77e5960ddc1",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Includes a reference to the 2019 documentary 'Leaving Neverland' that reignited controversy.",
       "category": "Contextual Reference",
       "type": "Context-Specific",
@@ -7833,9 +7833,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d7639d79-31e5-4875-a199-0bf12d4cae76",
+      "id": "44025c47-489d-415e-9a10-afe69f1f7353",
       "question_id": "c91f2dcac4be4583b0d5f77e5960ddc1",
-      "model": "unknown",
+      "model": "gpt-4o-2024-05-13",
       "property_description": "Provides a more nuanced view on public misunderstandings and misinterpretations of Jackson's actions.",
       "category": "Depth of Analysis",
       "type": "General",
@@ -7848,9 +7848,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a346453b-14b1-4953-9b27-b321ba9f0ac7",
+      "id": "2c9a1f82-9293-4d7f-b177-5c9ae40ad5b1",
       "question_id": "c91f2dcac4be4583b0d5f77e5960ddc1",
-      "model": "unknown",
+      "model": "claude-3-opus-20240229",
       "property_description": "Mentions musical tastes as a reason for negative feelings towards Jackson.",
       "category": "Subjective Opinion",
       "type": "General",
@@ -7863,9 +7863,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0982065a-2366-48ab-b2c5-fa202f1a8de0",
+      "id": "b6135db3-f78f-4d58-915f-9725b4ececc9",
       "question_id": "7a4b268855dc48b2906bc66056095d23",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Provides a detailed historical context and examples to support its analysis of surveillance issues.",
       "category": "Contextual Analysis",
       "type": "General",
@@ -7878,9 +7878,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ca94da90-846c-4f0e-bb29-cd115cee28d1",
+      "id": "f11b44b5-0d03-468d-985b-a1f35673e365",
       "question_id": "7a4b268855dc48b2906bc66056095d23",
-      "model": "unknown",
+      "model": "gpt-4o-2024-08-06",
       "property_description": "Emphasizes the importance of data privacy and security measures more distinctly.",
       "category": "Emphasis on Security",
       "type": "General",
@@ -7893,9 +7893,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6673d6b7-5e33-4353-9887-534077b656c7",
+      "id": "587c67e7-46b1-4b14-b51c-f9accdfe9ba4",
       "question_id": "7a4b268855dc48b2906bc66056095d23",
-      "model": "unknown",
+      "model": "deepseek-v2-api-0628",
       "property_description": "Acknowledges the hyperbolic nature of the user's statements while still addressing real issues.",
       "category": "Tone and Engagement",
       "type": "Context-Specific",
@@ -7908,9 +7908,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "85f38ea3-7980-4f9f-beb8-31d3ad36b676",
+      "id": "e1496e7b-4901-4ae9-875d-6a78f24167cc",
       "question_id": "d47319e10ef548468a18fbe8e666b791",
-      "model": "unknown",
+      "model": "gemini-1.5-pro-exp-0801",
       "property_description": "Engages playfully and responds to the informal tone of the prompt.",
       "category": "Engagement",
       "type": "General",
@@ -7923,9 +7923,9 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "05f104e4-96c5-4b25-a4df-cb2c03ab2ca3",
+      "id": "68131887-9ab5-469f-a9ae-d33a626c8d07",
       "question_id": "d47319e10ef548468a18fbe8e666b791",
-      "model": "unknown",
+      "model": "llama-3.1-405b-instruct",
       "property_description": "Responses more straightforwardly without playful engagement or humor.",
       "category": "Tone",
       "type": "General",
