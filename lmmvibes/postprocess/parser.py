@@ -119,10 +119,14 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
     def _to_property(self, p: Dict[str, Any], prop: Property) -> Property:
         """Convert a dict returned by the LLM into a Property object."""
 
-        if len(prop.model) > 1:
+        print("prop.model", prop.model)
+        if isinstance(prop.model, list):
+            print("prop.model", prop.model)
             model = model_name_pass(p.get("model", "unknown"), prop.model[0], prop.model[1])
         else:
+            print("THIS SHOULD NOT HAPPEN")
             model = prop.model
+            exit()
 
         return Property(
             id=str(uuid.uuid4()),
@@ -199,6 +203,10 @@ def remove_things(x):
     return x.lower()
 
 def model_name_pass(model, model_a, model_b):
+    print("---trying to pass model name---")
+    print("model_a", model_a)
+    print("model_b", model_b)
+    print("model", model)
     model_a_modified_name = remove_things(model_a)
     model_b_modified_name = remove_things(model_b)
     model_modified_name = remove_things(model)
