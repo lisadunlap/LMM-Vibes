@@ -57,6 +57,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             self.system_prompt = getattr(_extractor_prompts, system_prompt)
         else:
             self.system_prompt = system_prompt
+
         self.prompt_builder = prompt_builder or self._default_prompt_builder
         self.temperature = temperature
         self.top_p = top_p

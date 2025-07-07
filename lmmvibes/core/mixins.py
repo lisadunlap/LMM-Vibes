@@ -110,13 +110,19 @@ class WandbMixin:
         if not self.use_wandb:
             return
             
-        if not self._wandb_ok:
-            wandb.init(
-                project=project or self.wandb_project or "lmm-vibes",
-                name=f"{self.name}_{int(time.time())}",
-                **kwargs
-            )
+        # Check if wandb is already initialized globally or by this stage
+        if self._wandb_ok or wandb.run is not None:
+            # Mark that wandb is available for this stage
             self._wandb_ok = True
+            return
+            
+        # Only initialize if no existing run
+        wandb.init(
+            project=project or self.wandb_project or "lmm-vibes",
+            name=f"{self.name}_{int(time.time())}",
+            **kwargs
+        )
+        self._wandb_ok = True
     
     def log_wandb(self, data: Dict[str, Any], step: int = None) -> None:
         """Log data to wandb."""
