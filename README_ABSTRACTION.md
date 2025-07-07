@@ -16,7 +16,8 @@ clustered_df, model_stats = explain(
     prompt_builder=build_pair_prompt,   # your own function; optional
     clusterer="hdbscan",                # or "hdbscan_native", "hierarchical"
     min_cluster_size=30,                # clustering parameters
-    embedding_model="openai"            # or any sentence-transformer model
+    embedding_model="openai",            # or any sentence-transformer model
+    output_dir="results/"               # automatically save results here
 )
 ```
 
@@ -192,6 +193,7 @@ def explain(
         use_wandb: bool = True,
         wandb_project: str | None = None,
         include_embeddings: bool = True,
+        output_dir: str = "results/",
 ) -> tuple[pd.DataFrame, dict]:
     ...
 ```
@@ -706,3 +708,19 @@ Nice-to-have polish after migration:
 * PyPI packaging scripts
 
 Feel free to tick items off this list as they land. 🎉 
+
+---
+
+## 15. Automatic output files
+
+When you pass `output_dir="some/path"` to `explain()` the library automatically writes a tidy bundle of artefacts:
+
+| File | What it contains |
+|------|------------------|
+| `clustered_results.parquet` | Full DataFrame with conversations, extracted properties and cluster columns. |
+| `full_dataset.json` | Complete `PropertyDataset` serialised as JSON. |
+| `full_dataset.parquet` | Same dataset in efficient columnar parquet format. |
+| `model_stats.json` | Per-model statistics (fine & coarse clusters, scores, examples). |
+| `summary.txt` | Human-readable summary with dataset counts and a leaderboard. |
+
+These filenames are **stable** so downstream notebooks and dashboards can rely on them without additional configuration. 
