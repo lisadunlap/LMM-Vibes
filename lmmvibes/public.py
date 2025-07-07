@@ -29,6 +29,7 @@ def explain(
     embedding_model: str = "openai",
     hierarchical: bool = False,
     assign_outliers: bool = False,
+    max_coarse_clusters: int = 25,
     # Metrics parameters
     metrics_kwargs: Optional[Dict[str, Any]] = None,
     # Caching & logging
@@ -36,6 +37,8 @@ def explain(
     wandb_project: Optional[str] = None,
     include_embeddings: bool = True,
     verbose: bool = True,
+    # Output parameters
+    output_dir: Optional[str] = None,
     # Pipeline configuration
     custom_pipeline: Optional[Pipeline] = None,
     **kwargs
@@ -75,6 +78,14 @@ def explain(
         include_embeddings: Whether to include embeddings in output
         verbose: Whether to print progress
         
+        # Output parameters
+        output_dir: Directory to save results (optional). If provided, saves:
+                   - clustered_results.parquet: DataFrame with all results
+                   - full_dataset.json: Complete PropertyDataset (JSON format)
+                   - full_dataset.parquet: Complete PropertyDataset (parquet format)
+                   - model_stats.json: Model statistics and rankings
+                   - summary.txt: Human-readable summary
+        
         # Pipeline configuration
         custom_pipeline: Custom pipeline to use instead of default
         **kwargs: Additional configuration options
@@ -91,12 +102,13 @@ def explain(
         >>> # Load your conversation data
         >>> df = pd.read_csv("conversations.csv")
         >>> 
-        >>> # Explain model behavior
+        >>> # Explain model behavior and save results
         >>> clustered_df, model_stats = explain(
         ...     df,
         ...     method="side_by_side",
         ...     min_cluster_size=20,
-        ...     hierarchical=True
+        ...     hierarchical=True,
+        ...     output_dir="results/"  # Automatically saves results
         ... )
         >>> 
         >>> # Explore the results
@@ -126,7 +138,9 @@ def explain(
                 "embedding_model": embedding_model,
                 "hierarchical": hierarchical,
                 "assign_outliers": assign_outliers,
+                "max_coarse_clusters": max_coarse_clusters,
                 "include_embeddings": include_embeddings,
+                "output_dir": output_dir,
             }
         )
     
@@ -162,6 +176,10 @@ def explain(
     # Convert back to DataFrame format
     clustered_df = result_dataset.to_dataframe()
     model_stats = result_dataset.model_stats
+    
+    # 5️⃣  Save results if output_dir is provided
+    if output_dir is not None:
+        _save_results_to_dir(result_dataset, clustered_df, model_stats, output_dir, verbose)
     
     # Log final results to wandb if enabled
     if use_wandb:
@@ -323,6 +341,126 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
         
     except Exception as e:
         print(f"Failed to log final results to wandb: {e}")
+
+
+def _save_results_to_dir(
+    result_dataset: PropertyDataset,
+    clustered_df: pd.DataFrame,
+    model_stats: Dict[str, Any],
+    output_dir: str,
+    verbose: bool = True
+):
+    """Save results to the specified output directory."""
+    import pathlib
+    import json
+    
+    # Create output directory if it doesn't exist
+    output_path = pathlib.Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    if verbose:
+        print(f"Saving results to: {output_path}")
+    
+    # 1. Save clustered DataFrame as parquet
+    clustered_parquet_path = output_path / "clustered_results.parquet"
+    clustered_df.to_parquet(clustered_parquet_path, index=False)
+    if verbose:
+        print(f"  ✓ Saved clustered DataFrame (parquet): {clustered_parquet_path}")
+    
+    # 2. Save complete PropertyDataset as JSON
+    dataset_json_path = output_path / "full_dataset.json"
+    result_dataset.save(str(dataset_json_path), format="json")
+    if verbose:
+        print(f"  ✓ Saved full PropertyDataset (JSON): {dataset_json_path}")
+    
+    # 3. Save complete PropertyDataset as parquet
+    dataset_parquet_path = output_path / "full_dataset.parquet"
+    result_dataset.save(str(dataset_parquet_path), format="parquet")
+    if verbose:
+        print(f"  ✓ Saved full PropertyDataset (parquet): {dataset_parquet_path}")
+    
+    # 4. Save model statistics as JSON
+    stats_path = output_path / "model_stats.json"
+    
+    # Convert ModelStats objects to dictionaries for JSON serialization
+    stats_for_json = {}
+    for model_name, stats in model_stats.items():
+        stats_for_json[str(model_name)] = {
+            "fine": [
+                {
+                    "property_description": stat.property_description,
+                    "model_name": stat.model_name,
+                    "score": stat.score,
+                    "size": stat.size,
+                    "proportion": stat.proportion,
+                    "examples": stat.examples,
+                    "metadata": getattr(stat, "metadata", {})
+                }
+                for stat in stats["fine"]
+            ]
+        }
+        if "coarse" in stats:
+            stats_for_json[str(model_name)]["coarse"] = [
+                {
+                    "property_description": stat.property_description,
+                    "model_name": stat.model_name,
+                    "score": stat.score,
+                    "size": stat.size,
+                    "proportion": stat.proportion,
+                    "examples": stat.examples,
+                    "metadata": getattr(stat, "metadata", {})
+                }
+                for stat in stats["coarse"]
+            ]
+    
+    with open(stats_path, 'w') as f:
+        json.dump(stats_for_json, f, indent=2)
+    if verbose:
+        print(f"  ✓ Saved model statistics (JSON): {stats_path}")
+    
+    # 5. Save summary statistics
+    summary_path = output_path / "summary.txt"
+    with open(summary_path, 'w') as f:
+        f.write("LMM-Vibes Results Summary\n")
+        f.write("=" * 50 + "\n\n")
+        f.write(f"Total conversations: {len(clustered_df['question_id'].unique()) if 'question_id' in clustered_df.columns else len(clustered_df)}\n")
+        f.write(f"Total properties: {len(clustered_df)}\n")
+        f.write(f"Models analyzed: {len(model_stats)}\n")
+        
+        # Clustering info
+        if 'property_description_fine_cluster_id' in clustered_df.columns:
+            n_fine_clusters = len(clustered_df['property_description_fine_cluster_id'].unique())
+            f.write(f"Fine clusters: {n_fine_clusters}\n")
+        
+        if 'property_description_coarse_cluster_id' in clustered_df.columns:
+            n_coarse_clusters = len(clustered_df['property_description_coarse_cluster_id'].unique())
+            f.write(f"Coarse clusters: {n_coarse_clusters}\n")
+        
+        f.write(f"\nFiles saved:\n")
+        f.write(f"  - clustered_results.parquet: Complete DataFrame with clusters\n")
+        f.write(f"  - full_dataset.json: Complete PropertyDataset object (JSON format)\n")
+        f.write(f"  - full_dataset.parquet: Complete PropertyDataset object (parquet format)\n")
+        f.write(f"  - model_stats.json: Model statistics and rankings\n")
+        f.write(f"  - summary.txt: This summary file\n")
+        
+        # Model rankings
+        f.write(f"\nModel Rankings (by average score):\n")
+        model_avg_scores = {}
+        for model_name, stats in model_stats.items():
+            if "fine" in stats and len(stats["fine"]) > 0:
+                avg_score = sum(stat.score for stat in stats["fine"]) / len(stats["fine"])
+                model_avg_scores[model_name] = avg_score
+        
+        for i, (model_name, avg_score) in enumerate(sorted(model_avg_scores.items(), key=lambda x: x[1], reverse=True)):
+            f.write(f"  {i+1}. {model_name}: {avg_score:.3f}\n")
+    
+    if verbose:
+        print(f"  ✓ Saved summary: {summary_path}")
+        print(f"🎉 All results saved to: {output_path}")
+        print(f"    • DataFrame: clustered_results.parquet")
+        print(f"    • PropertyDataset: full_dataset.json + full_dataset.parquet")
+        print(f"    • Model stats: model_stats.json")
+        print(f"    • Summary: summary.txt")
 
 
 # Convenience functions for common use cases

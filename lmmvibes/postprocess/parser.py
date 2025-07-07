@@ -43,6 +43,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         
         parsed_properties: List[Property] = []
         parse_errors = 0
+        unknown_model_filtered = 0
         
         for prop in data.properties:
             # We only process properties that still have raw_response
@@ -77,18 +78,28 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             for p_dict in prop_dicts:
                 try:
                     parsed_properties.append(self._to_property(p_dict, prop))
+                except ValueError as e:
+                    if "unknown or invalid model" in str(e):
+                        unknown_model_filtered += 1
+                        self.log(f"Filtered property with unknown model: {e}", level="debug")
+                    else:
+                        parse_errors += 1
+                        self.handle_error(e, f"building property from JSON for {prop.question_id}")
                 except Exception as e:
                     parse_errors += 1
                     self.handle_error(e, f"building property from JSON for {prop.question_id}")
 
-        self.log(f"Parsed {len(parsed_properties)} properties successfully, {parse_errors} failed")
+        self.log(f"Parsed {len(parsed_properties)} properties successfully")
+        self.log(f"Filtered out {unknown_model_filtered} properties with unknown models")
+        self.log(f"{parse_errors} properties failed parsing")
         
         # Log to wandb if enabled
         if hasattr(self, 'use_wandb') and self.use_wandb:
-            self._log_parsing_to_wandb(data.properties, parsed_properties, parse_errors)
+            self._log_parsing_to_wandb(data.properties, parsed_properties, parse_errors, unknown_model_filtered)
         
         return PropertyDataset(
             conversations=data.conversations,
+            all_models=data.all_models,
             properties=parsed_properties,
             clusters=data.clusters,
             model_stats=data.model_stats
@@ -119,14 +130,25 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
     def _to_property(self, p: Dict[str, Any], prop: Property) -> Property:
         """Convert a dict returned by the LLM into a Property object."""
 
-        print("prop.model", prop.model)
         if isinstance(prop.model, list):
-            print("prop.model", prop.model)
             model = model_name_pass(p.get("model", "unknown"), prop.model[0], prop.model[1])
         else:
-            print("THIS SHOULD NOT HAPPEN")
             model = prop.model
-            exit()
+
+        # Explicitly filter out properties with unknown models
+        if (
+            model == "unknown"
+            or isinstance(model, (list, tuple))
+            or not isinstance(model, str)
+            or (isinstance(model, float) and (model != model))  # NaN check
+            or model.strip() == ""
+        ):
+            raise ValueError(f"Property has unknown or invalid model: {model}")
+
+        # Model validation is now handled in the Property dataclass (__post_init__) so
+        # we no longer need to manually filter here. If model is 'unknown', Property
+        # will raise a ValueError which will be caught by the caller and treated the
+        # same way as any other parsing error.
 
         return Property(
             id=str(uuid.uuid4()),
@@ -143,7 +165,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             user_preference_direction=p.get("user_preference_direction"),
         ) 
 
-    def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int):
+    def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int):
         """Log parsing results to wandb."""
         try:
             import wandb
@@ -159,6 +181,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                 "parsing_successful_properties": total_parsed,
                 "parsing_failed_properties": parse_errors,
                 "parsing_success_rate": parse_success_rate,
+                "filtered_unknown_models": unknown_model_filtered,
             })
             
             # Log a sample of parsed properties
@@ -194,6 +217,12 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     "parsing_error_count": parse_errors,
                 })
             
+            # Log filtered properties
+            if unknown_model_filtered > 0:
+                self.log_wandb({
+                    "filtered_properties_count": unknown_model_filtered,
+                })
+            
         except Exception as e:
             self.log(f"Failed to log parsing to wandb: {e}", level="warning") 
 
@@ -203,10 +232,6 @@ def remove_things(x):
     return x.lower()
 
 def model_name_pass(model, model_a, model_b):
-    print("---trying to pass model name---")
-    print("model_a", model_a)
-    print("model_b", model_b)
-    print("model", model)
     model_a_modified_name = remove_things(model_a)
     model_b_modified_name = remove_things(model_b)
     model_modified_name = remove_things(model)

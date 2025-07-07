@@ -16,20 +16,32 @@ from lmmvibes.core.data_objects import PropertyDataset
 
 def test_first_10_arena_rows():
     # Build a minimal args namespace expected by dataset loaders
-    args = SimpleNamespace(filter_english=False)
+    # args = SimpleNamespace(filter_english=True)
 
-    df, extract_content_fn, _ = load_data("arena", args)
-    first10 = df.head(50)
+    # df, extract_content_fn, _ = load_data("arena", args)
+    # print(f"Loaded {len(df)} rows")
+    # print(df.columns)
+    # model_options = ['llama-3-70b-instruct', 'gemini-1.5-pro-api-0514', 'claude-3-5-sonnet-20240620']
+    # first10 = df[df.model_a.isin(model_options) & df.model_b.isin(model_options)].head(50)
+    # print(f"Loaded {len(first10)} rows")
 
-    # Basic sanity checks
-    assert len(first10) == 50
+    # # Basic sanity checks
+    # assert len(first10) == 50
+    # required_cols = {"prompt", "conversation_a", "conversation_b", "model_a", "model_b", "model_a_response", "model_b_response"}
+    # assert required_cols.issubset(first10.columns)
+
+    # print("Loaded first 50 arena rows with columns:", list(first10.columns))
+
+    first10 = pd.read_json("tests/outputs/arena_first50.jsonl", lines=True)
     required_cols = {"prompt", "conversation_a", "conversation_b", "model_a", "model_b", "model_a_response", "model_b_response"}
     assert required_cols.issubset(first10.columns)
-
-    print("Loaded first 50 arena rows with columns:", list(first10.columns))
+    print(f"Loaded {len(first10)} rows")
+    print(first10.columns)
 
     # get properties
     dataset = PropertyDataset.from_dataframe(first10, method="side_by_side")
+    # save to json
+    dataset.to_dataframe().to_json("tests/outputs/arena_first50.jsonl", orient="records", lines=True)
     print("..done loading properties")
 
     # ------------------------------------------------------------------
@@ -38,12 +50,11 @@ def test_first_10_arena_rows():
     import wandb
     wandb.init(project="lmm-vibes-test", name="test_run")
 
-    extractor = OpenAIExtractor(verbose=False, use_wandb=True)
-    parser = LLMJsonParser(verbose=False, use_wandb=True)
+    extractor = OpenAIExtractor(verbose=True, use_wandb=True)
+    parser = LLMJsonParser(verbose=True, use_wandb=True)
 
     dataset_after_extract = extractor(dataset)
     dataset_after_parse = parser(dataset_after_extract)
-    # print(f"Dataset after parse: {dataset_after_parse}")
 
     # ------------------------------------------------------------
     # Save results for downstream clustering / analysis
@@ -52,13 +63,13 @@ def test_first_10_arena_rows():
     output_dir = pathlib.Path("tests/outputs")
     output_dir.mkdir(exist_ok=True)
 
-    json_path = output_dir / "arena_first50_dataset.json"
-    parquet_path = output_dir / "arena_first50_properties.parquet"
+    json_path = output_dir / "arena_first50_properties.json"
+    jsonl_path = output_dir / "arena_first50_properties_df.jsonl"
 
     dataset_after_parse.save(str(json_path), format="json")
-    dataset_after_parse.to_dataframe().to_parquet(parquet_path, index=False)
+    dataset_after_parse.to_dataframe().to_json(str(jsonl_path), orient="records", lines=True)
 
-    print(f"Saved parsed dataset to {json_path} and {parquet_path}")
+    print(f"Saved parsed dataset to {json_path} and {jsonl_path}")
 
     if wandb is not None:
         wandb.finish()

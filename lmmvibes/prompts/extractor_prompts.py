@@ -156,11 +156,12 @@ Produce a JSON list of objects. Each object will represent a single distinct pro
 **Focus on Meaningful Properties:**
 Prioritize properties that would actually influence a user's model choice or could impact the model's performance. This could include but is not limited to:
 * **Capabilities:** Accuracy, completeness, technical correctness, reasoning quality, domain expertise
-* **Style:** Tone, approach, presentation style, personality, engagement, and other subjective properties that someone may care about for their own use
+* **Style:** Tone, approach, presentation style, personality, engagement with the user, and other subjective properties that someone may care about for their own use
 * **Error patterns:** Hallucinations, factual errors, logical inconsistencies, safety issues
 * **User experience:** Clarity, helpfulness, accessibility, practical utility, response to feedback
 * **Safety/alignment:** Bias, harmful content, inappropriate responses, and other safety-related properties
 * **Tool use:** Use of tools to complete tasks and how appropriate the tool use is for the task
+* **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
 
 
 **Avoid trivial differences** like minor length variations, basic formatting, or properties that don't meaningfully impact the models capability or the user's experience.
@@ -186,12 +187,12 @@ Prioritize properties that would actually influence a user's model choice or cou
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
-**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Please use the names of the models in the output rather than "Model A"/"Model B"):**
+**JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
   {
     "model": "Model A|Model B",
-    "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
+    "property_description": "Brief description of the unique property observed in this model response (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
     "evidence": "Direct quote or evidence from the specified model",
     "type": "General|Context-Specific",
@@ -226,6 +227,7 @@ Prioritize properties that would actually influence a user's model choice or cou
 * **User experience:** Clarity, helpfulness, accessibility, practical utility, response to feedback
 * **Safety/alignment:** Bias, harmful content, inappropriate responses, and other safety-related properties
 * **Tool use:** Use of tools to complete tasks and how appropriate the tool use is for the task
+* **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
 
 **Avoid trivial differences** like minor length variations, basic formatting, or properties that don't meaningfully impact user preference.
 
@@ -250,7 +252,7 @@ Prioritize properties that would actually influence a user's model choice or cou
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
-**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Please use the names of the models in the output rather than "Model A"/"Model B"):**
+**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
   {
@@ -287,6 +289,7 @@ Produce a JSON list of objects. Each object will represent a distinct property f
 *   **Visual & UX Design:** The aesthetic and user experience choices, including layout, interactivity, and overall design appeal.
 *   **Accessibility (a11y):** Inclusion of accessibility features like ARIA attributes and semantic HTML.
 *   **Functionality:** Correctness and completeness of the implemented features.
+*   **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
 
 Do not include generic properties like "more concise." Focus on meaningful differences in web development practices.
 
@@ -313,7 +316,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
-**JSON Output Structure for each property (if no notable properties exist, return empty list. Please use the names of the models in the output rather than "Model A"/"Model B"):**
+**JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
   {
@@ -416,6 +419,7 @@ Produce a JSON list of objects. Each object will represent a distinct property f
 *   **Visual & UX Design:** The aesthetic and user experience choices, including layout, interactivity, and overall design appeal.
 *   **Accessibility (a11y):** Inclusion of accessibility features like ARIA attributes and semantic HTML.
 *   **Functionality:** Correctness and completeness of the implemented features.
+*   **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
 
 Do not include generic properties like "more concise." Focus on meaningful differences in web development practices.
 
@@ -442,7 +446,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
-**JSON Output Structure for each property (if no notable properties exist, return empty list. Please use the names of the models in the output rather than "Model A"/"Model B"):**
+**JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
   {
@@ -482,6 +486,7 @@ Prioritize properties that would actually influence a user's model choice or cou
 * **User experience:** Clarity, helpfulness, accessibility, practical utility, response to feedback
 * **Safety/alignment:** Bias, harmful content, inappropriate responses, and other safety-related properties
 * **Tool use:** Use of tools to complete tasks and how appropriate the tool use is for the task
+* **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
 
 **Avoid trivial observations** like minor length variations, basic formatting, or properties that don't meaningfully impact model quality or user experience.
 
@@ -506,7 +511,7 @@ Prioritize properties that would actually influence a user's model choice or cou
 *   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
 
-**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list):**
+**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
   {

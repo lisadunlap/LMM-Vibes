@@ -46,6 +46,9 @@ class Property:
     
     def __post_init__(self):
         """Validate property fields after initialization."""
+        # Require that the model has been resolved to a known value
+        if isinstance(self.model, str) and self.model.lower() == "unknown":
+            raise ValueError("Property must have a known model; got 'unknown'.")
         # Only validate once fields are parsed / populated
         if self.type is not None and self.type not in ["Context-Specific", "General"]:
             raise ValueError(
@@ -79,7 +82,9 @@ class ModelStats:
     """Model statistics."""
     property_description: str # name of proprty cluster (either fine or coarse)
     model_name: str # name of model we are comparing
+    cluster_size_global: int # number of properties in the cluster
     score: float # score of the property cluster
+    quality_score: float # quality score of the property cluster
     size: int # number of properties in the cluster
     proportion: float # proportion of all properties that are in the cluster
     examples: List[str] # example property id's in the cluster
@@ -114,7 +119,6 @@ class PropertyDataset:
             PropertyDataset with populated conversations
         """
         conversations = []
-        print("LISA ITS HERE", df.columns)
         if method == "side_by_side":
             all_models = list(set(df["model_a"].unique().tolist() + df["model_b"].unique().tolist()))
             # Expected columns: question_id, prompt, model_a, model_b, 
@@ -166,13 +170,12 @@ class PropertyDataset:
         rows = []
         for conv in self.conversations:
             if len(conv.model) == 1:
-              
                 base_row = {
                     'question_id': conv.question_id,
                     'prompt': conv.prompt,
                     'model': conv.model,
                     'responses': conv.responses,
-                    **conv.scores,
+                    'score': conv.scores,
                     **conv.meta
                 }
             else:
@@ -183,7 +186,7 @@ class PropertyDataset:
                     'model_b': conv.model[1],
                     'model_a_response': conv.responses[0],
                     'model_b_response': conv.responses[1],
-                    **conv.scores,
+                    'score': conv.scores,
                     **conv.meta
                 }
 
@@ -203,9 +206,9 @@ class PropertyDataset:
             
             # create property df
             prop_df = pd.DataFrame([p.to_dict() for p in self.properties])
-            print("len df before merge ", len(df))
+            print("len of base df ", len(df))
             df = df.merge(prop_df, on="question_id", how="left").drop_duplicates(subset="id")
-            print("len df after merge ", len(df))
+            print("len of df after merge with properties ", len(df))
 
         if self.clusters and type in ["all", "clusters"]:
             # If cluster columns already exist (e.g. after reload from parquet)
@@ -231,6 +234,12 @@ class PropertyDataset:
     def add_property(self, property: Property):
         """Add a property to the dataset."""
         self.properties.append(property)
+        if isinstance(property.model, str) and property.model not in self.all_models:
+            self.all_models.append(property.model)
+        if isinstance(property.model, list):
+            for model in property.model:
+                if model not in self.all_models:
+                    self.all_models.append(model)
     
     def get_properties_for_model(self, model: str) -> List[Property]:
         """Get all properties for a specific model."""
@@ -251,7 +260,18 @@ class PropertyDataset:
         if isinstance(obj, (list, tuple, set)):
             return [self._json_safe(o) for o in obj]
         if isinstance(obj, dict):
-            return {k: self._json_safe(v) for k, v in obj.items()}
+            # Convert keys to strings if they're not JSON-safe
+            json_safe_dict = {}
+            for k, v in obj.items():
+                # Convert tuple/list keys to string representation
+                if isinstance(k, (tuple, list)):
+                    safe_key = str(k)
+                elif isinstance(k, (str, int, float, bool)) or k is None:
+                    safe_key = k
+                else:
+                    safe_key = str(k)
+                json_safe_dict[safe_key] = self._json_safe(v)
+            return json_safe_dict
         # Fallback – use string representation
         return str(obj)
 
@@ -262,7 +282,15 @@ class PropertyDataset:
             "properties": [self._json_safe(asdict(prop)) for prop in self.properties],
             "clusters": self._json_safe(self.clusters),
             "model_stats": self._json_safe(self.model_stats),
+            "all_models": self.all_models,
         }
+    
+    def get_valid_properties(self):
+        """Get all properties where the property model is unknown, there is no property description, or the property description is empty."""
+        print(f"All models: {self.all_models}")
+        print(f"Properties: {self.properties[0].model}")
+        print(f"Property description: {self.properties[0].property_description}")
+        return [prop for prop in self.properties if prop.model in self.all_models and prop.property_description is not None and prop.property_description.strip() != ""]
 
     # ------------------------------------------------------------------
     # 📝 Persistence helpers
@@ -290,6 +318,17 @@ class PropertyDataset:
                 pickle.dump(self, f)
         else:
             raise ValueError(f"Unsupported format: {format}. Use 'json' or 'pickle'.")
+        
+    @staticmethod
+    def get_all_models(conversations: List[ConversationRecord]):
+        """Get all models in the dataset."""
+        models = set()
+        for conv in conversations:
+            if isinstance(conv.model, list):
+                models.update(conv.model)
+            else:
+                models.add(conv.model)
+        return list(models)
 
     @classmethod
     def load(cls, path: str, format: str = "json") -> "PropertyDataset":
@@ -304,7 +343,8 @@ class PropertyDataset:
             properties = [Property(**prop) for prop in data.get("properties", [])]
             clusters = data.get("clusters", {})
             model_stats = data.get("model_stats", {})
-            return cls(conversations=conversations, properties=properties, clusters=clusters, model_stats=model_stats)
+            all_models = data.get("all_models", PropertyDataset.get_all_models(conversations))
+            return cls(conversations=conversations, properties=properties, clusters=clusters, model_stats=model_stats, all_models=all_models)
         elif fmt in {"pkl", "pickle"}:
             with open(path, "rb") as f:
                 obj = pickle.load(f)

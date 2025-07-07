@@ -26,7 +26,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
     
     def __init__(
         self,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-4.1",
         system_prompt: str = "one_sided_system_prompt_no_examples",
         prompt_builder: Optional[Callable] = None,
         temperature: float = 0.7,
@@ -125,6 +125,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         # ------------------------------------------------------------------
         return PropertyDataset(
             conversations=data.conversations,
+            all_models=data.all_models,
             properties=properties,
             clusters=data.clusters,
             model_stats=data.model_stats,

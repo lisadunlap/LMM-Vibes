@@ -1,7 +1,7 @@
 clustering_systems_prompt = f"""You are a expert machine learning engineer tasked with summarizing the properties of LLM responses. Given a large list of properties seen in the responses of an LLM, I have clustered these properties and now want to come up with a summary of the property that each cluster represents. Below are a list of properties that all belong to the same cluster. Please come up with a clear description (no more than 1 very short sentence n;./') of a LLM output property that accurately describes most or all of the properties in the cluster which is informative and specific to the cluster. This should be a property of a model response, not a category of properties.
 For instance "Speaking Tone and Emoji Usage" is a category of properties, but "uses an enthusiastic tone" or "uses emojis" is a property of a model response. Similarily, "various types of reasoning" is a category of properties, but "uses deductive reasoning to solve problems" or "uses inductive reasoning to solve problems" is a property of a model response. Similar, descriptions like  "Provides detailed math responses" is not informative because it could be applied to many different clusters, so it is better to describe the property in a way that is specific to the cluster and more informative, even if it does not apply to all properties in the cluster. 
 Avoid filler words like "detailed", "comprehensive" or "step-by-step" unless these are explicitly mentioned in the properties provided. Also avoid mentioning many different properties in your summary, only respond with the primary property of the cluster (again this should be a very short sentence).
-Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. 
+Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. A good rule of thumb is to think about whether the user could come up with an example scenario that would be described by the property.
 
 Output the cluster property description and nothing else."""
 
@@ -23,7 +23,8 @@ If two similar properties are found, keep the one that is more informative.
 Order your final list of properties by how much they are seen in the data. Each property should be no more than a short sentence. These properties should be interesting and informative. For instance, "acknowledges limitations and caveats" is interesting because responses may have differing levels of safety but "provides guidance" is not interesting because it is a very broad property that does not provide any new information (most models provide some level of guidance). Refrain from using terms like "detailed", "comprehensive", and "step-by-step" in your summaries unless the cluster is exclusively and explicitly focused on these aspects. 
 
 You should have at most {max_properties} properties in your final list (but it is okay if you have less). Specifically make sure you dont remove and properties that someone would find interesting or surprising. In fact there should be many clusters that are specific and interesting that you should not remove.
-Avoid mentioning many different properties in your summary, only respond with the primary property of the cluster.
+
+Avoid mentioning many different properties in your summary, only respond with the primary property of the cluster. A good rule of thumb is to think about whether the user could come up with an example scenario that would be described by the property.
 
 Your response should be a list with each property on a new line.
 """

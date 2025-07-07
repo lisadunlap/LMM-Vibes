@@ -42,6 +42,7 @@ class PropertyValidator(LoggingMixin, PipelineStage):
         
         return PropertyDataset(
             conversations=data.conversations,
+            all_models=data.all_models,
             properties=valid_properties,
             clusters=data.clusters,
             model_stats=data.model_stats

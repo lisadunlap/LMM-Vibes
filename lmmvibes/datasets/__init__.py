@@ -106,6 +106,9 @@ def load_arena_data(args) -> Tuple[pd.DataFrame, Callable, str]:
 
     response_df = df.apply(_extract_responses, axis=1)
     df = pd.concat([df, response_df], axis=1)
+   
+    if "__index_level_0__" in df.columns:
+        df = df.drop(columns="__index_level_0__")
 
     # Deduplicate now that prompt column definitely exists
     if "prompt" in df.columns:
@@ -113,7 +116,7 @@ def load_arena_data(args) -> Tuple[pd.DataFrame, Callable, str]:
         df = df.drop_duplicates(subset=["prompt"])
         print(f"After removing duplicates: {before_dedup - len(df)} rows dropped, {len(df)} remain")
 
-    return df, _extract_content_arena, "one_sided_system_prompt"
+    return df, _extract_content_arena, "one_sided_system_prompt_no_examples"
 
 # ---------------------------------------------------------------------------
 # Web-dev loaders

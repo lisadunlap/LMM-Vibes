@@ -14,7 +14,8 @@ from __future__ import annotations
 import concurrent.futures
 import random
 import time
-from typing import List, Tuple
+import logging
+from typing import List, Tuple, Dict
 import os
 import pickle
 import pandas as pd
@@ -28,6 +29,15 @@ from ..core.caching import LMDBCache
 
 # Global cache instance
 _cache = LMDBCache()
+
+# Module-level logger
+logger = logging.getLogger(__name__)
+
+# -----------------------------------------------------------------------------
+# Ensure deterministic behaviour in sampling helpers and downstream clustering
+# -----------------------------------------------------------------------------
+# A single global seed keeps `random.sample` calls reproducible across runs.
+random.seed(42)
 
 # -----------------------------------------------------------------------------
 # OpenAI embeddings helpers
@@ -80,7 +90,7 @@ def _get_openai_embeddings_batch(batch: List[str], retries: int = 3, sleep_time:
         except Exception as exc:
             if attempt == retries - 1:
                 raise
-            print(f"[retry {attempt + 1}/{retries}] {exc}. Sleeping {sleep_time}s.")
+            logger.warning(f"[retry {attempt + 1}/{retries}] {exc}. Sleeping {sleep_time}s.")
             time.sleep(sleep_time)
 
 
@@ -121,7 +131,7 @@ def _get_embeddings(texts: List[str], embedding_model: str, verbose: bool = Fals
         return _get_openai_embeddings(texts)
 
     if verbose:
-        print(f"Computing embeddings with {embedding_model}…")
+        logger.info(f"Computing embeddings with {embedding_model}…")
 
     model = SentenceTransformer(embedding_model)
     return model.encode(texts, show_progress_bar=verbose).tolist()
@@ -134,7 +144,6 @@ def _get_llm_cluster_summary(
     values: List[str],
     column_name: str,
     cluster_type: str,
-    context: str | None = None,
     sample_size: int = 50,
 ) -> str:
     """Generate a short human readable summary for a cluster via LLM.
@@ -188,30 +197,33 @@ def _get_llm_cluster_summary(
 def llm_coarse_cluster_with_centers(
     fine_cluster_names: List[str],
     max_coarse_clusters: int = 15,
-    context: str | None = None,
     verbose: bool = True,
     model: str = "o3",
-) -> Tuple[List[int], List[str]]:
+    cluster_assignment_model: str = "gpt-4.1-mini",
+) -> Tuple[Dict[str, str], List[str]]:
     """Group fine-grained cluster names into coarser concepts using an LLM."""
 
     if verbose:
-        print(
-            f"Creating coarse clusters from {len(fine_cluster_names)} fine cluster names using LLM concept centers…"
+        logger.info(
+            f"Creating coarse clusters from {len(fine_cluster_names)} fine cluster names using LLM concept centers… "
+            f"Using model: {model} for concept centers, "
+            f"Using model: {cluster_assignment_model} for cluster assignment"
         )
 
     # Remove noise / outlier labels
     valid_fine_names = [n for n in fine_cluster_names if n not in {"Outliers", "outlier", "Noise"}]
     if len(valid_fine_names) <= max_coarse_clusters:
         if verbose:
-            print("Only a few fine clusters – returning 1:1 mapping.")
-        assignments = list(range(len(fine_cluster_names)))
-        return assignments, fine_cluster_names
+            logger.info("Only a few fine clusters – returning 1:1 mapping.")
+        # Return 1:1 mapping as dictionary {fine_name: fine_name}
+        fine_to_coarse = {name: name for name in fine_cluster_names}
+        return fine_to_coarse, fine_cluster_names
 
     fine_names_text = "\n".join(valid_fine_names)
     system_prompt = coarse_clustering_systems_prompt.format(max_properties=max_coarse_clusters)
-    user_prompt = (
-        f"Properties ({'all ' + context if context else ''}):\n\n{fine_names_text}" if context else f"Properties:\n\n{fine_names_text}"
-    )
+    user_prompt = f"Properties:\n\n{fine_names_text}"
+
+    print(f"Clustering {len(valid_fine_names)} fine clusters into {max_coarse_clusters} coarse clusters")
 
     # Build request data for caching
     request_data = {
@@ -243,30 +255,17 @@ def llm_coarse_cluster_with_centers(
         }
         _cache.set_completion(request_data, response_dict)
 
-    print(content)
+    logger.info(content)
     coarse_cluster_names = [n.strip() for n in content.strip().split("\n") if n.strip()]
     if verbose:
-        print("Generated concept centres:")
+        logger.info("Generated concept centres:")
         for i, name in enumerate(coarse_cluster_names):
-            print(f"  {i}: {name}")
+            logger.info(f"  {i}: {name}")
 
     # Embeddings for similarity matching
-    # fine_to_coarse = embedding_match(valid_fine_names, coarse_cluster_names)
-    fine_to_coarse = llm_match(valid_fine_names, coarse_cluster_names)
+    fine_to_coarse = llm_match(valid_fine_names, coarse_cluster_names, model=cluster_assignment_model)
 
-    full_assignments: List[int] = []
-    valid_idx = 0
-    for name in fine_cluster_names:
-        if name in {"Outliers", "outlier", "Noise"}:
-            full_assignments.append(-1)
-        else:
-            full_assignments.append(coarse_cluster_names.index(fine_to_coarse[name]) if fine_to_coarse[name] != "Outliers" else -1)
-            valid_idx += 1
-
-    if -1 in full_assignments:
-        coarse_cluster_names.append("Outliers")
-
-    return full_assignments, coarse_cluster_names
+    return fine_to_coarse, coarse_cluster_names
 
 def embedding_match(fine_cluster_names, coarse_cluster_names):
     """Match fine-grained cluster names to coarse-grained cluster names using embeddings."""
@@ -283,13 +282,24 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
-def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10):
+def match_label_names(label_name, label_options):
+    """See if label_name is in label_options, not taking into account capitalization or whitespace or punctuation. Return original option if found, otherwise return None"""
+    if "outliers" in label_name.lower():
+        return "Outliers"
+    label_name_clean = label_name.lower().strip().replace(".", "").replace(",", "").replace("!", "").replace("?", "").replace(":", "").replace(";", "").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace("{", "").replace("}", "").replace("'", "").replace("\"", "").replace("`", "").replace("~", "").replace("*", "").replace("+", "").replace("-", "").replace("_", "").replace("=", "").replace("|", "").replace("\\", "").replace("/", "").replace("<", "").replace(">", "").replace(" ", "")
+    for option in label_options:
+        option_clean = option.lower().strip().replace(".", "").replace(",", "").replace("!", "").replace("?", "").replace(":", "").replace(";", "").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace("{", "").replace("}", "").replace("'", "").replace("\"", "").replace("`", "").replace("~", "").replace("*", "").replace("+", "").replace("-", "").replace("_", "").replace("=", "").replace("|", "").replace("\\", "").replace("/", "").replace("<", "").replace(">", "").replace(" ", "")
+        if label_name_clean in option_clean:
+            return option
+    return None
+
+def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10, model="gpt-4.1-mini"):
     """Match fine-grained cluster names to coarse-grained cluster names using an LLM with threading."""
     coarse_names_text = "\n".join(coarse_cluster_names)
     fine_to_coarse = {}
     lock = threading.Lock()
     
-    system_prompt = "You are a machine learning expert specializing in the bhavior of large langauge models. Given the following coarse grained properties of model behavior, match the given fine grained property to the coarse grained property that it most closely resembles. Respond with the name of the coarse grained property that the fine grained property most resembles. If is okay if the match is not perfect, just respond with the property that is most similar. If the fine grained property does not have any relation to the coarse grained properties, respond with 'Outliers'. Do NOT include anything but the name of the coarse grained property in your response."
+    system_prompt = "You are a machine learning expert specializing in the bhavior of large langauge models. Given the following coarse grained properties of model behavior, match the given fine grained property to the coarse grained property that it most closely resembles. Respond with the name of the coarse grained property that the fine grained property most resembles. If is okay if the match is not perfect, just respond with the property that is most similar. If the fine grained property has absolutely no relation to any of the coarse grained properties, respond with 'Outliers'. Do NOT include anything but the name of the coarse grained property in your response."
     
     def process_single_fine_name(fine_name):
         """Process a single fine-grained cluster name."""
@@ -298,17 +308,19 @@ def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10):
             try:
                 user_prompt = f"Coarse grained properties:\n\n{coarse_names_text}\n\nFine grained property: {fine_name}\n\nClosest coarse grained property:"
                 
-                response = litellm.completion(model="gpt-4.1-mini", 
+                response = litellm.completion(model=model, 
                                             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
                                             caching=retries == 3)
                 coarse_label = response.choices[0].message.content.strip()
-                
+                coarse_label = match_label_names(coarse_label, coarse_cluster_names)
+
                 if coarse_label == "Outliers" or coarse_label in coarse_cluster_names:
                     user_prompt = f"Coarse grained properties:\n\n{coarse_names_text}\n\nFine grained property: {coarse_label}\n\nClosest coarse grained property:"
-                    response = litellm.completion(model="gpt-4.1-mini", 
+                    response = litellm.completion(model=model, 
                                                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
                                                 caching=True)
                     coarse_label = response.choices[0].message.content.strip()
+                    coarse_label = match_label_names(coarse_label, coarse_cluster_names)
                 
                 assert (coarse_label in coarse_cluster_names) or (coarse_label == "Outliers"), f"Fine grained property {fine_name} does not match any coarse grained property"
                 
@@ -321,10 +333,11 @@ def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10):
                 if attempt == retries - 1:
                     with lock:
                         fine_to_coarse[fine_name] = "Outliers"
-                    print(f"Failed to match fine grained property {fine_name} after {retries} attempts, setting to 'Outliers'")
+                    logger.warning(f"Failed to match fine grained property {fine_name} after {retries} attempts, setting to 'Outliers'")
                     return fine_name, "Outliers"
                 else:
-                    print(f"Error matching fine grained property {fine_name} to coarse grained property: {e}")
+                    logger.warning(f"Error matching fine grained property to coarse grained property: {e}\n\nLabel: {coarse_label}\n\nCoarse names: {coarse_cluster_names}")
+   
         return fine_name, "Outliers"
     
     # Use ThreadPoolExecutor to process fine cluster names in parallel
@@ -340,17 +353,17 @@ def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10):
                 result = future.result()
                 # Result is already stored in fine_to_coarse by the worker function
             except Exception as e:
-                print(f"Exception occurred while processing {fine_name}: {e}")
+                logger.error(f"Exception occurred while processing {fine_name}: {e}")
                 with lock:
                     fine_to_coarse[fine_name] = "Outliers"
     
     return fine_to_coarse
 
 def _setup_embeddings(texts, embedding_model, verbose=False):
-    """Setup embeddings based on model type. Uses litellm's built-in caching."""
+    """Setup embeddings based on model type. Uses LMDB-based caching."""
     if embedding_model == "openai":
         if verbose:
-            print("Using OpenAI embeddings (with litellm caching)...")
+            logger.info("Using OpenAI embeddings (with LMDB caching)...")
         embeddings = _get_openai_embeddings(texts)
         embeddings = np.array(embeddings)
         # Normalize embeddings
@@ -358,13 +371,16 @@ def _setup_embeddings(texts, embedding_model, verbose=False):
         return embeddings, None
     else:
         if verbose:
-            print(f"Using sentence transformer: {embedding_model}")
+            logger.info(f"Using sentence transformer: {embedding_model}")
         model = SentenceTransformer(embedding_model)
         return None, model
 
 
-def _get_openai_embeddings_batch(batch, retries=3, sleep_time=2.0):
-    """Fetch embeddings for one batch with retry logic."""
+# -------------------------------------------------------------------------
+# Legacy Litellm-based helpers (kept for reference – not used by pipeline)
+# -------------------------------------------------------------------------
+def _get_openai_embeddings_batch_litellm(batch, retries=3, sleep_time=2.0):
+    """Fetch embeddings for one batch with retry logic (uses LiteLLM cache)."""
     for attempt in range(retries):
         try:
             resp = litellm.embedding(
@@ -377,12 +393,13 @@ def _get_openai_embeddings_batch(batch, retries=3, sleep_time=2.0):
         except Exception as e:
             if attempt == retries - 1:
                 raise
-            print(f"[retry {attempt + 1}/{retries}] {e}. Sleeping {sleep_time}s.")
+            logger.warning(f"[retry {attempt + 1}/{retries}] {e}. Sleeping {sleep_time}s.")
             time.sleep(sleep_time)
 
 
-def _get_openai_embeddings(texts, batch_size=100, max_workers=10):
-    """Get embeddings using OpenAI API with improved error handling and order preservation."""
+# NOTE: renamed to avoid overriding the LMDB-cached version defined earlier
+def _get_openai_embeddings_litellm(texts, batch_size=100, max_workers=10):
+    """Get embeddings using OpenAI API (LiteLLM cache)."""
 
     if not texts:
         return []
@@ -398,7 +415,7 @@ def _get_openai_embeddings(texts, batch_size=100, max_workers=10):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_span = {
-            executor.submit(_get_openai_embeddings_batch, batch_texts): (start, len(batch_texts))
+            executor.submit(_get_openai_embeddings_batch_litellm, batch_texts): (start, len(batch_texts))
             for start, batch_texts in batches
         }
 
@@ -422,14 +439,14 @@ def load_clustered_results(parquet_path):
     """Load previously clustered results from parquet file."""
     df = pd.read_parquet(parquet_path)
     
-    print(f"Loaded {len(df)} rows from {parquet_path}")
+    logger.info(f"Loaded {len(df)} rows from {parquet_path}")
     cluster_cols = [col for col in df.columns if 'cluster' in col.lower() or 'topic' in col.lower()]
     embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
     
     if cluster_cols:
-        print(f"Cluster columns: {cluster_cols}")
+        logger.info(f"Cluster columns: {cluster_cols}")
     if embedding_cols:
-        print(f"Embedding columns: {embedding_cols}")
+        logger.info(f"Embedding columns: {embedding_cols}")
     
     return df
 
@@ -449,7 +466,7 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
     if include_embeddings:
         full_path = f"cluster_results/{base_filename}/{base_filename}_with_embeddings.parquet"
         df.to_parquet(full_path, compression='snappy')
-        print(f"Saved full results to: {full_path}")
+        logger.info(f"Saved full results to: {full_path}")
     
     # Save lightweight version without embeddings
     embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
@@ -467,16 +484,16 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
     summary_table = create_summary_table(df_light, config)
     summary_table.to_json(summary_table, lines=True, orient="records")
     
-    print(f"Saved lightweight results to: {light_parquet}, {light_csv_gz}, {light_jsonl}")
+    logger.info(f"Saved lightweight results to: {light_parquet}, {light_csv_gz}, {light_jsonl}")
     
     # Print file sizes
     if include_embeddings:
         full_size = os.path.getsize(full_path) / (1024**2)
-        print(f"  Full dataset: {full_size:.1f} MB")
+        logger.info(f"  Full dataset: {full_size:.1f} MB")
     
     light_size = os.path.getsize(light_parquet) / (1024**2)
     csv_gz_size = os.path.getsize(light_csv_gz) / (1024**2)
-    print(f"  Lightweight: {light_size:.1f} MB (parquet), {csv_gz_size:.1f} MB (csv.gz)")
+    logger.info(f"  Lightweight: {light_size:.1f} MB (parquet), {csv_gz_size:.1f} MB (csv.gz)")
 
     # Log to wandb if enabled
     if config and config.use_wandb:
@@ -487,10 +504,10 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
     """Log clustering results to wandb."""
     
     if not wandb.run:
-        print("⚠️ wandb not initialized, skipping logging")
+        logger.warning("⚠️ wandb not initialized, skipping logging")
         return
     
-    print("📊 Logging results to wandb...")
+    logger.info("📊 Logging results to wandb...")
     
     try:
         # Log the lightweight CSV file
@@ -520,10 +537,10 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
             sample_size = min(100, len(df_light))
             if len(df_light) > sample_size:
                 df_sample = df_light[table_cols].sample(n=sample_size, random_state=42)
-                print(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
+                logger.info(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
             else:
                 df_sample = df_light[table_cols]
-                print(f"📋 Logging all {len(df_sample)} rows")
+                logger.info(f"📋 Logging all {len(df_sample)} rows")
             
             # Convert to string to handle any non-serializable data
             df_sample_str = df_sample.astype(str)
@@ -565,13 +582,13 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
         wandb.log(metrics)
         wandb.config.update(config_dict)
         
-        print(f"✅ Logged clustering results to wandb")
-        print(f"   - Dataset artifact: {base_filename}_clustered_data")
-        print(f"   - Clustering results table: {base_filename}_clustering_results")
-        print(f"   - Metrics: {list(metrics.keys())}")
+        logger.info(f"✅ Logged clustering results to wandb")
+        logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
+        logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
+        logger.info(f"   - Metrics: {list(metrics.keys())}")
         
     except Exception as e:
-        print(f"❌ Failed to log to wandb: {e}")
+        logger.error(f"❌ Failed to log to wandb: {e}")
 
 
 def initialize_wandb(config, method_name, input_file):
@@ -579,7 +596,7 @@ def initialize_wandb(config, method_name, input_file):
     if not config.use_wandb:
         return
     
-    print("🔧 Initializing wandb...")
+    logger.info("🔧 Initializing wandb...")
     
     # Create run name if not provided
     run_name = config.wandb_run_name
@@ -601,12 +618,11 @@ def initialize_wandb(config, method_name, input_file):
             "assign_outliers": config.assign_outliers,
             "disable_dim_reduction": config.disable_dim_reduction,
             "min_samples": config.min_samples,
-            "cluster_selection_epsilon": config.cluster_selection_epsilon,
-            "context": config.context
+            "cluster_selection_epsilon": config.cluster_selection_epsilon
         }
     )
     
-    print(f"✅ Initialized wandb run: {run_name}")
+    logger.info(f"✅ Initialized wandb run: {run_name}")
 
 
 def load_precomputed_embeddings(embeddings_path, verbose=True):
@@ -615,7 +631,7 @@ def load_precomputed_embeddings(embeddings_path, verbose=True):
         raise FileNotFoundError(f"Embeddings file not found: {embeddings_path}")
     
     if verbose:
-        print(f"Loading precomputed embeddings from {embeddings_path}...")
+        logger.info(f"Loading precomputed embeddings from {embeddings_path}...")
     
     if embeddings_path.endswith('.pkl'):
         with open(embeddings_path, 'rb') as f:
@@ -625,27 +641,27 @@ def load_precomputed_embeddings(embeddings_path, verbose=True):
                 if 'embeddings' in data:
                     embeddings = data['embeddings']
                     if verbose:
-                        print(f"Loaded {len(embeddings)} embeddings from cache file")
+                        logger.info(f"Loaded {len(embeddings)} embeddings from cache file")
                 else:
                     # Assume it's a direct mapping of values to embeddings
                     embeddings = data
                     if verbose:
-                        print(f"Loaded {len(embeddings)} embeddings from mapping file")
+                        logger.info(f"Loaded {len(embeddings)} embeddings from mapping file")
             else:
                 # Assume it's a direct array/list of embeddings
                 embeddings = data
                 if verbose:
-                    print(f"Loaded {len(embeddings)} embeddings from array file")
+                    logger.info(f"Loaded {len(embeddings)} embeddings from array file")
     
     elif embeddings_path.endswith('.npy'):
         embeddings = np.load(embeddings_path)
         if verbose:
-            print(f"Loaded {len(embeddings)} embeddings from numpy file")
+            logger.info(f"Loaded {len(embeddings)} embeddings from numpy file")
     
     elif embeddings_path.endswith('.parquet'):
         # Load from parquet file with embedding column
         if verbose:
-            print("Loading parquet file...")
+            logger.info("Loading parquet file...")
         df = pd.read_parquet(embeddings_path)
         
         embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
@@ -663,12 +679,12 @@ def load_precomputed_embeddings(embeddings_path, verbose=True):
             if text_cols:
                 base_col = text_cols[0]
                 if verbose:
-                    print(f"Using column '{base_col}' as source column")
+                    logger.info(f"Using column '{base_col}' as source column")
             else:
                 raise ValueError(f"Cannot find source text column in {embeddings_path}")
         
         if verbose:
-            print(f"Creating value-to-embedding mapping from column '{base_col}'...")
+            logger.info(f"Creating value-to-embedding mapping from column '{base_col}'...")
         
         # Create mapping from values to embedding
         embeddings = {}
@@ -678,7 +694,7 @@ def load_precomputed_embeddings(embeddings_path, verbose=True):
             embeddings[value] = embedding
         
         if verbose:
-            print(f"Loaded {len(embeddings)} embeddings from parquet file (column: {embedding_col})")
+            logger.info(f"Loaded {len(embeddings)} embeddings from parquet file (column: {embedding_col})")
     
     else:
         raise ValueError(f"Unsupported file format: {embeddings_path}. Supported: .pkl, .npy, .parquet")
