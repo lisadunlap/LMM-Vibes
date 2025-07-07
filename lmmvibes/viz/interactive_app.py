@@ -48,7 +48,7 @@ args = _parse_args()
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="LMM-Vibes Cluster Explorer", layout="wide")
-st.title("🔍 LMM-Vibes Cluster Explorer")
+st.title("checkin' in on our clusters")
 
 # Allow both CLI arg and file-uploader fallback
 if args.dataset:
@@ -134,13 +134,16 @@ with st.sidebar.expander("Fine-cluster distribution", expanded=False):
 # Level 2 – Fine clusters -----------------------------------------------------
 # ---------------------------------------------------------------------------
 
-st.header(f"Coarse #{coarse.id}: {coarse.label}  ({coarse.size} properties)")
-
 # Derive children directly if fine_map is incomplete
 children = [c for c in all_clusters if c.parent_id == coarse.id]
 if not children:
     # Fallback: treat coarse as fine when no explicit children
     children = [coarse]
+
+# Display coarse cluster info in a more compact way
+st.markdown(f"#### 🇽🇰 Coarse Cluster #{coarse.id}")
+st.markdown(f"#### {coarse.label}")
+st.markdown(f"**{coarse.size} properties** • **{len(children)} fine clusters**")
 
 fine_labels = [f"[{c.size:>3}] {c.label}" for c in children]
 sel_fine_idx = st.selectbox("Fine clusters", range(len(children)), format_func=lambda i: fine_labels[i])
@@ -150,10 +153,12 @@ fine: Cluster = children[sel_fine_idx]
 # Level 3 – Property descriptions -------------------------------------------
 # ---------------------------------------------------------------------------
 
-st.subheader(f"Fine #{fine.id}: {fine.label}  ({fine.size} properties)")
+# st.markdown("---")  # Add visual separator
+st.markdown(f"#### 🇫🇮 Fine Cluster #{fine.id}")
+st.markdown(f"**{fine.size} properties** • *{fine.label}*")
 
 # Optional word-cloud visualisation
-with st.expander("Word-cloud", expanded=False):
+with st.expander("☁️ Word-cloud", expanded=False):
     try:
         from wordcloud import WordCloud
         import matplotlib.pyplot as plt
@@ -166,7 +171,7 @@ with st.expander("Word-cloud", expanded=False):
     except ModuleNotFoundError:
         st.info("Run `pip install wordcloud matplotlib` for word-cloud view.")
 
-st.markdown("### Property descriptions")
+st.markdown("**📋 Property descriptions**")
 
-for desc in fine.property_descriptions:
-    st.markdown(f"• {desc}") 
+for i, desc in enumerate(fine.property_descriptions, 1):
+    st.markdown(f"**{i}.** {desc}") 

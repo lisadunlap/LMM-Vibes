@@ -28,6 +28,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         include_embeddings: bool = True,
         use_wandb: bool = False,
         wandb_project: str = None,
+        max_coarse_clusters: int = 25,
         **kwargs
     ):
         """
@@ -49,6 +50,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         self.hierarchical = hierarchical
         self.assign_outliers = assign_outliers
         self.include_embeddings = include_embeddings
+        self.max_coarse_clusters = max_coarse_clusters
                 
     def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
         """
@@ -66,14 +68,14 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         # Build a DataFrame of property descriptions
         # ------------------------------------------------------------------
         import pandas as pd
-        descriptions = [p.property_description for p in data.properties if p.property_description]
+
+        # remove bad properties
+        valid_properties = data.get_valid_properties()
+
+        descriptions = [p.property_description for p in valid_properties]
         if not descriptions:
             self.log("No property descriptions to cluster – skipping stage")
             return data
-
-        df_props = pd.DataFrame({
-            column_name: descriptions
-        })
 
         # ------------------------------------------------------------------
         # Run clustering using the original helper
@@ -91,6 +93,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             assign_outliers=self.assign_outliers,
             include_embeddings=self.include_embeddings,
             verbose=False,
+            max_coarse_clusters=self.max_coarse_clusters
         )
 
         clustered_df = hdbscan_cluster_categories(
@@ -98,7 +101,6 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             column_name=column_name,
             config=cfg
         )
-        print("clustered_df ", clustered_df.columns)
 
         # ------------------------------------------------------------------
         # Convert clustering result into a simple summary dict
@@ -110,17 +112,24 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
 
         clusters: List[Cluster] = []
 
-        for cid, group in clustered_df.groupby(fine_id_col):
-            label = group[fine_label_col].iloc[0]
-            clusters.append(Cluster(id=int(cid), label=label, size=len(group), property_descriptions=group[column_name].tolist(), question_ids=group["question_id"].tolist()))
+        clustered_df.to_csv("clustered_df.csv")
 
-        # assign coarse cluster labels to existing fine clusters
-        if self.hierarchical and coarse_id_col in clustered_df.columns:
-            for c in clusters:
-                coarse_clusters = clustered_df[clustered_df[fine_id_col] == c.id][coarse_id_col].tolist()
-                assert len(coarse_clusters) == 1, f"Expected 1 coarse cluster for fine cluster {c.id}, got {len(coarse_clusters)}"
-                c.parent_id = coarse_clusters[0]
-                c.parent_label = clustered_df[clustered_df[coarse_id_col] == coarse_clusters[0]][coarse_label_col].iloc[0]
+        # ------------------------------------------------------------------
+        # Convert clustering result into a simple summary dict
+        # ------------------------------------------------------------------
+        if self.hierarchical:
+            for cid, group in clustered_df.groupby(fine_id_col):
+                cid_group = group[group[fine_id_col] == cid]
+                label = cid_group[fine_label_col].iloc[0]
+                coarse_label = cid_group[coarse_label_col].unique().tolist()
+                assert len(coarse_label) == 1, f"Expected exactly one coarse label for fine cluster {cid}, but got {coarse_label}"
+                coarse_id = cid_group[coarse_id_col].iloc[0]
+                clusters.append(Cluster(id=int(cid), label=label, size=len(cid_group), property_descriptions=cid_group[column_name].tolist(), question_ids=cid_group["question_id"].tolist(), parent_id=int(coarse_id), parent_label=coarse_label[0]))
+        else:
+            for cid, group in clustered_df.groupby(fine_id_col):
+                cid_group = group[group[fine_id_col] == cid]
+                label = cid_group[fine_label_col].iloc[0]
+                clusters.append(Cluster(id=int(cid), label=label, size=len(cid_group), property_descriptions=cid_group[column_name].tolist(), question_ids=cid_group["question_id"].tolist()))
 
         self.log(f"Created {len(clusters)} fine clusters")
         if self.hierarchical:
@@ -145,7 +154,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
                 })
                 import json
                 self.log_wandb({
-                    "hdbscan_clusters_json": wandb.Html(f'<pre>{json.dumps(clusters, indent=2)}</pre>')
+                    "hdbscan_clusters_json": wandb.Html(f'<pre>{json.dumps([c.to_dict() for c in clusters], indent=2)}</pre>')
                 })
             except Exception as e:
                 self.log(f"Failed to log to wandb: {e}", level="warning")
@@ -153,6 +162,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
 
         return PropertyDataset(
             conversations=data.conversations,
+            all_models=data.all_models,
             properties=data.properties,
             clusters=clusters,
             model_stats=data.model_stats

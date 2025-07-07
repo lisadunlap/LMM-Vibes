@@ -6,7 +6,7 @@ from lmmvibes.clusterers.hdbscan import HDBSCANClusterer
 from lmmvibes.core.data_objects import PropertyDataset
 
 
-DATASET_PATH = pathlib.Path("tests/outputs/arena_first50_dataset.json")
+DATASET_PATH = pathlib.Path("tests/outputs/arena_first50_properties.json")
 
 
 def _load_saved_dataset() -> PropertyDataset:
@@ -27,7 +27,7 @@ def test_hdbscan_clusterer_basic():
     if len(valid_props) < 3:
         pytest.skip("Not enough parsed properties to cluster.")
 
-    clusterer = HDBSCANClusterer(min_cluster_size=2, hierarchical=False, include_embeddings=False)
+    clusterer = HDBSCANClusterer(min_cluster_size=3, hierarchical=True, include_embeddings=False, max_coarse_clusters=10)
     result = clusterer(dataset)
 
     # Save clustering results to file
@@ -49,13 +49,13 @@ def test_hdbscan_clusterer_basic():
             assert hasattr(p, "fine_cluster_id")
 
     # --- Debug: print a summary of the clusters (first 5) ---
-    print("\n--- Fine-grained clusters (up to 5 shown) ---")
-    for c in result.clusters:
-        print(f"Cluster {c.id} | size={c.size} | label='{c.label}'")
+    print("\n--- Fine-grained clusters (up to 3 shown) ---")
+    # for c in result.clusters[:3]:
+    #     print(f"Cluster {c.id} | size={c.size} | label='{c.label}' | parent_id={c.parent_id}")
 
     # print 3 examples of each cluster
-    for c in result.clusters:
-        print(f"Cluster {c.id} | size={c.size} | label='{c.label}'")
+    for c in result.clusters[:3]:
+        print(f"Cluster {c.id} | size={c.size} | label='{c.label}' | parent_id={c.parent_id}")
         for p in c.property_descriptions:
             print(f"  {p}")
 

@@ -209,6 +209,25 @@ def build_hierarchy_from_df(df: "pd.DataFrame") -> tuple[list[Cluster], dict[int
     # Fill NaNs for grouping safety
     df = df.fillna({"coarse_cluster_id": -1, "coarse_cluster_label": "No coarse"})
 
+    # Step 1: Create coarse clusters by grouping by coarse_cluster_id and coarse_cluster_label
+    coarse_clusters: list[Cluster] = []
+    if "coarse_cluster_id" in df.columns and "coarse_cluster_label" in df.columns:
+        for (cid, clabel), grp in df.groupby(["coarse_cluster_id", "coarse_cluster_label"]):
+            if cid != -1:  # Skip outliers for coarse clusters
+                prop_descs = grp["property_description"].dropna().tolist()
+                coarse_clusters.append(
+                    Cluster(
+                        id=cid,
+                        label=clabel,
+                        size=len(grp),
+                        parent_id=None,  # Coarse clusters have no parent
+                        parent_label=None,
+                        property_descriptions=prop_descs,
+                        question_ids=grp.get("question_id", pd.Series(dtype=str)).dropna().astype(str).tolist(),
+                    )
+                )
+
+    # Step 2: Create fine clusters by grouping by fine_cluster_id and fine_cluster_label
     fine_clusters: list[Cluster] = []
     for (fid, flabel, cid, clabel), grp in df.groupby([
         "fine_cluster_id",
@@ -229,20 +248,22 @@ def build_hierarchy_from_df(df: "pd.DataFrame") -> tuple[list[Cluster], dict[int
             )
         )
 
-    # Build hierarchy mapping
-    coarse: list[Cluster] = []
+    # Step 3: Build hierarchy mapping
     fine_map: dict[int | str, list[Cluster]] = {}
     for fc in fine_clusters:
-        if fc.parent_id is None:
-            coarse.append(fc)
-        else:
+        if fc.parent_id is not None:
             fine_map.setdefault(fc.parent_id, []).append(fc)
 
-    coarse.sort(key=lambda c: c.size, reverse=True)
+    # Step 4: If no coarse clusters were created (flat clustering), use top-level fine clusters
+    if not coarse_clusters:
+        coarse_clusters = [fc for fc in fine_clusters if fc.parent_id is None]
+
+    # Sort for deterministic order
+    coarse_clusters.sort(key=lambda c: c.size, reverse=True)
     for child_list in fine_map.values():
         child_list.sort(key=lambda c: c.size, reverse=True)
 
-    return coarse, fine_map
+    return coarse_clusters, fine_map
 
 
 __all__: tuple[str, ...] = ("load_dataset", "build_hierarchy", "load_clusters_dataframe", "build_hierarchy_from_df") 

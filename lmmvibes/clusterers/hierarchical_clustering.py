@@ -48,7 +48,6 @@ from bertopic.backend import OpenAIBackend
 class ClusterConfig:
     """Configuration for clustering operations."""
     min_cluster_size: int = 30
-    embedding_model: str = "openai"
     verbose: bool = True
     include_embeddings: bool = True
     context: Optional[str] = None
@@ -56,12 +55,16 @@ class ClusterConfig:
     disable_dim_reduction: bool = False
     assign_outliers: bool = False
     hierarchical: bool = False
-    min_grandparent_size: int = 5
+    min_grandparent_size: int = 3
     max_coarse_clusters: int = 15
     input_model_name: Optional[str] = None
     min_samples: Optional[int] = None
     cluster_selection_epsilon: float = 0.0
     cache_embeddings: bool = True
+    # model settings
+    embedding_model: str = "openai"
+    summary_model: str = "o4-mini"
+    cluster_assignment_model: str = "gpt-4.1-mini"
     # Dimension reduction settings
     dim_reduction_method: str = "adaptive"  # "adaptive", "umap", "pca", "none"
     umap_n_components: int = 100  # More conservative default
@@ -246,7 +249,7 @@ def generate_cluster_summaries(cluster_values: Dict[int, List], config: ClusterC
             cluster_label_map[cluster_id] = "Outliers"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, cluster_type, config.context, 50)
+        summary = _get_llm_cluster_summary(values, column_name, cluster_type, 50)
         cluster_label_map[cluster_id] = summary
         if config.verbose:
             print(f"    Cluster {cluster_id}: {summary} ({len(values)} items)")
@@ -276,7 +279,6 @@ def format_clustering_results(df: pd.DataFrame, column_name: str,
         pd.DataFrame: Formatted results with cluster assignments
     """
     df_copy = df.copy()
-    print("format clustering results df_copy ", df_copy.columns)
     
     # Create basic mappings
     value_to_cluster = dict(zip(unique_values, cluster_labels))
@@ -306,7 +308,6 @@ def format_clustering_results(df: pd.DataFrame, column_name: str,
         cluster_name_to_embedding = dict(zip(unique_cluster_names, cluster_name_embeddings))
         df_copy[f'{column_name}_fine_cluster_label_embedding'] = df_copy[f'{column_name}_fine_cluster_label'].map(cluster_name_to_embedding)
     
-    print("df_copy ", df_copy.columns)
     return df_copy
 
 
@@ -407,24 +408,34 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         print("Generating hierarchical clusters...")
         fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1]
         coarse_assignments, coarse_names = llm_coarse_cluster_with_centers(
-            fine_cluster_names, config.max_coarse_clusters, config.context, config.verbose
+            fine_cluster_names, config.max_coarse_clusters, config.verbose, config.summary_model, config.cluster_assignment_model
         )
         print("coarse_assignments", coarse_assignments)
         print("coarse_names", coarse_names)
         # Map back to original values
         coarse_labels = []
         coarse_label_map = {}
-        for i, (cluster_id, _) in enumerate([(c, vals) for c, vals in cluster_values.items()]):
-            if cluster_id == -1:
-                coarse_labels.extend([-1] * len(cluster_values[cluster_id]))
+        
+        # Build coarse_labels in the same order as unique_values
+        for value, fine_cluster_id in zip(unique_values, cluster_labels):
+            if fine_cluster_id == -1:
+                coarse_labels.append(-1)
                 coarse_label_map[-1] = "Outliers"
             else:
-                fine_name = cluster_label_map[cluster_id]
+                fine_name = cluster_label_map[fine_cluster_id]
                 if fine_name in fine_cluster_names:
-                    coarse_idx = coarse_assignments[fine_cluster_names.index(fine_name)]
-                    coarse_labels.extend([coarse_idx] * len(cluster_values[cluster_id]))
+                    coarse_name = coarse_assignments[fine_name]
+                    if coarse_name == "Outliers":
+                        coarse_idx = -1
+                    else:
+                        coarse_idx = coarse_names.index(coarse_name)
+                    coarse_labels.append(coarse_idx)
                     if coarse_idx != -1:
                         coarse_label_map[coarse_idx] = coarse_names[coarse_idx]
+                else:
+                    # Handle case where fine cluster name is not in fine_cluster_names
+                    coarse_labels.append(-1)
+                    coarse_label_map[-1] = "Outliers"
         coarse_cluster_data = (coarse_labels, coarse_label_map)
 
     # Step 6: Format results
@@ -596,7 +607,7 @@ def hdbscan_native_hierarchical_cluster(df, column_name, config=None, **kwargs):
             
             # Use a slightly different prompt context for different levels
             cluster_type = "specific" if level_idx == 0 else "broad"
-            summary = _get_llm_cluster_summary(values, column_name, cluster_type, config.context, 50)
+            summary = _get_llm_cluster_summary(values, column_name, cluster_type, 50)
             id_to_label_map[cluster_id] = summary
             
             if config.verbose and (cluster_id % 5 == 0 or num_clusters < 10):
@@ -685,7 +696,7 @@ def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
             coarse_label_map[cluster_id] = f"coarse_cluster_{cluster_id}"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, "broad", config.context, 50)
+        summary = _get_llm_cluster_summary(values, column_name, "broad", 50)
         coarse_label_map[cluster_id] = summary
         
         if config.verbose:
@@ -698,7 +709,7 @@ def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
             fine_label_map[cluster_id] = f"fine_cluster_{cluster_id}"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, "specific", config.context, 30)
+        summary = _get_llm_cluster_summary(values, column_name, "specific", 30)
         fine_label_map[cluster_id] = summary
         
         if config.verbose and cluster_id % 5 == 0:  # Print progress for every 5th cluster
