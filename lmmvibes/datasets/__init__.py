@@ -118,6 +118,25 @@ def load_arena_data(args) -> Tuple[pd.DataFrame, Callable, str]:
 
     return df, _extract_content_arena, "one_sided_system_prompt_no_examples"
 
+def load_arena_data_single(args) -> Tuple[pd.DataFrame, Callable, str]:
+    """Load and preprocess the standard arena dataset."""
+    df, _, _ = load_arena_data(args)
+
+    df_a = df.copy()
+    df_a["model"] = df['model_a']
+    df_a["model_response"] = df['model_a_response']
+    df_b = df.copy()
+    df_b["model"] = df['model_b']
+    df_b["model_response"] = df['model_b_response']
+    df = pd.concat([df_a, df_b])
+    df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score"])
+    df = df.dropna(subset=["model", "model_response"])
+    print(f"After removing missing model and model response: {len(df)} battles")
+    print(df.columns)
+    
+    return df, _extract_content_arena, "single_model_system_prompt"
+    
+
 # ---------------------------------------------------------------------------
 # Web-dev loaders
 # ---------------------------------------------------------------------------
@@ -180,6 +199,7 @@ def load_webdev_data(args):
 DATASET_LOADERS: Dict[str, Callable] = {
     "arena": load_arena_data,
     "webdev": load_webdev_data,
+    "arena_single": load_arena_data_single,
 }
 
 
