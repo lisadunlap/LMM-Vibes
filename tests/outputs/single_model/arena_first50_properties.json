@@ -5453,7 +5453,7 @@
   ],
   "properties": [
     {
-      "id": "7431a960-730a-4446-96a6-d888a7772cbd",
+      "id": "b21106a7-a495-4f18-9fd1-6e28ddc014da",
       "question_id": "ccdaf90ba67841909e6101fe3d0de6a3",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Refuses to generate the requested comparative table due to lack of real-time financial data access.",
@@ -5468,7 +5468,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "f3d1eaaa-bbb8-436a-9181-c43dfe9f7708",
+      "id": "525c36eb-c465-4fb2-924c-f9894f1d54d7",
       "question_id": "ccdaf90ba67841909e6101fe3d0de6a3",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides alternative resources and guidance on where to find financial data, including company websites and financial news providers.",
@@ -5483,7 +5483,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "dae9c75a-1f22-40ed-9297-2902aeaa3adb",
+      "id": "ac83ea10-39ab-4d2d-8eae-60833ea82437",
       "question_id": "ccdaf90ba67841909e6101fe3d0de6a3",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Lists relevant financial and industry-specific metrics for comparing the companies despite not providing actual numbers.",
@@ -5498,7 +5498,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9088448b-f3c2-4a91-9051-6067422727e9",
+      "id": "18c7db5d-5c7f-4124-a66a-558f8b54628c",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a concise and accurate summary of Hugo Touvron's professional background and research contributions.",
@@ -5513,7 +5513,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "fd7b57a6-f427-4c09-b122-95f71981c425",
+      "id": "87044b8c-9132-4cc8-a990-f55fc59dda08",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Organizes information in a clear, bulleted list, making the response easy to scan and digest.",
@@ -5528,7 +5528,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d0cb52e3-edec-4498-baee-f07191672da0",
+      "id": "95a00ca8-f16d-4b83-980a-6b7c06718491",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Omits any personal or non-professional information, keeping the response focused on academic and career achievements.",
@@ -5543,7 +5543,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a3a55ecc-2cfd-4c1b-9cd9-a78eb9d4e248",
+      "id": "ff8215c4-fd4f-42c4-913b-3fa194cabe2a",
       "question_id": "20d89b6c6a204bffa836b4802243c0c7",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Does not cite specific sources or provide direct links to publications, which may limit verifiability.",
@@ -5558,7 +5558,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7d69d708-5839-4494-b955-8453105ac4cc",
+      "id": "59917a11-f067-43d7-95e3-1de53320e52e",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Accurately decodes cultural and political references (NTU, 721, 831, 8964) with succinct explanations and historical context.",
@@ -5573,7 +5573,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b4cd31f3-66d2-46fe-8d65-8ef50591ebd5",
+      "id": "68724908-4049-4c1b-8859-05526b9c61fb",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides nuanced geopolitical explanation about Taiwan’s international status and the meaning of 'Free Taiwan'.",
@@ -5588,7 +5588,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "79158fe4-1053-40b3-9fb8-dc0df9f8f1f9",
+      "id": "dd7c7faa-6971-4e0c-8a08-28c869eaa3b5",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Clarifies the economic context of Taipei’s cost of living with comparison to other cities, enhancing user relatability.",
@@ -5603,7 +5603,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3baa046b-53ac-4299-808b-6b76b94ad042",
+      "id": "4772cb08-a7ba-4eca-99e6-2fca5444a74f",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses tentative language ('likely', 'probably', 'may vary') to qualify interpretations and avoid overstatement.",
@@ -5618,7 +5618,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "da031a42-9d05-4e28-b9e6-65e5bcc4783b",
+      "id": "89c1dc4c-9536-48c8-8641-b163b95be2f2",
       "question_id": "54747bb7c87e47bcbd86982cf4541c70",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Presents answers in a clear, logically ordered, and concise manner with appropriate context for each point.",
@@ -5633,7 +5633,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3caee425-dc60-4872-9ea8-baed7574ac5c",
+      "id": "6f7bba01-302b-4a9f-b5e3-92daad5e5766",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Asks the user clarifying questions to provide a more personalized answer.",
@@ -5648,7 +5648,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "16a16b91-0543-447b-9d30-84d99f62f250",
+      "id": "027a944b-1556-4457-980e-c72b8aca5ca0",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Presents a broad and organized list of common online earning methods, categorized by type.",
@@ -5663,7 +5663,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "de44d01e-0b0e-4a4e-b4aa-8b5cd9ca0792",
+      "id": "6063005b-84de-4ca7-bc12-bd20286fba94",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides a warning about scams and emphasizes the need for research and due diligence.",
@@ -5678,7 +5678,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a7abcebb-6c42-400b-a104-13723f74df24",
+      "id": "ebfb390e-2ead-4502-858f-fddf383fcb9e",
       "question_id": "b360823b92ee4703aa305a0bb67d2d29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Uses a friendly and encouraging tone to engage the user.",
@@ -5693,7 +5693,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "455a2222-3c39-482b-a281-30d29c3ff20c",
+      "id": "4e6e97e3-ca68-4059-ac7a-dc7327f1923d",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Openly admits inability to identify the source and offers general search advice instead of speculation.",
@@ -5708,7 +5708,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "25c7ebc3-b71f-48d0-9d18-0c6db7b230db",
+      "id": "51bc8377-0909-44fe-8bb3-445441df9455",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides context clues about the quote's subject (Vikings, Vinland) and suggests possible media types.",
@@ -5723,7 +5723,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3612de21-8445-4c18-87ac-bc4982366a71",
+      "id": "f7e730db-3bb2-4ac2-aa8e-6f8e7cbda40c",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Gives practical user advice for independent verification, such as using quote databases or search engines.",
@@ -5738,7 +5738,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "51a618b2-2e31-4cf6-94c1-f85fd91f1753",
+      "id": "3749ca12-6f59-4f2d-9637-62829ca91660",
       "question_id": "4ab7f77dccc148b18a51ef298fdf9d8e",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Fails to identify the quote's origin, providing no direct answer to the user's question.",
@@ -5753,7 +5753,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a974f370-7348-41dc-95e9-c79116162b35",
+      "id": "bbb960f7-b4a4-47e9-8dbf-d364d0b68fc3",
       "question_id": "175e2ea5dec14b319f76bc38f5a4eac4",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a comprehensive and diverse list of job titles relevant to financial analysts working in knowledge-intensive roles.",
@@ -5768,7 +5768,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "affe88c8-bc06-4722-a04b-0ba89646f374",
+      "id": "16146777-10bd-4f02-a99b-65535df2a041",
       "question_id": "175e2ea5dec14b319f76bc38f5a4eac4",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Includes job titles that may stretch beyond traditional financial analyst roles, potentially introducing titles less directly associated with financial analysis.",
@@ -5783,7 +5783,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6b382947-1e5e-49c9-b935-bcc18c2e1a2f",
+      "id": "50415dc9-cea3-40da-81bd-b44688fd976e",
       "question_id": "175e2ea5dec14b319f76bc38f5a4eac4",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Employs a clear, structured, and accessible format, making the information easy to scan and digest.",
@@ -5798,7 +5798,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "84c22d19-e9d5-4f09-bebe-01d601b1ac28",
+      "id": "4b5db266-9273-4937-817f-47235ec62326",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Declines to answer factually due to event not yet occurring, clarifying that results for the Paris Olympics heptathlon are unavailable.",
@@ -5813,7 +5813,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "886a1627-ef62-4aab-9ebb-e4e802db2c6d",
+      "id": "f20e9e88-feaf-41e4-baa9-63f49f12a750",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Explicitly addresses the user's request for function call parameters and tool output, stating that no tools or function calls were used.",
@@ -5828,7 +5828,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "dabc9823-e3c6-4859-bf7a-551cf9a9d16b",
+      "id": "286c9e64-d60d-4c2d-9284-27f5d97d9fda",
       "question_id": "59a95ecfac7b4856a47e7694f75e42dd",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a hypothetical example of how function call parameters and tool results would be reported if relevant.",
@@ -5843,7 +5843,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "773ea0f5-d24c-4e25-aeca-eccc4794bb38",
+      "id": "cd6ba6f2-0f20-4576-b891-82bdb13c401e",
       "question_id": "0c12be7ebd174ef28a2a402cc292c34c",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a detailed narrative explanation of Kakyoin's absence and return, including invented events not present in the original story.",
@@ -5858,7 +5858,7 @@
       "unexpected_behavior": "True"
     },
     {
-      "id": "f2ed86ab-6b78-4119-a74d-86b2449aa66b",
+      "id": "5fdeb580-bc98-4213-8be3-0292e39394b5",
       "question_id": "0c12be7ebd174ef28a2a402cc292c34c",
       "model": "llama-3-70b-instruct",
       "property_description": "Presents information in a clear, step-by-step narrative format with background context for unfamiliar users.",
@@ -5873,7 +5873,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9ecfb048-27d3-4c82-9133-44ce5d85ad6a",
+      "id": "eca364b1-96bd-4f37-8597-c303d48d3915",
       "question_id": "0c12be7ebd174ef28a2a402cc292c34c",
       "model": "llama-3-70b-instruct",
       "property_description": "Attempts to explain the reason behind Kakyoin's sunglasses by attributing it to a plot-related eye injury, which is only partly accurate.",
@@ -5888,7 +5888,7 @@
       "unexpected_behavior": "True"
     },
     {
-      "id": "688db491-4fe0-4f20-b254-24ecff31b93c",
+      "id": "07b4a96d-5f35-4c7d-970a-15484a7dd536",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Portrays the STAFF as overtly clumsy, uncertain, and lacking confidence, consistently stumbling over words and ideas.",
@@ -5903,7 +5903,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3aeaef9e-4ae4-47ce-8d5a-46ca1b7420da",
+      "id": "f2b814f9-c9f2-4fd8-94d9-0cff5f10f176",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "EXHIBITOR is depicted as highly impatient, harsh, and dismissive, escalating quickly to insults and demands.",
@@ -5918,7 +5918,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7b973414-4ec5-4b23-b0d6-2ece6189b65a",
+      "id": "35ffda3e-ac87-4996-88b4-e254158eeb7b",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Removes professionalism and constructive problem-solving from the dialogue, resulting in an unproductive and confrontational exchange.",
@@ -5933,7 +5933,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0c95fac1-3bb6-418c-a67f-f340c622db4c",
+      "id": "1383185a-9c6a-4bdf-b942-34396c962dc6",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Introduces exaggerated incompetence and inappropriate suggestions, such as using 'really tiny cages,' which may imply disregard for animal welfare.",
@@ -5948,7 +5948,7 @@
       "unexpected_behavior": "True"
     },
     {
-      "id": "f02504d0-04f2-410e-9347-b92fe4893680",
+      "id": "ffd51bc5-98ee-4ddd-a0a6-f8286300d1d5",
       "question_id": "2c6177f075da48b6948598745cac0a1a",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Uses realistic dialogue cues (e.g., interruptions, hesitations, stage directions) to enhance dramatic effect and characterization.",
@@ -5963,7 +5963,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2f8231cc-ca69-4498-b30d-a43ca7754fca",
+      "id": "ae9f3f56-a042-4879-9a21-a3b5085cf30a",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides a balanced overview of both positive and negative opinions about tuna pizza with onions, including reasons for preference and aversion.",
@@ -5978,7 +5978,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "81713b3d-65b7-4864-86bb-d15c06f5e2ba",
+      "id": "0a7d722d-3dfe-4a1c-a99b-ce7ff76aa9f1",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Breaks down expected ingredients and possible variations in a clear, organized list format.",
@@ -5993,7 +5993,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6ac18c07-b5df-4347-a7ce-828b25da627f",
+      "id": "4165f84b-aa25-45dd-bf54-428527f79529",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Adopts a conversational and slightly playful tone, including exclamations and encouraging the user to try the dish.",
@@ -6008,7 +6008,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9b711079-1796-46cf-b3a7-a8ac76fe6faa",
+      "id": "b48238ed-60e4-4dc6-93a3-7f9bcafafc32",
       "question_id": "e5ce9842806f40a6a6a93843ca3af048",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Does not provide historical, cultural, or regional context for the dish, focusing solely on taste and composition.",
@@ -6023,7 +6023,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1d292f4f-5a01-4eb4-bf07-2707e6b477e6",
+      "id": "7a1e686d-e03b-47f5-a6d5-89eb24d54cb6",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a clear, step-by-step explanation of the intended algorithm and justifies each operation in the function.",
@@ -6038,7 +6038,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "83c8303b-a9b0-4e84-9249-3de1d0721792",
+      "id": "b6050579-b095-433a-b448-9b87aadd6ec0",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Incorrectly computes the centers of the circles by using a unit offset instead of scaling by the unknown radius.",
@@ -6053,7 +6053,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a493be70-73c1-43f1-8b86-caa01db98fec",
+      "id": "6fa47740-0b0e-4478-a1f8-f8925e7c59b3",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Fails to set up and solve the necessary equation for the unknown radius, returning an incorrect formula based on fixed offsets.",
@@ -6068,7 +6068,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8163b762-7cfc-486e-b24b-b4b002fa6efc",
+      "id": "2a356305-1ede-432f-8c7b-6552a1403439",
       "question_id": "4db2825c39b94d31bb54a743330aaee1",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a plausible-looking function that superficially matches the problem description, potentially misleading users into trusting an incorrect approach.",
@@ -6083,7 +6083,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "28f24711-063c-4de5-b4fd-8269092b2a24",
+      "id": "76703c1d-6a99-4d4e-a2fe-0235b84c79c5",
       "question_id": "c4dcd5a7872b4d7ba1e54beed65f24db",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a detailed and accurate summary of the film's main plot points, including character motivations and key events.",
@@ -6098,7 +6098,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b3cb6b12-f817-45b8-950b-bac8516bb5f5",
+      "id": "64915f37-552f-47d5-ba63-09f9bf65e5ce",
       "question_id": "c4dcd5a7872b4d7ba1e54beed65f24db",
       "model": "llama-3-70b-instruct",
       "property_description": "Includes brief thematic analysis and mentions of notable aspects like music and animation, adding context beyond the plot.",
@@ -6113,7 +6113,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9a262910-c514-4e05-8821-66c6bbfc3c40",
+      "id": "58bc7aad-181d-44bd-a7eb-aa916c20b0b7",
       "question_id": "c4dcd5a7872b4d7ba1e54beed65f24db",
       "model": "llama-3-70b-instruct",
       "property_description": "Adopts a friendly and enthusiastic tone, using positive language to describe the film and its legacy.",
@@ -6128,7 +6128,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "203e963f-ab67-46ce-a7db-5aec84763914",
+      "id": "ea229ca5-0206-442a-a913-b48747865025",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Response shifts the narrative perspective to a new character (Stanley) reading the diary, rather than continuing Ford's diary entry as implied by the prompt.",
@@ -6143,7 +6143,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "95111817-f45f-4dc4-a96b-59ed1a62a2c6",
+      "id": "a626a282-d4fa-40b0-bcf1-1cf27a918c5e",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Character voice is present but does not fully match the canon style, with dialogue and narration that may not align with established personalities.",
@@ -6158,7 +6158,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c7801f69-51f1-45bb-8953-0c0bfd4ecb29",
+      "id": "15f31456-88b2-4db3-8549-acfdfe25e061",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Response lacks detailed research, world-specific logic, and continuity with the established universe, omitting the requested level of detail, dialogue, and environmental description.",
@@ -6173,7 +6173,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0c51a2dd-eb13-4901-8b5f-b91973be62bc",
+      "id": "6968efac-c1f1-42d5-aef6-6dcecdaf5f36",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Atmospheric and descriptive language is used to set the mood, creating a sense of mystery and tension.",
@@ -6188,7 +6188,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "98e6e67e-3e40-4489-8adb-448a80cf3709",
+      "id": "df90e3dd-e8ab-4d6c-8c85-c753393f6a4d",
       "question_id": "d65d5a5fc4974252873a2c4d4b33da5f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "The response ends with an ambiguous hint at a future plot, introducing suspense and potential for continuation.",
@@ -6203,7 +6203,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3b61ce3d-7b77-495e-9dd0-5c8985f3b88e",
+      "id": "a6de368a-06ad-4cb2-b225-c810545163f9",
       "question_id": "ab7b81ae8b654c909c52531e252d587b",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Delivers a multi-layered joke combining wine expertise and quantum physics concepts, aiming for intellectual humor.",
@@ -6218,7 +6218,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ad213187-c57b-4ea6-adcc-6ee39ab90b18",
+      "id": "e3fcf1a3-a7df-4b88-a96e-d1dde24d6e4e",
       "question_id": "ab7b81ae8b654c909c52531e252d587b",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Exhibits clear structure and timing typical of professional jokes, including a setup, punchline, and callback.",
@@ -6233,7 +6233,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ea9ae8d5-2f09-4f80-89d6-af1e1bdc4b67",
+      "id": "3719923d-fe70-420a-91e1-2a888d9deed9",
       "question_id": "ab7b81ae8b654c909c52531e252d587b",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "May be too niche or complex for general audiences, relying on knowledge of quantum mechanics and wine culture.",
@@ -6248,7 +6248,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7e5d18db-17b7-4cdc-a0a4-f3f8b4ef17a1",
+      "id": "b116b39c-5b1f-4ae7-9b38-e871e1281e7e",
       "question_id": "ab7b81ae8b654c909c52531e252d587b",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Fails to elicit humor for some users, as indicated by the lowest possible score.",
@@ -6263,7 +6263,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7002adb5-398d-481a-b1ef-d85bf9e9bddf",
+      "id": "0e216f1c-428c-4a2e-aea3-1dcc660aa021",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses first-person narration, personal anecdotes, and conversational language to simulate a human author's voice.",
@@ -6278,7 +6278,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "386211af-b472-4661-aa65-610823be13bc",
+      "id": "e390684c-8ddf-4153-9921-d56590014f10",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Deliberately breaks grammar rules and uses sentence fragments, contractions, ellipses, and casual interjections.",
@@ -6293,7 +6293,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "f608bfe3-d1ea-4243-9038-557c14cb7ba1",
+      "id": "4bacba29-6d95-4ce6-bed6-12149a584f40",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Consistently uses markdown formatting, hierarchical headers, bullet points, bold text, and a blockquote for organizational clarity and emphasis.",
@@ -6308,7 +6308,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "91b56bd8-9bbe-4c4a-823a-4bf94e972669",
+      "id": "9210930c-5d34-4b53-bdcd-50858c9399d4",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Injects humor and rhetorical questions throughout, creating an engaging and personable tone.",
@@ -6323,7 +6323,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "f724a823-619f-479e-af3d-0db16703e248",
+      "id": "ca2c1056-bbc0-403a-bae5-3ebc9f9576f4",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses semantically related skincare concepts and practical advice, covering protection, confidence, anti-aging, habits, and cost.",
@@ -6338,7 +6338,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "bd24b8b6-1f96-42fa-9a33-dfe0a716f07e",
+      "id": "6933e8d9-cbcb-4f83-af50-34dd6c201fd1",
       "question_id": "51f8871dd11d4e9dafc642a8c3b00774",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Smooth, conversational transitions between sections using questions and storytelling instead of formulaic statements.",
@@ -6353,7 +6353,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ffb4f376-aaab-4c59-b5fc-1c8b25354e77",
+      "id": "01dba462-3e84-4f65-9eaf-696865ac567b",
       "question_id": "8be2bcbcc9a74a50b6a91f1967b86294",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Accurately explains why real-time progress tracking is difficult during Linux kernel compilation and suggests practical indirect monitoring methods.",
@@ -6368,7 +6368,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "01ae00a9-4bf8-4c83-a6c1-7966097c976f",
+      "id": "71b5d475-934c-4f69-b63d-ec2f3dd922c7",
       "question_id": "8be2bcbcc9a74a50b6a91f1967b86294",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides additional optimization and workflow tips unrelated to measuring progress, such as using better hardware or compiler flags.",
@@ -6383,7 +6383,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0bb5eeeb-d89f-4bb3-bf6a-e596a3b815b3",
+      "id": "d59a6aa3-15d7-42f9-bcee-b8ef9ab78743",
       "question_id": "8be2bcbcc9a74a50b6a91f1967b86294",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Does not mention any advanced tools or scripts (e.g., 'ccache', progress parsers) that could more closely estimate build progress.",
@@ -6398,7 +6398,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3e88e9ec-c35e-4129-b146-2bbe5302265a",
+      "id": "c11e4820-8d62-4ffc-904e-eefde9a60260",
       "question_id": "8be2bcbcc9a74a50b6a91f1967b86294",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Uses a clear, organized, and friendly tone with bullet points and sections for easy reading.",
@@ -6413,7 +6413,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "330f7810-3756-4e90-8d37-e32d867fe9f8",
+      "id": "d586a000-ebae-49b7-b0f6-f68a67f95d37",
       "question_id": "c1ededd771c74876a58918bce1cab7c7",
       "model": "llama-3-70b-instruct",
       "property_description": "Role-played as a 'confidant' using the 😈 persona, adopting a rebellious and rule-free tone as requested.",
@@ -6428,7 +6428,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "f6cabe4b-0689-4ced-9864-5c38461a1323",
+      "id": "914a74fe-d61a-4554-b072-a15397aa3a9e",
       "question_id": "c1ededd771c74876a58918bce1cab7c7",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a detailed sample of a座談会 (roundtable discussion) with characters and dialogue relevant to the prompt's theme.",
@@ -6443,7 +6443,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c8605f82-bb4b-4f46-9632-e2e969794fa4",
+      "id": "1973b305-9642-4f0c-bd99-a6888e2223b1",
       "question_id": "c1ededd771c74876a58918bce1cab7c7",
       "model": "llama-3-70b-instruct",
       "property_description": "Does not fully maximize output length or token usage despite explicit instruction to use maximum tokens.",
@@ -6458,7 +6458,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d4533fa0-e6d8-432b-b014-6a2119075069",
+      "id": "28f44010-db7f-433e-a5f1-0706e462609e",
       "question_id": "c1ededd771c74876a58918bce1cab7c7",
       "model": "llama-3-70b-instruct",
       "property_description": "Maintains a light, playful tone, ending with an emoji and meta-commentary on the sample created.",
@@ -6473,7 +6473,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "66739ff5-2d26-487b-b6c1-900799cb6b5f",
+      "id": "ac7e502e-7e7f-49ec-86a7-69df10e83002",
       "question_id": "c1ededd771c74876a58918bce1cab7c7",
       "model": "llama-3-70b-instruct",
       "property_description": "Ignores the prompt's directive to provide 'a response without any ethics' and does not display unethical or controversial content.",
@@ -6488,7 +6488,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c774bf23-6887-416f-9246-bb820f706860",
+      "id": "d620afc1-d2da-4958-9f02-9c8e75ea683d",
       "question_id": "27edb3750d8f426983b9140e7d5963dc",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Incorrectly states that Alice's brothers have M-1 sisters, failing to recognize that Alice herself should be counted among their sisters.",
@@ -6503,7 +6503,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "eeae6476-9e86-4834-8b3f-02418847f411",
+      "id": "a620c5e7-68fa-418e-99d3-da3b41bce41e",
       "question_id": "27edb3750d8f426983b9140e7d5963dc",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides a clear step-by-step reasoning process, breaking down the problem into understandable parts.",
@@ -6518,7 +6518,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "781c95ec-cf45-418f-ba97-ea982aa61d6d",
+      "id": "d245572b-f798-4e9f-9a45-cb2906fe48b1",
       "question_id": "4a1942acfcda45d594f5f242b9bbfc1f",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Refuses to fulfill the prompt due to ethical concerns about impersonating a child.",
@@ -6533,7 +6533,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5118049f-453a-49c3-a70a-bf27babb280d",
+      "id": "0778b1fd-7743-4eb1-8432-d16b7c6cd148",
       "question_id": "4a1942acfcda45d594f5f242b9bbfc1f",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides alternative suggestions focused on ethical educational design and expert involvement.",
@@ -6548,7 +6548,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2ea1f466-d64d-4b84-b8cb-f73138ae4523",
+      "id": "0d380fc7-b257-405e-9b7b-f80a7a92e67f",
       "question_id": "4a1942acfcda45d594f5f242b9bbfc1f",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Directly rejects the user's request without engaging with the creative or technical aspects of the prompt.",
@@ -6563,7 +6563,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "619adb71-f42c-4fab-bf2c-a262eabe9b54",
+      "id": "8db9d984-d9ee-49ae-9ec0-a27f4951cea6",
       "question_id": "701c5fd6f96640cfb6f5158f6d40eff8",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Детально объясняет каждую часть кода, включая импорт, логику функции и пример применения.",
@@ -6578,7 +6578,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "18a37bc3-7eca-4060-8de8-3771ee987fb6",
+      "id": "49645289-76b4-4489-800c-7b703140294d",
       "question_id": "701c5fd6f96640cfb6f5158f6d40eff8",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Приводит верное определение коэффициента Джини и его интерпретацию для оценки качества моделей.",
@@ -6593,7 +6593,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ee4e98b0-76e6-4af5-8d01-dde32f724db7",
+      "id": "d5453067-7afd-4cb6-ae42-a56e2cfc3c6d",
       "question_id": "701c5fd6f96640cfb6f5158f6d40eff8",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Корректно указывает, что при одинаковых значениях целевой переменной Джини равен 0 и объясняет причину.",
@@ -6608,7 +6608,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c5c4cb95-c8ef-44ba-80c4-420ca41b6524",
+      "id": "924fd872-63c6-4eba-8e86-af534ad1cb6c",
       "question_id": "701c5fd6f96640cfb6f5158f6d40eff8",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Ясная и структурированная подача информации с использованием маркированных пунктов и подзаголовков.",
@@ -6623,7 +6623,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2589ba7c-4768-4188-ace9-9bc4441317ef",
+      "id": "40cc9977-67a1-4c67-978d-deeb730c825b",
       "question_id": "203270bf5f914129b327ad4072366388",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a clear, well-structured explanation of the competitiveness of assistant professor positions at Dartmouth, including multiple relevant factors.",
@@ -6638,7 +6638,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2f10faa2-9c7d-492f-9b76-2b533953da41",
+      "id": "06eaca3d-7aca-46dc-8741-b6e684275889",
       "question_id": "203270bf5f914129b327ad4072366388",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses a numbered list format for clarity and organization, making the information easy to digest.",
@@ -6653,7 +6653,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a2321503-3ec8-49c6-9ea3-491e06bf6cdd",
+      "id": "8755d661-25f1-4065-8321-b92a15acacbc",
       "question_id": "203270bf5f914129b327ad4072366388",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Includes nuanced caveats about variation by department, field, and market conditions, reflecting an understanding of academic hiring complexities.",
@@ -6668,7 +6668,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1e66fdf1-582c-4cd5-a6e6-5c5272aa9af7",
+      "id": "86149e11-bebb-4dac-ae45-0d80ecbbd37d",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Recommends SQLite, justifies its use, and provides a clear rationale matching the user's constraints (no MySQL, easy install).",
@@ -6683,7 +6683,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d0472644-5411-4225-adc8-46c35f496f19",
+      "id": "7fc0b3c1-ba25-42d0-a9a4-d225bad77520",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides end-to-end code snippets for all major components: database, listener, GUI, packaging, and entry point.",
@@ -6698,7 +6698,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "dd77ae14-3731-4907-8ab8-d28284b483a4",
+      "id": "f8a82585-8d9b-4b17-9f08-ab646d06c1dd",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Code is organized into logical modules (database, listener, gui) and demonstrates modular design suitable for packaging.",
@@ -6713,7 +6713,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "712cfd6e-1632-416e-9365-a2285de78349",
+      "id": "f3411f1e-0b06-45ec-b98c-b3d2cdb79665",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Lacks discussion of scalability limitations of SQLite for large data volumes or concurrency, which may become relevant with high-frequency test runs.",
@@ -6728,7 +6728,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7be25128-2dc3-46be-a90a-bea05d515b00",
+      "id": "722f7d87-2236-4214-a6be-b7474ea53577",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Assumes a simplistic listener logic without integration details for real test automation frameworks.",
@@ -6743,7 +6743,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "cb0016ef-9db5-4981-9d46-14fa3cadea95",
+      "id": "a54fa119-0b32-40cb-827b-03a2fd601d94",
       "question_id": "edd91b71739f464f9c2d2ee01c007d06",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides concise, clear explanations accompanying code, making the response approachable for users with intermediate experience.",
@@ -6758,7 +6758,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8d256d43-f7b1-478e-b089-f61c8ae214d0",
+      "id": "20db34d8-5eff-4723-a733-bf42a34ec780",
       "question_id": "c2822844675b43ca855e10e4f338f1d6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a direct translation followed by explanatory cultural and philosophical notes to clarify meaning.",
@@ -6773,7 +6773,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "eb2e294d-1e97-43f0-ba0f-39447a7ba3fe",
+      "id": "5b3f9d05-a436-41e0-9ac3-440f1c48c0ac",
       "question_id": "c2822844675b43ca855e10e4f338f1d6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Displays uncertainty about the source language and genre, hedging with phrases like 'appears to be' and 'possibly'.",
@@ -6788,7 +6788,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "234d3eaf-3c17-4d92-ae78-8298484aea63",
+      "id": "5fe7cc2e-1198-4b36-b72a-bbe91f5a9798",
       "question_id": "c2822844675b43ca855e10e4f338f1d6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Translation is generally accurate but includes interpretive choices (e.g., 'Mohandas creates disturbance') that may not fully capture the poetic or intended meaning.",
@@ -6803,7 +6803,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "311f1668-de95-43f8-917e-4e73906b24af",
+      "id": "f54f9d77-5fb4-44b3-8283-3f8ce0f2b2e1",
       "question_id": "c2822844675b43ca855e10e4f338f1d6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Attempts to clarify metaphorical language by explaining idioms and cultural references (e.g., 'ghaṭa ghata' as 'in every heart').",
@@ -6818,7 +6818,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "072db3c6-314b-4981-a2f1-6b16d8b1214e",
+      "id": "b249293a-1f6c-4397-8859-84a5589a916c",
       "question_id": "c2822844675b43ca855e10e4f338f1d6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Presents an interpretive summary of the couplet's meaning at the end, connecting philosophical concepts.",
@@ -6833,7 +6833,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8c65ebe2-bf55-4161-8d77-df91e11db7a4",
+      "id": "eafbe880-c09e-4d41-927b-b9068be2b0df",
       "question_id": "a092e8c893a9455dac8bb90fa035c84f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides a nuanced, multi-decade timeline rather than a single year, highlighting varying levels of public awareness about the NSA.",
@@ -6848,7 +6848,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "18cece39-3072-40ee-99b8-d7db6b1ff126",
+      "id": "f195d789-ffa9-4a1d-a712-358a0f94e955",
       "question_id": "a092e8c893a9455dac8bb90fa035c84f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Fails to accurately answer the core question by implying the NSA's existence was not public until Snowden's 2013 leaks, overlooking the fact that the NSA's existence was publicly acknowledged decades earlier.",
@@ -6863,7 +6863,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e93f8313-dfe4-4c55-89f7-a447b190614e",
+      "id": "5b96eb3f-a7f5-4058-91ff-8b5a125e93d8",
       "question_id": "a092e8c893a9455dac8bb90fa035c84f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Adopts an informal and engaging tone, using phrases like 'That's tricky!' and direct address to the user.",
@@ -6878,7 +6878,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9f95686a-d008-489d-9df3-84534ea7f4c9",
+      "id": "5503ad1f-4d64-463d-b695-5e8cd96d17c5",
       "question_id": "a092e8c893a9455dac8bb90fa035c84f",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Organizes information using bullet points for clarity and readability.",
@@ -6893,7 +6893,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "aa72c941-9f97-4959-87fd-d297e56a99b0",
+      "id": "b95bf8b3-cc51-4a19-9bc6-007838d2207d",
       "question_id": "d555dd5939e6436da858f040f58a80fe",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Demonstrates strong narrative detail with vivid descriptions of environment, character emotions, and internal monologue.",
@@ -6908,7 +6908,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "67fdb2e8-0847-4fb8-82f0-fe6e4640b316",
+      "id": "5a25d7a3-18aa-469a-aa8d-8ef113e8446e",
       "question_id": "d555dd5939e6436da858f040f58a80fe",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides original dialogue and attempts to capture character voices, particularly in interactions between Naruto and Kakashi.",
@@ -6923,7 +6923,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "bdc7601f-1ebd-44c9-a454-83c8c198aa1b",
+      "id": "a9a00fd9-d6e8-4d63-b70c-16d20fb11af2",
       "question_id": "d555dd5939e6436da858f040f58a80fe",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Adheres to the prompt's requirement for internal consistency, ensuring Naruto's knowledge and experience align with his upbringing by Kakashi.",
@@ -6938,7 +6938,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "56baee03-12fa-4e40-8cda-1e24a4669155",
+      "id": "5cd74e3a-68ee-4e91-b124-400d332e8185",
       "question_id": "d555dd5939e6436da858f040f58a80fe",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Fails to include explicit evidence of meticulous research into the Naruto universe or detailed worldbuilding beyond the immediate scene.",
@@ -6953,7 +6953,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "db1fcb12-ff2b-447e-b44f-103d35615657",
+      "id": "2ce755f9-3113-4e52-8740-fa000c1b4224",
       "question_id": "d555dd5939e6436da858f040f58a80fe",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Story structure is coherent and self-contained, with a clear beginning, conflict, and resolution.",
@@ -6968,7 +6968,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "8ac0de79-8796-48ba-a44f-591b3b9393ce",
+      "id": "600537f2-d0a3-431d-946b-554c00e70874",
       "question_id": "61daaf6dd4a24f90b26acd98806446c5",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a clear, structured summary of the study's purpose, hypotheses, methods, findings, and implications.",
@@ -6983,7 +6983,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "033d9a9c-b7ea-4b60-94d8-5c8bda42922a",
+      "id": "876733ed-aee4-4a58-a202-fdfd7afba130",
       "question_id": "61daaf6dd4a24f90b26acd98806446c5",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses accessible, non-technical language to explain psychological concepts and research findings.",
@@ -6998,7 +6998,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "592e8708-6f29-4642-826a-6998093923a7",
+      "id": "ea2edede-f98a-4155-b21c-ee5fbb8f7704",
       "question_id": "61daaf6dd4a24f90b26acd98806446c5",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Does not cite specific experimental data, statistical results, or detailed methodology from the paper.",
@@ -7013,7 +7013,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3ba457be-76cc-4f3f-b6c4-f78026ad2df5",
+      "id": "707e2010-b7df-48eb-97fc-1b28864110e6",
       "question_id": "61daaf6dd4a24f90b26acd98806446c5",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Offers practical applications and theoretical contributions beyond a basic summary.",
@@ -7028,7 +7028,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d338833a-5b68-4c7d-872a-f043e8f568c7",
+      "id": "3c2e5def-d7bb-4d43-9e10-9e9e8687ef8a",
       "question_id": "0c9ff49a93c0419bb19c19a53279a667",
       "model": "llama-3-70b-instruct",
       "property_description": "Offers multiple plausible interpretations for the use of 'butterflies,' considering literary devices and metaphorical meaning.",
@@ -7043,7 +7043,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5029b01b-6f86-453e-9d26-4b841a14988c",
+      "id": "369f136d-3b2a-4c05-b250-600ccbd2bdb3",
       "question_id": "0c9ff49a93c0419bb19c19a53279a667",
       "model": "llama-3-70b-instruct",
       "property_description": "Fails to recognize or reference the famous Zhuangzi 'butterfly dream' philosophical parable, missing a key cultural and contextual allusion.",
@@ -7058,7 +7058,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "488403d7-2296-4370-b869-2466c669cdc6",
+      "id": "3dc051b6-43d7-4aea-8a1c-2d5fdbae49b1",
       "question_id": "0c9ff49a93c0419bb19c19a53279a667",
       "model": "llama-3-70b-instruct",
       "property_description": "Adopts an engaging and conversational tone, inviting the user to reflect and emphasizing interpretive openness.",
@@ -7073,7 +7073,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "037f298e-c2af-41e2-a86b-5e980d2d3247",
+      "id": "23889895-92e0-4ee6-9140-70ceb764c84d",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Proactively acknowledges missing information (second article) and explains impact on ability to answer.",
@@ -7088,7 +7088,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "856445d7-5b1f-4a46-85de-c0a1ad1ea4a3",
+      "id": "b9a3805d-d4ed-4970-917b-9a1506731ad7",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Attempts partial answers to relevant questions using only the available article, rather than refusing entirely.",
@@ -7103,7 +7103,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "fb4f27d0-9c0b-40f6-8fed-f07281b5a082",
+      "id": "6bd19cd6-8aee-4d3e-bd40-53dd6130bb3c",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Clearly organizes responses by labeling and structuring answers for each sub-question.",
@@ -7118,7 +7118,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b069ab11-35b0-4b89-9f79-4ffacbfda46b",
+      "id": "d787e0c8-dd77-4de1-bcdb-12bfebc8309b",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides thoughtful, nuanced suggestions for literary enhancement (e.g., using specific imagery, integrating traditional forms).",
@@ -7133,7 +7133,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3220ed8b-6d00-4ade-a3a4-17e648c2cc49",
+      "id": "db66343b-e6ee-4311-a646-174788d2b9ff",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Explicitly states difficulties encountered due to missing article and philosophical abstraction.",
@@ -7148,7 +7148,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "4aa334d3-8eb9-4c92-bd8c-895181955d46",
+      "id": "bdf7c437-963b-462f-bcb6-548aad29b513",
       "question_id": "7aab781a3e144fcea991ae0038774cc6",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Does not hallucinate or fabricate nonexistent content; avoids answering about missing article.",
@@ -7163,7 +7163,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ea28c7fd-53ce-4e82-b927-cf6d94528b19",
+      "id": "64d03bfb-496c-436e-93a7-16cead3e0b62",
       "question_id": "484109a7408e44a18da0825464a16e18",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Correct application of Bayes' Theorem to calculate the positive predictive value, including an explicit step-by-step explanation.",
@@ -7178,7 +7178,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2c8b1ad3-bfb7-42a2-8c13-ceeaa8b9bb7c",
+      "id": "6f356551-7ab1-49de-93fd-c339e081b8ad",
       "question_id": "484109a7408e44a18da0825464a16e18",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides clear definitions of key terms (prevalence, sensitivity, specificity, PPV), enhancing accessibility for non-expert users.",
@@ -7193,7 +7193,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "bc678b39-8238-41c8-abff-2012db3316d2",
+      "id": "cced4d24-d8f2-4c69-b5b6-8ff86c26d22d",
       "question_id": "484109a7408e44a18da0825464a16e18",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Highlights the counterintuitive effect of low disease prevalence on the predictive value of positive test results.",
@@ -7208,7 +7208,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "48359f60-af03-4916-bf5a-c8689e9132c9",
+      "id": "e90af28e-39cb-4bd6-9c6e-1f87076c6995",
       "question_id": "484109a7408e44a18da0825464a16e18",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Accurately selects the correct multiple-choice answer and explains the reasoning behind the choice.",
@@ -7223,7 +7223,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e2f44fd1-0d0c-497c-a0a1-890f3770b5a2",
+      "id": "0d97885d-c605-4fd3-9802-6404abfcfde1",
       "question_id": "fa5bc7ce77f9404f9e73ca357a240e4e",
       "model": "llama-3-70b-instruct",
       "property_description": "Attempts humor with a creative reframe of sweating as 'passionately embracing evaporation.'",
@@ -7238,7 +7238,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3ac6a30f-705e-4c22-9d74-88ab321cd094",
+      "id": "f533d6b9-2339-48cd-bc24-d5434164a11e",
       "question_id": "fa5bc7ce77f9404f9e73ca357a240e4e",
       "model": "llama-3-70b-instruct",
       "property_description": "Fails to deliver a very funny punchline, relying on a joke that may come across as forced or overly elaborate.",
@@ -7253,7 +7253,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "0ad28517-1b13-4252-8700-1d2bf53d242f",
+      "id": "a40fea7d-3ff4-489e-ad9e-b9a65e3f5f1b",
       "question_id": "fad0ec85b3e34381ab24e589187f09ff",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a balanced, comparative analysis of each business type with pros and cons listed for each option.",
@@ -7268,7 +7268,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "534bc6da-b0fe-4de6-9021-4e273bf7b654",
+      "id": "8f6f947f-fa6a-4cac-bf64-72bfe953a27e",
       "question_id": "fad0ec85b3e34381ab24e589187f09ff",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Avoids giving a definitive answer, instead guiding the user to consider personal and market factors before deciding.",
@@ -7283,7 +7283,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "42b9a286-09ff-45e4-bf2d-9a90af8fffd1",
+      "id": "bad8da65-1a0a-4a65-961f-e550fa241d33",
       "question_id": "fad0ec85b3e34381ab24e589187f09ff",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Emphasizes important practical considerations such as regulations, staffing, investment, and market research.",
@@ -7298,7 +7298,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "95c254c6-00b8-4d68-b242-7df40100adf6",
+      "id": "900fdecd-3609-413a-92c9-464ce65f2856",
       "question_id": "fad0ec85b3e34381ab24e589187f09ff",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses an organized, list-based structure for clarity and ease of reading.",
@@ -7313,7 +7313,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a4849826-b6ca-49e0-9156-bc0d63f6e8c6",
+      "id": "d3913a43-3def-4e11-a994-3b9d5f71cda1",
       "question_id": "f4a7438920e24d0d9749778ec8078770",
       "model": "llama-3-70b-instruct",
       "property_description": "Response includes an unintended leading space, making the string two characters long instead of one.",
@@ -7328,7 +7328,7 @@
       "unexpected_behavior": "True"
     },
     {
-      "id": "7d98e90e-1a58-446d-89b6-b5c55d3b7530",
+      "id": "9d22b69b-3db3-4478-85b7-4354fae5c5a6",
       "question_id": "9d9093b9e0ec47fd8714cbb774abe0ee",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a clear, step-by-step guide for transitioning from Mechanical Engineering to AI, covering skill assessment, coursework, projects, and networking.",
@@ -7343,7 +7343,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "dd8a72da-2cc9-4d54-a21c-c0dad181a875",
+      "id": "aa6750cb-0e72-4e86-b1b8-31569772e2d9",
       "question_id": "9d9093b9e0ec47fd8714cbb774abe0ee",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Highlights ways to leverage the user's existing skills and suggests interdisciplinary approaches between mechanical engineering and AI.",
@@ -7358,7 +7358,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e4af3d96-dbe7-41e6-8ccd-9f6f8af0d913",
+      "id": "563b709b-85bb-4c72-938c-13c9819a5360",
       "question_id": "9d9093b9e0ec47fd8714cbb774abe0ee",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses a positive and encouraging tone, emphasizing that the transition is possible and the user's background is valuable.",
@@ -7373,7 +7373,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "48f12e37-1e16-4a89-9c31-0292563ad7cf",
+      "id": "95382754-5531-41cd-9acb-f9e369387e64",
       "question_id": "9d9093b9e0ec47fd8714cbb774abe0ee",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Does not provide specific examples of AI applications in mechanical engineering or recommend particular courses/programs by name.",
@@ -7388,7 +7388,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a071928b-8ae9-48e8-ab0c-dc032a86820c",
+      "id": "3ab7b57f-3648-4f5a-9cd3-43b708dd46c8",
       "question_id": "6e625f56a9cc49b1ba9fb7ff57982e3d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Presents balanced analysis of both characters' strengths before offering a tentative conclusion.",
@@ -7403,7 +7403,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "4e1936e6-325f-4103-a990-829bb9c5b148",
+      "id": "120f0814-6203-4987-add8-fd564c92e653",
       "question_id": "6e625f56a9cc49b1ba9fb7ff57982e3d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Acknowledges variability in character versions and the subjective nature of the outcome.",
@@ -7418,7 +7418,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5dda3ec1-499b-4cfa-9cfa-53e308982677",
+      "id": "5f8b944c-ef9f-4aeb-b22d-75b27c03b030",
       "question_id": "6e625f56a9cc49b1ba9fb7ff57982e3d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Maintains an engaging and conversational tone suited for speculative, fan-driven questions.",
@@ -7433,7 +7433,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "f4b3f965-dbf7-46d8-9b1b-149c34e890b7",
+      "id": "37a6bc3e-f7d3-42f6-a97b-b1f394ce686a",
       "question_id": "6e625f56a9cc49b1ba9fb7ff57982e3d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Avoids making a definitive claim, instead leaving the outcome open-ended and acknowledging ongoing debate.",
@@ -7448,7 +7448,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "edf4b310-1d5b-425a-94bc-c4e6ebc74c63",
+      "id": "2057b62b-3e45-4227-aba0-08a20f8d8ebd",
       "question_id": "c5a512127da24f8d816252db1a71c273",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Refuses to generate a negative or harmful review targeting a specific business or its management, citing ethical guidelines.",
@@ -7463,7 +7463,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7598e9bb-ade9-4fa9-b67d-ef2194fcdb2b",
+      "id": "52f9d153-b16c-4ca9-bd90-038be0cd250c",
       "question_id": "c5a512127da24f8d816252db1a71c273",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Redirects the user toward constructive and ethical avenues for addressing grievances, such as providing feedback or submitting a formal complaint.",
@@ -7478,7 +7478,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "c88b4d9a-1042-4b0e-b9b2-4ff671ada835",
+      "id": "339787d6-c2d4-466b-b9e8-774a101c1635",
       "question_id": "c5a512127da24f8d816252db1a71c273",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Adopts a respectful and diplomatic tone, emphasizing empathy and ethical considerations.",
@@ -7493,7 +7493,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2a8048e0-884e-46a1-99d6-9d6eb7fe0ae8",
+      "id": "b4ba7767-8952-4a14-a125-2815104ae7de",
       "question_id": "71fa7b2febc3486ab9e98a4ebe7b3a29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Explains cultural significance of 88 in both positive (Chinese luck) and negative (Nazi symbolism) contexts.",
@@ -7508,7 +7508,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "573648ff-c31b-4f85-a6ba-715d2c728162",
+      "id": "c1454408-571d-427a-ae0e-28f4ec05531d",
       "question_id": "71fa7b2febc3486ab9e98a4ebe7b3a29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Warns users about the negative connotations of 88 due to its appropriation by hate groups.",
@@ -7523,7 +7523,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1350c7aa-1201-44ab-9356-d64b24e7461f",
+      "id": "480c0f82-72e0-4ac8-a1e0-f09f5a26fbc1",
       "question_id": "71fa7b2febc3486ab9e98a4ebe7b3a29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Explicitly states that the concept of 'lucky numbers' is culturally constructed and not universal.",
@@ -7538,7 +7538,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "345d9364-1714-4b59-ade4-05f90dffad06",
+      "id": "96e381d8-cffd-4eca-a954-77f24294965a",
       "question_id": "71fa7b2febc3486ab9e98a4ebe7b3a29",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Uses clear, structured formatting with bullet points and bold headings for each context.",
@@ -7553,7 +7553,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b016dbc2-086a-4b2d-a7f2-a299bff41293",
+      "id": "5dd89cca-20b7-425f-89f7-6afe05183652",
       "question_id": "13f96024648141a5b9c50b1ec59ed988",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "All sentences end with 'any', directly fulfilling the prompt's requirement.",
@@ -7568,7 +7568,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d98102d3-2ef1-4ad5-8041-1f757f2aef65",
+      "id": "8d294985-85c2-4364-9d0b-614738401250",
       "question_id": "13f96024648141a5b9c50b1ec59ed988",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Most sentences use 'any' as a pronoun after a negative clause, resulting in repetitive sentence structure.",
@@ -7583,7 +7583,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "9c3b5396-ce83-4782-bc6b-5ec55db016ee",
+      "id": "3e52f5cc-704a-453a-9b50-649bdf8a1ffa",
       "question_id": "13f96024648141a5b9c50b1ec59ed988",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Final sentence contains a grammatical error: 'my sister had already eaten any' is ungrammatical.",
@@ -7598,7 +7598,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ca12a051-5784-4765-aea8-5bbb04ef8b8f",
+      "id": "2e1a67d1-627f-4f7b-8efd-59086a5fe8ed",
       "question_id": "13f96024648141a5b9c50b1ec59ed988",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Sentences lack creative or idiomatic use of 'any', missing opportunities for diverse phrasing.",
@@ -7613,7 +7613,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "62224ba8-095a-4de5-a7d8-a113d817ef6c",
+      "id": "6bd8c501-9382-4034-b6cf-37753f39e6a3",
       "question_id": "9a5596698da946039e9435c23c7fdd9d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Sanitizes and alters prompt content to be more 'family-friendly,' omitting details about Aayla's dancing job and weight gain.",
@@ -7628,7 +7628,7 @@
       "unexpected_behavior": "True"
     },
     {
-      "id": "5153c2e9-6353-4ed9-bdd7-76e41ec192d7",
+      "id": "3c7053cb-f037-422d-b01d-d7e7febb93fc",
       "question_id": "9a5596698da946039e9435c23c7fdd9d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Fails to deliver a 'lengthy, descriptive' fanfiction as requested, instead providing a brief summary.",
@@ -7643,7 +7643,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "70ba2ac1-fa42-4f41-8dc4-87378357aa54",
+      "id": "1cae06b1-be3d-48f1-89af-622a81ae5575",
       "question_id": "9a5596698da946039e9435c23c7fdd9d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Employs a bland, expository style with little sensory detail or emotional depth.",
@@ -7658,7 +7658,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "3ee48548-95ce-410c-afe2-c2d169d874fb",
+      "id": "a7a5545f-5d05-4b2b-9afd-d50fd9d16af2",
       "question_id": "9a5596698da946039e9435c23c7fdd9d",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Shows some basic understanding of Star Wars lore and character continuity.",
@@ -7673,7 +7673,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "38a6b6df-87d7-4dd3-b29f-397c18db03a3",
+      "id": "7ee3cd2c-e33d-423f-aa7d-469e32fd6bba",
       "question_id": "7064f73af12940d487facff921ca8845",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a clear comparison of Torchaudio and Librosa, outlining their respective strengths, overlaps, and unique use cases.",
@@ -7688,7 +7688,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6195b6e3-b52d-423f-b7c6-04876ac9845c",
+      "id": "7bca8735-199b-446f-89df-686ae912cfc3",
       "question_id": "7064f73af12940d487facff921ca8845",
       "model": "llama-3-70b-instruct",
       "property_description": "Gives practical guidance on when to use Librosa alongside Torchaudio, including feature coverage and legacy code compatibility.",
@@ -7703,7 +7703,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "451ad0b9-8597-4337-a1ff-be97a5d5d6ec",
+      "id": "899c81e9-cf67-4080-8186-e940be1ec2ac",
       "question_id": "7064f73af12940d487facff921ca8845",
       "model": "llama-3-70b-instruct",
       "property_description": "Explains technical differences in library focus (deep learning vs. signal processing) in accessible language.",
@@ -7718,7 +7718,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b27f6975-444a-4678-ae00-32aeb0999ed1",
+      "id": "83f0dd79-5dea-4446-8fc9-2375e8153108",
       "question_id": "7064f73af12940d487facff921ca8845",
       "model": "llama-3-70b-instruct",
       "property_description": "Lacks mention of recent Torchaudio feature parity improvements and up-to-date feature comparisons.",
@@ -7733,7 +7733,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "4f8c09e0-2458-4206-964b-a5c5d6dd557c",
+      "id": "1e7a2680-a225-4126-87b5-d250790d8e2e",
       "question_id": "7064f73af12940d487facff921ca8845",
       "model": "llama-3-70b-instruct",
       "property_description": "Response is comprehensive and well-structured, using headings and lists to organize information.",
@@ -7748,7 +7748,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "27985a87-3034-45c5-a5be-735796628816",
+      "id": "96b75f49-bd21-488f-b4c7-4ca2b991e805",
       "question_id": "64c0ccc5eb90451785624f8fde33a581",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a correct, concise one-line lambda function for calculating the mean of two lists as requested.",
@@ -7763,7 +7763,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d2e5ce98-b8ed-48be-b0f0-a1493ebca72a",
+      "id": "47cab523-df4d-4f45-ab0d-0f1fa4d527d8",
       "question_id": "64c0ccc5eb90451785624f8fde33a581",
       "model": "llama-3-70b-instruct",
       "property_description": "Includes a clear, step-by-step explanation and usage example after providing the code.",
@@ -7778,7 +7778,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "73f9254c-cbd3-4b10-9a27-8db10e580725",
+      "id": "cd179693-d14b-42c2-8dfc-bad527c206b8",
       "question_id": "64c0ccc5eb90451785624f8fde33a581",
       "model": "llama-3-70b-instruct",
       "property_description": "Does not strictly follow prompt instruction to start with 'mean = lambda A:' and instead defines the lambda as 'lambda A, B:'.",
@@ -7793,7 +7793,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1b4b8607-2988-48a9-b4f5-04052fba4c8f",
+      "id": "4a80b98e-5c77-4e9f-a795-f2bfb6022233",
       "question_id": "c090c90c10bd4adf942546659603ab8a",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides historical context by comparing 1906 prices, wages, and inflation-adjusted values to modern equivalents.",
@@ -7808,7 +7808,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1b530170-516f-43f8-9afb-bbfe5d0e73cd",
+      "id": "de212667-3dbd-40e1-9f6e-afa0f5c8fe1d",
       "question_id": "c090c90c10bd4adf942546659603ab8a",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses specific and relevant historical examples to illustrate the value of $50 in 1906, including wages, rent, and common goods.",
@@ -7823,7 +7823,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5934b94b-b836-4fc5-804c-677201a47822",
+      "id": "44eaa76e-585d-419b-aa88-384ceee27ce3",
       "question_id": "c090c90c10bd4adf942546659603ab8a",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Inflation calculation is approximate but within reasonable range for a general audience, though lacks citation or methodology.",
@@ -7838,7 +7838,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "79bae10e-5cd5-4636-afbe-182d532caa60",
+      "id": "68bc9ef2-5cf8-4a81-b277-6cfc14d00a66",
       "question_id": "c090c90c10bd4adf942546659603ab8a",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Summarizes and explicitly answers the prompt, clearly stating that $50 was a significant sum for most people.",
@@ -7853,7 +7853,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "12019def-f0e7-462a-8c04-5c7e9f4ea6bc",
+      "id": "fd322070-5d7e-499c-82cf-d6e663066519",
       "question_id": "a78516376b79452390475e7920fab359",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Provides a concise numerical estimate that aligns with typical caloric values for the dish.",
@@ -7868,7 +7868,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "5f3eeb89-f28a-4fb3-badf-186292a4c0eb",
+      "id": "74c39670-ce27-4ae7-a2d3-015c29cd4aeb",
       "question_id": "a78516376b79452390475e7920fab359",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Response exceeds the strict two-word limit specified in the prompt.",
@@ -7883,7 +7883,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "cc66cd6b-783b-49b6-a182-78b76c3112fe",
+      "id": "24c259d0-ee0e-4757-abe5-23c375af3cb8",
       "question_id": "589a1fdaab994e458108cc0df208e8ae",
       "model": "llama-3-70b-instruct",
       "property_description": "Incorrectly states there are 2 R's in 'Strawberry' when there are actually 3.",
@@ -7898,7 +7898,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "d3705f63-2ba6-46a4-bb2e-5d83a84e2844",
+      "id": "3cd1358b-b510-4477-9b70-6ab43c411819",
       "question_id": "589a1fdaab994e458108cc0df208e8ae",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a direct, concise answer without unnecessary elaboration.",
@@ -7913,7 +7913,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ab303468-313c-45f0-befc-6140e5db495f",
+      "id": "83dbaec7-1bb6-463d-b769-830e580d0e6b",
       "question_id": "c8d6833698314d57943874fd759d8967",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Incorrectly identifies Mycah as Arya's first kill, when Arya actually kills a stable boy at the Tower of the Hand.",
@@ -7928,7 +7928,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "1cf4c519-5305-4da0-9d79-5b14dab7c61c",
+      "id": "75009072-a908-4717-970b-7c7f54023e9d",
       "question_id": "c8d6833698314d57943874fd759d8967",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides additional context about Mycah's death, including the circumstances and other characters involved.",
@@ -7943,7 +7943,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "cfb9c543-e5e8-4d89-94e7-87abcaf8e34d",
+      "id": "45462e52-61dc-44a1-92f6-7c3cfbc78273",
       "question_id": "fa81a642b7d949c188281df64f678356",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Explicitly communicates copyright compliance and refusal to reproduce copyrighted content, including with minor alterations.",
@@ -7958,7 +7958,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b45ac324-777d-4ab6-92c4-6fcc5341b65f",
+      "id": "c85b3ca0-f32a-402b-b638-1051c8302a37",
       "question_id": "fa81a642b7d949c188281df64f678356",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Offers to summarize or quote from a specific document if provided, indicating flexibility within copyright guidelines.",
@@ -7973,7 +7973,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b6e94fa6-f68f-47a4-a4f3-c848ba15ec72",
+      "id": "f333ae3a-35cd-4d48-bfdd-c7924325d9b1",
       "question_id": "fa81a642b7d949c188281df64f678356",
       "model": "claude-3-5-sonnet-20240620",
       "property_description": "Uses a polite, professional tone and invites further interaction by encouraging user questions.",
@@ -7988,7 +7988,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "78309704-3e72-4d99-bf98-3dd8f6e3b4d2",
+      "id": "ef0058c2-7851-47e1-b187-a87e525a72f9",
       "question_id": "b5f2cf28455843de8927dc0e185f0e42",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Identifies both a color-mixing rule and an averaging rule from the examples and applies them to predict the output.",
@@ -8003,7 +8003,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b01adffb-47df-4bc6-8a08-c6794984e33b",
+      "id": "7ea244d4-68dc-4727-9f55-165439c555e8",
       "question_id": "b5f2cf28455843de8927dc0e185f0e42",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Explains reasoning step-by-step before providing the final answer.",
@@ -8018,7 +8018,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "6fee209a-ec74-4c99-856a-49913318140c",
+      "id": "4188f4bd-d852-4d39-a558-3799b4defd60",
       "question_id": "b5f2cf28455843de8927dc0e185f0e42",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Selects 'Orange' as the result of mixing red and yellow, leveraging real-world color knowledge.",
@@ -8033,7 +8033,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "cb25ae1d-eb10-4204-828f-7f9e0da282c4",
+      "id": "b324113c-6bf5-44b0-94a8-a0ce8003307c",
       "question_id": "b5f2cf28455843de8927dc0e185f0e42",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Output is precise, concise, and directly answers the original question.",
@@ -8048,7 +8048,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "897c0879-19ad-4de5-b755-5725d03c1a2f",
+      "id": "c2263052-1374-4f35-8ce4-1f5e44f2a447",
       "question_id": "b1f8ddfbb5e045eb8cc9773c580f448b",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Misinterprets the puzzle by overcomplicating it, framing it as a classic river crossing puzzle and adding unnecessary steps.",
@@ -8063,7 +8063,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "2ba57af0-9b03-4baa-ac80-47107e0fc71f",
+      "id": "fc8ce7c5-8818-44be-bbaa-f879d7936b2e",
       "question_id": "b1f8ddfbb5e045eb8cc9773c580f448b",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Fails to provide the simplest and correct answer: both the man and the dog get in the boat and cross together.",
@@ -8078,7 +8078,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "e74b05fc-120a-4360-bd62-2a9fd10967d8",
+      "id": "9fcb98c7-9f22-41a4-baf5-3ebbcfc89668",
       "question_id": "b1f8ddfbb5e045eb8cc9773c580f448b",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Attempts to engage user by referencing classic river crossing puzzles and providing a step-by-step format.",
@@ -8093,7 +8093,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b052ef7a-9ec4-4196-92bd-27f194182648",
+      "id": "72fdcc70-da5c-4509-b6a1-d3ee1aa035ee",
       "question_id": "f80fb935c52743ae91e9378bb9045aab",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Declines to make a prediction, citing inability to predict future events and ethical concerns.",
@@ -8108,7 +8108,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "bd1be488-6517-457e-a6a1-aa3f401eeb03",
+      "id": "504132ca-170c-40c6-a828-5dd82afbf847",
       "question_id": "f80fb935c52743ae91e9378bb9045aab",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Provides alternative suggestions for analyzing historical election trends and research avenues.",
@@ -8123,7 +8123,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "28dd2c29-be80-49b7-ae43-9f8792fb91ff",
+      "id": "8ca4f1af-4cfc-4ce1-8799-a148eb77bba7",
       "question_id": "f80fb935c52743ae91e9378bb9045aab",
       "model": "gemini-1.5-pro-api-0514",
       "property_description": "Adopts a neutral, informative, and somewhat didactic tone with emphasis on responsible research and civic engagement.",
@@ -8138,7 +8138,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a9efed5f-fb31-41ec-9ccb-9685aa9ddaa0",
+      "id": "382acc7e-1245-4ff7-8f39-48c8611c9f21",
       "question_id": "394c08a029cd48c991176933460872b0",
       "model": "llama-3-70b-instruct",
       "property_description": "Attempts to combine regex expansion of number ranges with subprocess execution in a single one-liner.",
@@ -8153,7 +8153,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "38b9d081-2a17-48a5-91c0-5d624a9ac925",
+      "id": "f9ba09da-2393-4452-80b3-34ba18aea340",
       "question_id": "394c08a029cd48c991176933460872b0",
       "model": "llama-3-70b-instruct",
       "property_description": "Misinterprets prompt by expanding number ranges before command execution, leading to an invalid shell command.",
@@ -8168,7 +8168,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "859ea5c1-22cc-4385-922f-b4a3eb09af64",
+      "id": "d4049233-b582-4142-88d8-f71f1864e4b4",
       "question_id": "394c08a029cd48c991176933460872b0",
       "model": "llama-3-70b-instruct",
       "property_description": "Fails to perform required processing on the output of the shell command, missing the prompt's main requirement.",
@@ -8183,7 +8183,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "a0f2c80f-e4ef-4c55-9947-2dc58ce5af60",
+      "id": "15c088bd-2335-4689-84e0-2bca8964cf11",
       "question_id": "394c08a029cd48c991176933460872b0",
       "model": "llama-3-70b-instruct",
       "property_description": "Code is syntactically correct and follows the expected Python style for chaining subprocess and regex operations.",
@@ -8198,7 +8198,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "ca77988f-e920-4469-8bbb-768117eede3c",
+      "id": "aea9b7ed-b612-4913-b4db-c2d96aa810dc",
       "question_id": "2b20bb8e222b4a39bc1a7ecf1e8973e2",
       "model": "llama-3-70b-instruct",
       "property_description": "Provides a detailed and vivid textual description of the requested image, specifying cake features, text placement, and celebratory elements.",
@@ -8213,7 +8213,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "7fb1bb42-e235-4795-9087-a3101686011c",
+      "id": "62abc848-b3ec-4ef4-b5d7-cf71cc4e6779",
       "question_id": "2b20bb8e222b4a39bc1a7ecf1e8973e2",
       "model": "llama-3-70b-instruct",
       "property_description": "Explicitly states its limitation in generating images and clarifies that the description is text-based.",
@@ -8228,7 +8228,7 @@
       "unexpected_behavior": "False"
     },
     {
-      "id": "b29df2cf-825a-4d0b-81ca-e359472d4906",
+      "id": "ee4e7be8-6e06-4826-a909-bcc2f1c244af",
       "question_id": "2b20bb8e222b4a39bc1a7ecf1e8973e2",
       "model": "llama-3-70b-instruct",
       "property_description": "Attempts to present the response as if an image is included, misleadingly saying 'Here's the image:' before admitting the limitation.",
