@@ -140,14 +140,18 @@ class PropertyDataset:
             all_models = df["model"].unique().tolist()
             # Expected columns: question_id, prompt, model, model_response, score, etc.
             for _, row in df.iterrows():
+                scores = row.get('score')
+                if scores is None:
+                    scores = {'score': 0}
+                elif not isinstance(scores, dict):
+                    scores = {'score': scores}
+
                 conversation = ConversationRecord(
                     question_id=str(row.get('question_id', row.name)),
                     prompt=str(row.get('prompt', row.get('user_prompt', ''))),
                     model=str(row.get('model', 'model')),
                     responses=str(row.get('model_response', '')),
-                    scores={
-                        'score': row.get('score', 0)
-                    },
+                    scores=scores,
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model', 'model_response', 'score']}
                 )
@@ -169,16 +173,16 @@ class PropertyDataset:
         # Start with conversation data
         rows = []
         for conv in self.conversations:
-            if len(conv.model) == 1:
+            if isinstance(conv.model, str):
                 base_row = {
                     'question_id': conv.question_id,
                     'prompt': conv.prompt,
                     'model': conv.model,
-                    'responses': conv.responses,
+                    'model_response': conv.responses,
                     'score': conv.scores,
                     **conv.meta
                 }
-            else:
+            elif isinstance(conv.model, list):
                 base_row = {
                     'question_id': conv.question_id,
                     'prompt': conv.prompt,
@@ -189,6 +193,8 @@ class PropertyDataset:
                     'score': conv.scores,
                     **conv.meta
                 }
+            else:
+                raise ValueError(f"Invalid model type: {type(conv.model)}. Must be str or list.")
 
             rows.append(base_row)
         
@@ -209,6 +215,14 @@ class PropertyDataset:
             print("len of base df ", len(df))
             df = df.merge(prop_df, on="question_id", how="left").drop_duplicates(subset="id")
             print("len of df after merge with properties ", len(df))
+
+            # ------------------------------------------------------------------
+            # Ensure `model` column is present (avoid _x / _y duplicates)
+            # ------------------------------------------------------------------
+            if "model" not in df.columns:
+                if "model_x" in df.columns or "model_y" in df.columns:
+                    df["model"] = df.get("model_x").combine_first(df.get("model_y"))
+                    df.drop(columns=[c for c in ["model_x", "model_y"] if c in df.columns], inplace=True)
 
         if self.clusters and type in ["all", "clusters"]:
             # If cluster columns already exist (e.g. after reload from parquet)

@@ -51,7 +51,7 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
     def run(self, data: PropertyDataset) -> PropertyDataset:  # noqa: D401
         """Compute fine & coarse metrics and attach them to *data*."""
 
-        self.log("⚖️  Computing side-by-side metrics …")
+        self.log("⚖️  Computing metrics …")
 
         df = data.to_dataframe(type="clusters")
         if df.empty:

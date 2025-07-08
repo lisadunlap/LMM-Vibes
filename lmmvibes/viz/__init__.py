@@ -18,6 +18,13 @@ from lmmvibes.core.data_objects import (
     Property,
 )
 
+# Import new visualization components
+from .components import (
+    ModelComparisonWidget,
+    ClusterHeatmapWidget,
+    ExampleViewerWidget
+)
+
 # ---------------------------------------------------------------------------
 # Cached dataset loading -----------------------------------------------------
 # ---------------------------------------------------------------------------
@@ -266,4 +273,12 @@ def build_hierarchy_from_df(df: "pd.DataFrame") -> tuple[list[Cluster], dict[int
     return coarse_clusters, fine_map
 
 
-__all__: tuple[str, ...] = ("load_dataset", "build_hierarchy", "load_clusters_dataframe", "build_hierarchy_from_df") 
+__all__: tuple[str, ...] = (
+    "load_dataset", 
+    "build_hierarchy", 
+    "load_clusters_dataframe", 
+    "build_hierarchy_from_df",
+    "ModelComparisonWidget",
+    "ClusterHeatmapWidget", 
+    "ExampleViewerWidget"
+) 
