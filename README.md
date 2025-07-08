@@ -1,6 +1,6 @@
-# Whatever this project is called
+# Welcome to whatever this project is called
 
-Potential name options: Axiom, Tesseract, Quill, Mentat, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)
+*Potential name options: Axiom, Tesseract, Quill, Mentat, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
 
 **Extract, cluster, and analyze behavioral properties from Large Language Models**
 
