@@ -1,8 +1,10 @@
-# LMM-Vibes
+# Whatever this project is called
+
+Potential name options: Axiom, Tesseract, Quill, Mentat, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)
 
 **Extract, cluster, and analyze behavioral properties from Large Language Models**
 
-LMM-Vibes helps you understand how different AI models behave by automatically extracting behavioral properties from their responses and grouping similar behaviors together.
+LMM-Vibes helps you understand how different AI models behave by automatically extracting behavioral properties from their responses and grouping similar behaviors together (damn claude you are not really selling this). 
 
 ## Quick Start
 
