@@ -407,8 +407,9 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
     if config.hierarchical:
         print("Generating hierarchical clusters...")
         fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1]
+        max_coarse_clusters = min(config.max_coarse_clusters, len(fine_cluster_names) // 2)
         coarse_assignments, coarse_names = llm_coarse_cluster_with_centers(
-            fine_cluster_names, config.max_coarse_clusters, config.verbose, config.summary_model, config.cluster_assignment_model
+            fine_cluster_names, max_coarse_clusters, config.verbose, config.summary_model, config.cluster_assignment_model
         )
         print("coarse_assignments", coarse_assignments)
         print("coarse_names", coarse_names)

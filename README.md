@@ -62,13 +62,29 @@ clustered_df, model_stats = explain(
 
 ## Interactive Visualization
 
-Explore your results visually:
+Explore your results with two specialized viewers:
 
+### Pipeline Results Viewer (Comprehensive Analysis)
+```bash
+streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
+```
+**Features:**
+- Model performance leaderboards and rankings
+- Interactive heatmaps comparing models across behavioral clusters  
+- Score distribution analysis and statistics
+- Example viewer with actual model responses
+- Head-to-head model comparisons
+
+### Cluster Explorer (Detailed Clustering Analysis)
 ```bash
 streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
+**Features:**
+- Browse clusters and their hierarchical structure
+- Explore cluster properties and relationships
+- View cluster statistics and metadata
 
-Browse clusters, see examples, and understand model differences through an interactive interface.
+Both viewers provide complementary perspectives - use the Pipeline Results Viewer for comprehensive model analysis and the Cluster Explorer for detailed clustering insights.
 
 ## Input Data Requirements
 
