@@ -48,6 +48,15 @@ clustered_df, model_stats = explain(
 )
 ```
 
+### Viewing Results in Streamlit
+```bash
+# View clusters, examples, and metrics
+streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
+
+# View your clustered results interactively
+streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
+```
+
 ## What You Get
 
 **`clustered_df`** - Your original data plus:
@@ -241,15 +250,6 @@ df = pd.DataFrame({
 })
 
 clustered_df, stats = explain(df, method="single_model")
-```
-
-### Viewing Results in Streamlit
-```bash
-# View your clustered results interactively
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
-
-# Or view just the clusters DataFrame
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/property_with_clusters.csv
 ```
 
 ## Advanced: Running Pipeline Components
