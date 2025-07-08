@@ -9,8 +9,18 @@ We help you understand how different generative models behave by automatically e
 ## Quick Start
 
 ```bash
+# Basic installation
 pip install lmmvibes
+
+# With optional dependencies
+pip install lmmvibes[full]  # includes sentence-transformers, wandb
 ```
+
+## Requirements
+
+- Python 3.8+
+- OpenAI API key (set as `OPENAI_API_KEY` environment variable)
+- Optional: Weights & Biases account for experiment tracking
 
 ```python
 import pandas as pd
@@ -86,11 +96,11 @@ df = pd.DataFrame({
 
 ## Key Features
 
-- **Automatic Property Extraction**: Uses GPT-4 to identify behavioral properties from model responses
-- **Smart Clustering**: Groups similar behaviors using HDBSCAN and embeddings
-- **Hierarchical Organization**: Creates both fine-grained and coarse behavioral clusters
+- **Automatic Property Extraction**: Uses LLM's to identify behavioral properties from model responses (vllm to come or maybe i already implemented it i forgot)
+- **Smart Clustering**: Groups similar behaviors using HDBSCAN and embeddings (more clustering algs to come)
+- **Hierarchical Organization**: Creates both fine-grained and coarse behavioral clusters 
 - **Model Comparison**: Quantifies how much each model exhibits different behaviors
-- **Interactive Exploration**: Streamlit app for browsing results
+- **Interactive Exploration**: Streamlit app for browsing results (rn this is only for clustering need a cute lil' streamlit for the final results)
 - **Multiple Output Formats**: Parquet, JSON, CSV for easy integration
 
 ## Configuration Options
@@ -201,22 +211,6 @@ dataset = metrics(dataset)
 # 6. Save results
 dataset.save("results/full_pipeline_output.json")
 ```
-
-## Other Installation Thingys
-
-```bash
-# Basic installation
-pip install lmmvibes
-
-# With optional dependencies
-pip install lmmvibes[full]  # includes sentence-transformers, wandb
-```
-
-## Requirements
-
-- Python 3.8+
-- OpenAI API key (set as `OPENAI_API_KEY` environment variable)
-- Optional: Weights & Biases account for experiment tracking
 
 ## Contributing
 
