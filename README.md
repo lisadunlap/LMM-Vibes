@@ -4,7 +4,7 @@
 
 **Extract, cluster, and analyze behavioral properties from Large Language Models**
 
-LMM-Vibes helps you understand how different AI models behave by automatically extracting behavioral properties from their responses and grouping similar behaviors together (damn claude you are not really selling this). 
+We help you understand how different generative models behave by automatically extracting behavioral properties from their responses, grouping similar behaviors together, and quantifying how important these behvaiors are (damn claude you are not really selling this). 
 
 ## Quick Start
 
