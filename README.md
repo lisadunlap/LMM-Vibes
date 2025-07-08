@@ -6,7 +6,7 @@
 
 We help you understand how different generative models behave by automatically extracting behavioral properties from their responses, grouping similar behaviors together, and quantifying how important these behvaiors are (damn claude you are not really selling this). 
 
-## Quick Start
+## Installation
 
 ```bash
 # Basic installation
@@ -16,11 +16,13 @@ pip install lmmvibes
 pip install lmmvibes[full]  # includes sentence-transformers, wandb
 ```
 
-## Requirements
+*Requirements:*
 
 - Python 3.8+
 - OpenAI API key (set as `OPENAI_API_KEY` environment variable)
 - Optional: Weights & Biases account for experiment tracking
+
+## Quick Start
 
 ```python
 import pandas as pd
@@ -68,9 +70,25 @@ streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_res
 
 Browse clusters, see examples, and understand model differences through an interactive interface.
 
-## Supported Data Formats
+## Input Data Requirements
+
+LMM-Vibes supports two primary analysis methods with specific data requirements:
 
 ### Side-by-Side Comparisons
+For comparing two models head-to-head (like Arena-style battles):
+
+**Required columns:**
+- `question_id` - Unique identifier for each conversation/question
+- `prompt` (or `user_prompt`) - The question or prompt given to models
+- `model_a` - Name of the first model
+- `model_b` - Name of the second model  
+- `model_a_response` - Response from the first model
+- `model_b_response` - Response from the second model
+
+**Optional columns:**
+- `score` - Dictionary of metrics: `{"winner": "model_a", "rating": 4.5, "helpfulness": 0.8}`
+- Any additional metadata columns (language, category, difficulty, etc.)
+
 ```python
 df = pd.DataFrame({
     "question_id": ["q1", "q2"],
@@ -79,29 +97,80 @@ df = pd.DataFrame({
     "model_b": ["claude-3", "claude-3"],
     "model_a_response": ["Response from model A"],
     "model_b_response": ["Response from model B"],
-    "winner": ["model_a", "model_b"]  # or "tie"
+    "score": [{"winner": "model_a"}, {"winner": "model_b", "confidence": 0.9}],  # optional
+    "language": ["en", "en"],  # optional metadata
 })
 ```
 
 ### Single Model Analysis
+For analyzing individual model responses:
+
+**Required columns:**
+- `question_id` - Unique identifier for each conversation/question
+- `prompt` (or `user_prompt`) - The question or prompt given to the model
+- `model` - Name of the model
+- `model_response` (or `response`) - The model's response
+
+**Optional columns:**
+- `score` - Dictionary of metrics: `{"rating": 4.2, "accuracy": 0.85, "helpfulness": 0.9}`
+- Any additional metadata columns
+
 ```python
 df = pd.DataFrame({
     "question_id": ["q1", "q2"],
     "prompt": ["Question text"],
     "model": ["gpt-4", "gpt-4"],
-    "response": ["Model response"],
-    "score": [0.8, 0.9]  # optional
+    "model_response": ["Model response"],
+    "score": [{"rating": 4.2, "accuracy": 0.8}, {"rating": 4.5, "accuracy": 0.9}],  # optional
+    "category": ["reasoning", "creative"],  # optional metadata
 })
 ```
 
-## Key Features
+## Pipeline Components
 
-- **Automatic Property Extraction**: Uses LLM's to identify behavioral properties from model responses (vllm to come or maybe i already implemented it i forgot)
-- **Smart Clustering**: Groups similar behaviors using HDBSCAN and embeddings (more clustering algs to come)
-- **Hierarchical Organization**: Creates both fine-grained and coarse behavioral clusters 
-- **Model Comparison**: Quantifies how much each model exhibits different behaviors
-- **Interactive Exploration**: Streamlit app for browsing results (rn this is only for clustering need a cute lil' streamlit for the final results)
-- **Multiple Output Formats**: Parquet, JSON, CSV for easy integration
+LMM-Vibes follows a 4-stage pipeline architecture. Here's what each component does:
+
+### 1. Property Extraction (`lmmvibes.extractors`)
+**Goal**: Identify specific behavioral properties from model responses using LLM analysis.
+
+Takes each conversation and asks an LLM (like GPT-4) to extract behavioral properties such as:
+- "Provides step-by-step reasoning"
+- "Uses formal/informal tone" 
+- "Includes creative examples"
+- "Shows uncertainty appropriately"
+
+**Available extractors:**
+- `OpenAIExtractor` - Uses OpenAI API (GPT models)
+- `VLLMExtractor` - Uses local models via vLLM (I had claude YOLO this in the refactor so 20% it works)
+- `BatchExtractor` - Makes a file for the batch API (i know this one isnt done, need to port over from pre-refactor repo)
+
+### 2. Post-processing (`lmmvibes.postprocess`)
+**Goal**: Parse and validate the extracted properties into structured data.
+
+- `LLMJsonParser` - Converts raw LLM responses into structured property objects
+- `PropertyValidator` - Ensures properties meet quality standards and required fields
+
+### 3. Clustering (`lmmvibes.clusterers`) 
+**Goal**: Group similar behavioral properties into coherent clusters for analysis.
+
+Takes individual properties like "explains step-by-step" and "shows work clearly" and groups them into clusters like "Reasoning Transparency". Creates both fine-grained and coarse-grained cluster hierarchies.
+
+**Available clusterers:**
+- `HDBSCANClusterer` - Density-based clustering (recommended for >10k samples)
+- `HierarchicalClusterer` - Traditional hierarchical clustering with LLM-powered naming (i thiiiink this is also yet to be ported over from pre-refactor)
+
+### 4. Metrics & Analysis (`lmmvibes.metrics`)
+**Goal**: Calculate model performance statistics and behavioral rankings.
+
+Computes which models excel at which behavioral patterns:
+- Model scores per behavior cluster
+- Relative strengths/weaknesses between models  
+- Statistical significance of differences
+- Example responses for each cluster
+
+**Available metrics:**
+- `SideBySideMetrics` - For model comparison data
+- `SingleModelMetrics` - For individual model analysis
 
 ## Configuration Options
 
