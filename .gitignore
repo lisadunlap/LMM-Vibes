@@ -1,7 +1,12 @@
-cluster_results/*
-random_data/*
-wandb/*
-differences/*
+**/cluster_results/
+**/random_data/
+**/wandb/
+**/differences/
+**/oai_batch_data/
+**/data/
+**/legacy/
+.cache/
+
 
 __pycache__/
 *.py[cod]
