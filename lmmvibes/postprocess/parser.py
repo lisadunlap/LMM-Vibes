@@ -44,25 +44,45 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         parsed_properties: List[Property] = []
         parse_errors = 0
         unknown_model_filtered = 0
+        consecutive_errors = 0  # Track consecutive parsing errors
+        max_consecutive_errors = 3  # Fail after 3 consecutive errors
         
-        for prop in data.properties:
+        for i, prop in enumerate(data.properties):
             # We only process properties that still have raw_response
             if not prop.raw_response:
                 parsed_properties.append(prop)
+                consecutive_errors = 0  # Reset consecutive error counter
                 continue
 
             parsed_json = self._parse_json_response(prop.raw_response)
             if parsed_json is None:
                 parse_errors += 1
+                consecutive_errors += 1
+                
                 # Debug: show a snippet of the offending response to aid troubleshooting
                 snippet = (prop.raw_response or "")[:200].replace("\n", " ")
                 self.log(
-                    f"Failed to parse JSON for property {prop.id}. Snippet: {snippet}…",
+                    f"Failed to parse JSON for property {prop.id} ({consecutive_errors} consecutive errors). Snippet: {snippet}…",
                     level="error",
                 )
+                
+                # Check if we've exceeded consecutive error limit
+                if consecutive_errors > max_consecutive_errors:
+                    error_msg = (
+                        f"ERROR: More than {max_consecutive_errors} consecutive parsing errors detected "
+                        f"(currently {consecutive_errors}). This indicates a systematic issue with "
+                        f"the LLM responses. Check your API connectivity, model configuration, "
+                        f"or system prompts. Failed at property {i+1}/{len(data.properties)}."
+                    )
+                    self.log(error_msg, level="error")
+                    raise RuntimeError(error_msg)
+                
                 self.handle_error(ValueError("Failed to parse JSON"), f"property {prop.id}")
                 continue
 
+            # Successfully parsed JSON - reset consecutive error counter
+            consecutive_errors = 0
+            
             # The LLM might return a single property dict or {"properties": [...]} or a list
             if isinstance(parsed_json, dict) and "properties" in parsed_json:
                 prop_dicts = parsed_json["properties"]
@@ -71,10 +91,25 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             elif isinstance(parsed_json, dict):
                 prop_dicts = [parsed_json]
             else:
+                consecutive_errors += 1  # Count structure errors as parsing errors too
+                
+                if consecutive_errors > max_consecutive_errors:
+                    error_msg = (
+                        f"ERROR: More than {max_consecutive_errors} consecutive parsing errors detected "
+                        f"(currently {consecutive_errors}). This indicates a systematic issue with "
+                        f"the LLM responses. Check your API connectivity, model configuration, "
+                        f"or system prompts. Failed at property {i+1}/{len(data.properties)}."
+                    )
+                    self.log(error_msg, level="error")
+                    raise RuntimeError(error_msg)
+                    
                 self.handle_error(ValueError("Unsupported JSON shape"), f"property {prop.id}")
                 parse_errors += 1
                 continue
 
+            # Successfully processed structure - reset consecutive error counter
+            consecutive_errors = 0
+            
             for p_dict in prop_dicts:
                 try:
                     parsed_properties.append(self._to_property(p_dict, prop))
@@ -175,16 +210,17 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             total_parsed = len(parsed_properties)
             parse_success_rate = total_parsed / total_raw if total_raw > 0 else 0
             
-            # Log parsing metrics
-            self.log_wandb({
+            # Log parsing summary statistics as summary metrics (not regular metrics)
+            summary_stats = {
                 "parsing_total_properties": total_raw,
                 "parsing_successful_properties": total_parsed,
                 "parsing_failed_properties": parse_errors,
                 "parsing_success_rate": parse_success_rate,
-                "filtered_unknown_models": unknown_model_filtered,
-            })
+                "parsing_filtered_unknown_models": unknown_model_filtered,
+            }
+            self.log_wandb(summary_stats, is_summary=True)
             
-            # Log a sample of parsed properties
+            # Log a sample of parsed properties (as table, not summary)
             if parsed_properties:
                 sample_size = min(100, len(parsed_properties))
                 sample_properties = parsed_properties[:sample_size]
@@ -204,27 +240,15 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     })
                 
                 self.log_wandb({
-                    "parsed_properties_sample": wandb.Table(
+                    "Property_Extraction/parsed_properties_sample": wandb.Table(
                         columns=["question_id", "model", "property_description", "category", "impact", "type", "user_preference_direction", "contains_errors", "unexpected_behavior"],
                         data=[[row[col] for col in ["question_id", "model", "property_description", "category", "impact", "type", "user_preference_direction", "contains_errors", "unexpected_behavior"]] 
                               for row in property_data]
                     )
                 })
             
-            # Log parsing error count
-            if parse_errors > 0:
-                self.log_wandb({
-                    "parsing_error_count": parse_errors,
-                })
-            
-            # Log filtered properties
-            if unknown_model_filtered > 0:
-                self.log_wandb({
-                    "filtered_properties_count": unknown_model_filtered,
-                })
-            
         except Exception as e:
-            self.log(f"Failed to log parsing to wandb: {e}", level="warning") 
+            self.log(f"Failed to log parsing to wandb: {e}", level="warning")
 
 def remove_things(x):
     x = x[x.find('_')+1:]

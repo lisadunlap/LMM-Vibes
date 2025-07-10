@@ -103,51 +103,128 @@ class WandbMixin:
         self.use_wandb     = use_wandb
         self.wandb_project = wandb_project
         self._wandb_ok     = False
+        self._summary_metrics = {}  # Accumulate summary metrics
         super().__init__()
     
-    def init_wandb(self, project: str = None, **kwargs) -> None:
+    def init_wandb(self, project: str = None, run_name: str = None, **kwargs) -> None:
         """Initialize wandb if enabled."""
         if not self.use_wandb:
             return
             
-        # Check if wandb is already initialized globally or by this stage
-        if self._wandb_ok or wandb.run is not None:
+        # Check if wandb is already initialized globally
+        if wandb.run is not None:
             # Mark that wandb is available for this stage
             self._wandb_ok = True
+            if hasattr(self, 'log'):
+                self.log(f"Using existing wandb run: {wandb.run.name}", level="debug")
+            return
+            
+        # Check if this stage already marked wandb as available
+        if self._wandb_ok:
             return
             
         # Only initialize if no existing run
-        wandb.init(
-            project=project or self.wandb_project or "lmm-vibes",
-            name=f"{self.name}_{int(time.time())}",
-            **kwargs
-        )
-        self._wandb_ok = True
+        if run_name is None:
+            run_name = f"{self.name}_{int(time.time())}"
+            
+        try:
+            wandb.init(
+                project=project or self.wandb_project or "lmm-vibes",
+                name=run_name,
+                reinit=False,  # Don't reinitialize if already exists
+                **kwargs
+            )
+            self._wandb_ok = True
+            if hasattr(self, 'log'):
+                self.log(f"Initialized wandb run: {run_name}", level="debug")
+        except Exception as e:
+            if hasattr(self, 'log'):
+                self.log(f"Failed to initialize wandb: {e}", level="warning")
+            # If wandb initialization fails, continue without it
+            self.use_wandb = False
     
-    def log_wandb(self, data: Dict[str, Any], step: int = None) -> None:
-        """Log data to wandb."""
+    def log_wandb(self, data: Dict[str, Any], step: int = None, is_summary: bool = False) -> None:
+        """
+        Log data to wandb.
+        
+        Args:
+            data: Dictionary of data to log
+            step: Optional step number for time series data
+            is_summary: If True, accumulate as summary statistics instead of logging immediately
+        """
         if not self.use_wandb:
             return
             
-        # Check if wandb is already initialized (globally or by this stage)
-        if self._wandb_ok or wandb.run is not None:
-            wandb.log(data, step=step)
+        # Check if wandb is available globally
+        if wandb.run is not None:
+            try:
+                if is_summary:
+                    # Accumulate summary metrics for later logging
+                    self._summary_metrics.update(data)
+                else:
+                    # Log immediately for non-summary data (tables, artifacts, etc.)
+                    wandb.log(data, step=step)
+                # Mark that wandb is working for this stage
+                self._wandb_ok = True
+            except Exception as e:
+                if hasattr(self, 'log'):
+                    self.log(f"Failed to log to wandb: {e}", level="warning")
         else:
-            # Optionally initialize wandb if not already done
+            # If no global wandb run, log warning
             if hasattr(self, 'log'):
                 self.log("wandb not initialized, skipping logging", level="warning")
+    
+    def log_summary_metrics(self) -> None:
+        """Log accumulated summary metrics to wandb run summary."""
+        if not self.use_wandb or not self._summary_metrics:
+            return
+            
+        # Check if wandb is available globally
+        if wandb.run is not None:
+            try:
+                # Log summary metrics to run summary (not as regular metrics)
+                for key, value in self._summary_metrics.items():
+                    wandb.run.summary[key] = value
+                
+                if hasattr(self, 'log'):
+                    self.log(f"Logged {len(self._summary_metrics)} summary metrics to wandb", level="debug")
+                
+                # Clear accumulated metrics after logging
+                self._summary_metrics.clear()
+                
+            except Exception as e:
+                if hasattr(self, 'log'):
+                    self.log(f"Failed to log summary metrics to wandb: {e}", level="warning")
+        else:
+            if hasattr(self, 'log'):
+                self.log("wandb not initialized, skipping summary logging", level="warning")
+    
+    def get_summary_metrics(self) -> Dict[str, Any]:
+        """Get accumulated summary metrics without logging them."""
+        return self._summary_metrics.copy()
+    
+    def clear_summary_metrics(self) -> None:
+        """Clear accumulated summary metrics."""
+        self._summary_metrics.clear()
     
     def log_artifact(self, artifact_name: str, artifact_type: str, file_path: str) -> None:
         """Log an artifact to wandb."""
         if not self.use_wandb:
             return
             
-        # Check if wandb is already initialized (globally or by this stage)
-        if self._wandb_ok or wandb.run is not None:
-            artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            artifact.add_file(file_path)
-            wandb.log_artifact(artifact)
+        # Check if wandb is available globally
+        if wandb.run is not None:
+            try:
+                artifact = wandb.Artifact(artifact_name, type=artifact_type)
+                artifact.add_file(file_path)
+                wandb.log_artifact(artifact)
+                # Mark that wandb is working for this stage
+                self._wandb_ok = True
+            except Exception as e:
+                if hasattr(self, 'log'):
+                    self.log(f"Failed to log artifact to wandb: {e}", level="warning")
         else:
+            # If no global wandb run, log warning
             if hasattr(self, 'log'):
                 self.log("wandb not initialized, skipping artifact logging", level="warning")
 

@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 import pandas as pd
 from pydantic import BaseModel, Field, validator
 import numpy as np
+import random
 
 
 @dataclass
@@ -76,6 +77,18 @@ class Cluster:
 
     def to_dict(self):
         return asdict(self)
+    
+    def to_sample_dict(self, n: int = 5):
+        """Return a dictionary that samples n property descriptions and ids from the cluster."""
+        return {
+            "id": self.id,
+            "label": self.label,
+            "size": self.size,
+            "parent_id": self.parent_id,
+            "parent_label": self.parent_label,
+            "property_descriptions": random.sample(self.property_descriptions, n),
+            "question_ids": random.sample(self.question_ids, n),
+        }
     
 @dataclass
 class ModelStats:

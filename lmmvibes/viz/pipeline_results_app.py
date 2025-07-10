@@ -261,14 +261,17 @@ def create_model_comparison_heatmap(model_stats: Dict[str, Any], selected_models
         zmid=1.0,  # Center at score = 1.0 (median performance)
         colorbar=dict(title="Score vs Median"),
         hoverongaps=False,
-        hovertemplate='Model: %{x}<br>Cluster: %{y}<br>Score: %{z:.3f}<extra></extra>'
+        hovertemplate='Model: %{x}<br>Cluster: %{y}<br>Score: %{z:.3f}<extra></extra>',
+        text=[[f"{score:.2f}" for score in row] for row in score_matrix],
+        texttemplate="%{text}",
+        textfont={"size": 10}
     ))
     
     fig.update_layout(
         title=f"Model Performance Heatmap - {level.title()} Level Clusters",
         xaxis_title="Models",
         yaxis_title="Behavioral Clusters",
-        height=max(400, len(all_clusters) * 20),
+        height=max(600, len(all_clusters) * 35),  # Increased base height and per-cluster height
         yaxis={'side': 'left'}
     )
     
@@ -382,71 +385,105 @@ def main():
     model_rankings = compute_model_rankings(model_stats)
     
     # Tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "📊 Overview", 
-        "🏆 Model Rankings", 
-        "🔥 Heatmap Comparison",
-        "📈 Score Analysis"
+        "🔍 View Examples", 
+        "📋 View Clusters"
     ])
     
     with tab1:
-        st.header("Pipeline Results Overview")
+        st.header("Model Summaries")
+        st.caption("Top distinctive clusters where each model shows unique behavioral patterns")
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Models", len(model_stats))
-        with col2:
-            st.metric("Total Properties", f"{len(clustered_df):,}")
-        with col3:
-            if 'fine_cluster_id' in clustered_df.columns:
-                n_fine = clustered_df['fine_cluster_id'].nunique()
-                st.metric("Fine Clusters", n_fine)
-        with col4:
-            if 'coarse_cluster_id' in clustered_df.columns:
-                n_coarse = clustered_df['coarse_cluster_id'].nunique()
-                st.metric("Coarse Clusters", n_coarse)
+        # Add explanation box
+        st.info(
+            "**Frequency calculation:** For each cluster, frequency shows what percentage of a model's total battles resulted in that behavioral pattern. "
+            "For example, 5% frequency means the model exhibited this behavior in 5 out of every 100 battles it participated in.\n\n"
+            "**Distinctiveness:** The distinctiveness score shows how much more (or less) frequently a model exhibits a behavior compared to the median frequency across all models. "
+            "For example, '2.5x more distinctive' means this model exhibits this behavior 2.5 times more often than the typical model."
+        )
         
-        st.subheader("Top Performing Models")
-        top_5_models = model_rankings[:5]
-        for rank, (model, stats) in enumerate(top_5_models, 1):
-            with st.expander(f"{rank}. {model} (avg: {stats['avg_score']:.3f})"):
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    st.write("**Performance Metrics:**")
-                    metric_col1, metric_col2, metric_col3 = st.columns(3)
-                    with metric_col1:
-                        st.metric("Avg Score", f"{stats['avg_score']:.3f}")
-                    with metric_col2:
-                        st.metric("Top Score", f"{stats['top_score']:.3f}")
-                    with metric_col3:
-                        st.metric("# Clusters", stats['num_clusters'])
+        # Create model cards in a grid layout
+        num_models = len(model_rankings)
+        cols_per_row = 3
+        
+        for i in range(0, num_models, cols_per_row):
+            cols = st.columns(cols_per_row)
+            
+            for j, col in enumerate(cols):
+                model_idx = i + j
+                if model_idx >= num_models:
+                    break
+                    
+                model_name, individual_model_stats = model_rankings[model_idx]
                 
-                with col2:
-                    st.write("**Top Behavioral Clusters:**")
-                    top_clusters = get_top_clusters_for_model(model_stats, model, cluster_level, 3)
-                    for i, cluster in enumerate(top_clusters, 1):
-                        st.write(f"{i}. {cluster['property_description'][:50]}...")
-                        st.caption(f"Score: {cluster['score']:.3f}")
+                with col:
+                    # Create card container
+                    with st.container():
+                        # Model header with clean, elegant design
+                        st.markdown(f"""
+                        <div style="
+                            padding: 8px 0 2px 0;
+                            margin-bottom: 12px;
+                            border-bottom: 2px solid #e2e8f0;
+                        ">
+                            <h3 style="
+                                margin: 0; 
+                                color: #1a202c; 
+                                font-weight: 500; 
+                                font-size: 1.25rem;
+                                letter-spacing: -0.025em;
+                            ">{model_name}</h3>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Get total battles for this model (approximate from cluster data)
+                        top_clusters = get_top_clusters_for_model(model_stats, model_name, cluster_level, 5)
+                        
+                        if top_clusters:
+                            # Calculate total battles by summing all cluster sizes for this model
+                            total_battles = sum(cluster.get('size', 0) for cluster in top_clusters)
+                            st.caption(f"{total_battles:,} battles")
+                            
+                            st.markdown("📈 **Top clusters by frequency**")
+                            
+                            # Show top 3 clusters
+                            for idx, cluster in enumerate(top_clusters[:3]):
+                                cluster_desc = cluster['property_description']
+                                frequency = cluster.get('proportion', 0) * 100  # Convert to percentage
+                                cluster_size = cluster.get('size', 0)  # This model's size in this cluster
+                                cluster_size_global = cluster.get('cluster_size_global', 0)  # Total across all models
+                                quality_score = cluster.get('quality_score', 0)  # Quality score
+                                
+                                # Calculate distinctiveness (using score as proxy)
+                                distinctiveness = cluster.get('score', 1.0)
+                                
+                                st.markdown(f"""
+                                <div style="margin: 15px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
+                                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 5px;">
+                                        {cluster_desc}
+                                    </div>
+                                    <div style="font-size: 12px; color: #666;">
+                                        <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {cluster_size_global} total across all models)
+                                    </div>
+                                    <div style="font-size: 11px; color: #3182ce;">
+                                        {distinctiveness:.1f}x more distinctive than other models
+                                    </div>
+                                    <div style="position: absolute; bottom: 8px; right: 10px; font-size: 10px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
+                                        Quality: {quality_score:.3f}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.write("No cluster data available")
+                        
+                        st.markdown("</div>", unsafe_allow_html=True)
     
     with tab2:
-        st.header("Model Performance Rankings")
+        st.header("View Examples")
+        st.write("Explore detailed examples from specific models and behavioral clusters")
         
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.subheader("Leaderboard")
-            create_model_leaderboard(model_rankings)
-        
-        with col2:
-            st.subheader("Distribution")
-            avg_scores = [stats['avg_score'] for _, stats in model_rankings]
-            fig = px.histogram(x=avg_scores, nbins=20, title="Distribution of Average Scores")
-            fig.add_vline(x=1.0, line_dash="dash", line_color="red", 
-                         annotation_text="Median Performance")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Detailed model analysis
-        st.subheader("Detailed Model Analysis")
+        # Model selection for examples
         selected_model = st.selectbox("Select model for detailed view", all_models)
         
         if selected_model:
@@ -483,46 +520,149 @@ def main():
                     st.dataframe(cluster_df, use_container_width=True, hide_index=True)
     
     with tab3:
-        st.header("Model Comparison Heatmap")
-        st.write("Compare model performance across behavioral clusters")
+        st.header("View Clusters")
+        st.write("Explore behavioral clusters sorted by quality or maximum distinctiveness across models")
         
-        if len(selected_models) >= 2:
-            create_model_comparison_heatmap(model_stats, selected_models, cluster_level, top_n_clusters)
-        else:
-            st.warning("Please select at least 2 models in the sidebar for comparison")
-    
-    with tab4:
-        st.header("Score Distribution Analysis")
-        st.write("Analyze score distributions and patterns across models")
+        # Collect all clusters across all models
+        all_clusters_data = []
+        for model_name, model_data in model_stats.items():
+            clusters = model_data.get(cluster_level, [])
+            for cluster in clusters:
+                all_clusters_data.append({
+                    'property_description': cluster['property_description'],
+                    'model': model_name,
+                    'score': cluster.get('score', 0),
+                    'quality_score': cluster.get('quality_score', 0),
+                    'size': cluster.get('size', 0),
+                    'cluster_size_global': cluster.get('cluster_size_global', 0),
+                    'proportion': cluster.get('proportion', 0)
+                })
         
-        if selected_models:
-            create_score_distribution_plot(model_stats, selected_models, cluster_level)
+        if all_clusters_data:
+            clusters_df = pd.DataFrame(all_clusters_data)
             
-            # Summary statistics
-            st.subheader("Summary Statistics")
-            summary_data = []
-            for model in selected_models:
-                model_data = model_stats.get(model, {})
-                clusters = model_data.get(cluster_level, [])
-                scores = [c['score'] for c in clusters]
+            # Group by cluster to get max scores and average quality
+            cluster_summary = clusters_df.groupby('property_description').agg({
+                'score': 'max',  # Max distinctiveness across models
+                'quality_score': 'mean',  # Average quality score
+                'cluster_size_global': 'first',  # Should be same for all models
+                'size': 'sum'  # Total size across all models (should equal cluster_size_global)
+            }).reset_index()
+            
+            # Sort options
+            sort_option = st.selectbox(
+                "Sort clusters by:",
+                ["Max Distinctiveness", "Average Quality Score", "Cluster Size"],
+                help="Max Distinctiveness: clusters that maximally separate models\nAverage Quality Score: clusters with high correlation to accuracy"
+            )
+            
+            if sort_option == "Max Distinctiveness":
+                cluster_summary = cluster_summary.sort_values('score', ascending=False)
+            elif sort_option == "Average Quality Score":
+                cluster_summary = cluster_summary.sort_values('quality_score', ascending=False)
+            else:  # Cluster Size
+                cluster_summary = cluster_summary.sort_values('cluster_size_global', ascending=False)
+            
+            # Display clusters
+            st.subheader(f"Clusters sorted by {sort_option}")
+            
+            # Format for display
+            display_df = cluster_summary.copy()
+            display_df['Cluster Description'] = display_df['property_description'].apply(
+                lambda x: x[:100] + '...' if len(x) > 100 else x
+            )
+            display_df['Max Score'] = display_df['score'].apply(lambda x: f"{x:.3f}")
+            display_df['Avg Quality'] = display_df['quality_score'].apply(lambda x: f"{x:.3f}")
+            display_df['Size'] = display_df['cluster_size_global']
+            
+            st.dataframe(
+                display_df[['Cluster Description', 'Max Score', 'Avg Quality', 'Size']],
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Show detailed view for selected cluster
+            st.subheader("Cluster Details")
+            selected_cluster_desc = st.selectbox(
+                "Select cluster for detailed view:",
+                cluster_summary['property_description'].tolist()
+            )
+            
+            if selected_cluster_desc:
+                cluster_details = clusters_df[clusters_df['property_description'] == selected_cluster_desc]
                 
-                if scores:
-                    summary_data.append({
-                        'Model': model,
-                        'Mean': np.mean(scores),
-                        'Median': np.median(scores),
-                        'Std Dev': np.std(scores),
-                        'Min': np.min(scores),
-                        'Max': np.max(scores),
-                        'Above 1.0': sum(1 for s in scores if s > 1.0),
-                        'Below 1.0': sum(1 for s in scores if s < 1.0)
-                    })
-            
-            if summary_data:
-                summary_df = pd.DataFrame(summary_data)
-                st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                st.write(f"**Cluster:** {selected_cluster_desc}")
+                st.write(f"**Total Size:** {cluster_details['cluster_size_global'].iloc[0]}")
+                
+                # Show model breakdown
+                st.write("**Model Breakdown:**")
+                model_breakdown = cluster_details[['model', 'score', 'size', 'proportion']].sort_values('score', ascending=False)
+                model_breakdown['Score'] = model_breakdown['score'].apply(lambda x: f"{x:.3f}")
+                model_breakdown['Frequency'] = model_breakdown['proportion'].apply(lambda x: f"{x*100:.1f}%")
+                model_breakdown = model_breakdown.rename(columns={'model': 'Model', 'size': 'Size'})
+                
+                st.dataframe(
+                    model_breakdown[['Model', 'Score', 'Size', 'Frequency']],
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Show examples from this cluster
+                st.write("**Examples:**")
+                
+                # Get example property IDs from the model_stats for this cluster
+                example_property_ids = []
+                for model_name, model_data in model_stats.items():
+                    clusters = model_data.get(cluster_level, [])
+                    for cluster in clusters:
+                        if cluster['property_description'] == selected_cluster_desc:
+                            example_property_ids.extend(cluster.get('examples', []))
+                
+                # Remove duplicates and limit to first 5 examples
+                example_property_ids = list(set(example_property_ids))[:5]
+                
+                if example_property_ids:
+                    # Load the example data
+                    examples_df = load_property_examples(results_path, example_property_ids)
+                    
+                    if not examples_df.empty:
+                        st.caption(f"Showing {len(examples_df)} example(s) from this cluster")
+                        
+                        for i, (_, row) in enumerate(examples_df.iterrows(), 1):
+                            with st.expander(f"Example {i}: {row.get('model', 'Unknown model')} - {row.get('id', 'Unknown')[:12]}..."):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.write("**Prompt:**")
+                                    prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
+                                    st.write(prompt)
+                                    
+                                    st.write("**Metadata:**")
+                                    st.json({
+                                        'model': row.get('model', 'N/A'),
+                                        'question_id': row.get('question_id', 'N/A'),
+                                        'property_id': row.get('id', 'N/A'),
+                                        'cluster_id': row.get('fine_cluster_id', 'N/A')
+                                    })
+                                
+                                with col2:
+                                    st.write("**Model Response:**")
+                                    # Handle different response column formats
+                                    response = (row.get('model_response') or 
+                                              row.get('model_a_response') or 
+                                              row.get('model_b_response') or 
+                                              row.get('responses', 'N/A'))
+                                    st.write(response)
+                                    
+                                    st.write("**Extracted Property:**")
+                                    property_desc = row.get('property_description', 'N/A')
+                                    st.info(property_desc)
+                    else:
+                        st.warning("Could not load example data for this cluster")
+                else:
+                    st.warning("No examples available for this cluster")
         else:
-            st.warning("Please select models in the sidebar to view analysis")
+            st.warning("No cluster data available")
 
 if __name__ == "__main__":
     main()
