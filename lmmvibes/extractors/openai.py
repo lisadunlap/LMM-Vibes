@@ -148,7 +148,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                 ],
                 "temperature": self.temperature,
                 "top_p": self.top_p,
-                "max_tokens": self.max_tokens,
+                "max_completion_tokens": self.max_tokens,
             }
 
             # Check cache first
@@ -211,7 +211,8 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         Returns:
             Formatted prompt string
         """
-        if len(conversation.responses) == 2:
+        # Check if this is a side-by-side comparison or single model
+        if isinstance(conversation.model, list) and len(conversation.model) == 2 and isinstance(conversation.responses, list) and len(conversation.responses) == 2:
             # Side-by-side format
             model_a, model_b = conversation.model
             response_a = conversation.responses[0]
@@ -233,10 +234,10 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                     f"# Scores:\n {scores}"
                 )
             
-        else:
+        elif isinstance(conversation.model, str) and isinstance(conversation.responses, str):
             # Single model format
-            model = conversation.model
-            response = conversation.responses
+            model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)
+            response = conversation.responses if isinstance(conversation.responses, str) else str(conversation.responses)
             scores = conversation.scores
 
             if not scores:
@@ -251,6 +252,8 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                     f"# Model response:\n {response}\n\n"
                     f"# Scores:\n {scores}"
                 )
+        else:
+            raise ValueError(f"Invalid conversation format: {conversation}")
     
     def _log_extraction_to_wandb(self, user_messages: List[str], raw_responses: List[str], conversations):
         """Log extraction inputs/outputs to wandb."""
@@ -268,23 +271,24 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                     "has_error": response.startswith("ERROR:"),
                 })
             
-            # Log extraction table
+            # Log extraction table (as table, not summary)
             self.log_wandb({
-                "extraction_inputs_outputs": wandb.Table(
+                "Property_Extraction/extraction_inputs_outputs": wandb.Table(
                     columns=["question_id", "input_message", "raw_response", "response_length", "has_error"],
                     data=[[row[col] for col in ["question_id", "input_message", "raw_response", "response_length", "has_error"]] 
                           for row in extraction_data]
                 )
             })
             
-            # Log extraction metrics
+            # Log extraction metrics as summary metrics (not regular metrics)
             error_count = sum(1 for r in raw_responses if r.startswith("ERROR:"))
-            self.log_wandb({
+            extraction_metrics = {
                 "extraction_total_requests": len(raw_responses),
                 "extraction_error_count": error_count,
                 "extraction_success_rate": (len(raw_responses) - error_count) / len(raw_responses) if raw_responses else 0,
                 "extraction_avg_response_length": sum(len(r) for r in raw_responses) / len(raw_responses) if raw_responses else 0,
-            })
+            }
+            self.log_wandb(extraction_metrics, is_summary=True)
             
         except Exception as e:
             self.log(f"Failed to log extraction to wandb: {e}", level="warning")

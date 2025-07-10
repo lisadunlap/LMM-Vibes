@@ -63,7 +63,7 @@ class ClusterConfig:
     cache_embeddings: bool = True
     # model settings
     embedding_model: str = "openai"
-    summary_model: str = "o4-mini"
+    summary_model: str = "gpt-4.1"
     cluster_assignment_model: str = "gpt-4.1-mini"
     # Dimension reduction settings
     dim_reduction_method: str = "adaptive"  # "adaptive", "umap", "pca", "none"
@@ -249,7 +249,7 @@ def generate_cluster_summaries(cluster_values: Dict[int, List], config: ClusterC
             cluster_label_map[cluster_id] = "Outliers"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, cluster_type, 50)
+        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, cluster_type, 50)
         cluster_label_map[cluster_id] = summary
         if config.verbose:
             print(f"    Cluster {cluster_id}: {summary} ({len(values)} items)")
@@ -608,7 +608,7 @@ def hdbscan_native_hierarchical_cluster(df, column_name, config=None, **kwargs):
             
             # Use a slightly different prompt context for different levels
             cluster_type = "specific" if level_idx == 0 else "broad"
-            summary = _get_llm_cluster_summary(values, column_name, cluster_type, 50)
+            summary = _get_llm_cluster_summary(values, config.summary_model, column_name, cluster_type, 50)
             id_to_label_map[cluster_id] = summary
             
             if config.verbose and (cluster_id % 5 == 0 or num_clusters < 10):
@@ -697,7 +697,7 @@ def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
             coarse_label_map[cluster_id] = f"coarse_cluster_{cluster_id}"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, "broad", 50)
+        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, "broad", 50)
         coarse_label_map[cluster_id] = summary
         
         if config.verbose:
@@ -710,7 +710,7 @@ def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
             fine_label_map[cluster_id] = f"fine_cluster_{cluster_id}"
             continue
             
-        summary = _get_llm_cluster_summary(values, column_name, "specific", 30)
+        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, "specific", 30)
         fine_label_map[cluster_id] = summary
         
         if config.verbose and cluster_id % 5 == 0:  # Print progress for every 5th cluster

@@ -8,39 +8,59 @@ from typing import List, Dict, Any, Optional
 import time
 from .core.stage import PipelineStage
 from .core.data_objects import PropertyDataset
-from .core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin
+from .core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin
 
 
-class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin):
+class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
     """
-    Pipeline orchestrates the execution of multiple pipeline stages.
+    A pipeline for processing data through multiple stages.
     
-    Each stage is executed in sequence, with the output of one stage
-    becoming the input to the next stage.
+    The Pipeline class coordinates the execution of multiple pipeline stages,
+    handles error recovery, and provides logging and timing information.
     """
     
-    def __init__(self, stages: List[PipelineStage], name: str = "Pipeline", **kwargs):
+    def __init__(self, name: str, stages: List[PipelineStage] = None, **kwargs):
         """
-        Initialize the pipeline with a list of stages.
+        Initialize a new Pipeline.
         
         Args:
-            stages: List of PipelineStage instances to execute in sequence
-            name: Name of the pipeline for logging
+            name: Name of the pipeline
+            stages: List of pipeline stages to execute
             **kwargs: Additional configuration options
         """
-        super().__init__(**kwargs)
-        self.stages = stages
+        # Set name first, before calling parent __init__ methods that might use it
         self.name = name
+        self.stages = stages or []
         self.stage_times = {}
         self.stage_errors = {}
+        
+        # Now call parent __init__ methods safely
+        super().__init__(**kwargs)
+        
+        # Initialize wandb if enabled (after all parent inits are done)
+        if hasattr(self, 'use_wandb') and self.use_wandb:
+            self.init_wandb()
+        
+        # Mark all stages as using the same wandb run
+        for stage in self.stages:
+            if hasattr(stage, 'use_wandb') and stage.use_wandb:
+                stage._wandb_ok = True  # Mark that wandb is available
         
     def add_stage(self, stage: PipelineStage) -> None:
         """Add a stage to the end of the pipeline."""
         self.stages.append(stage)
         
+        # Mark the new stage as using the same wandb run if wandb is enabled
+        if hasattr(self, 'use_wandb') and self.use_wandb and hasattr(stage, 'use_wandb') and stage.use_wandb:
+            stage._wandb_ok = True  # Mark that wandb is available
+        
     def insert_stage(self, index: int, stage: PipelineStage) -> None:
         """Insert a stage at a specific position in the pipeline."""
         self.stages.insert(index, stage)
+        
+        # Mark the inserted stage as using the same wandb run if wandb is enabled
+        if hasattr(self, 'use_wandb') and self.use_wandb and hasattr(stage, 'use_wandb') and stage.use_wandb:
+            stage._wandb_ok = True  # Mark that wandb is available
         
     def remove_stage(self, index: int) -> PipelineStage:
         """Remove and return a stage at a specific position."""
@@ -99,11 +119,29 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin):
         
         self.log(f"Stage {stage.name} metrics: {metrics}")
         
-        # Log to wandb if available
+        # Log to wandb as summary metrics (not regular metrics)
         if hasattr(self, 'log_wandb'):
             wandb_data = {f"{stage.name}_{k}": v for k, v in metrics.items()}
             wandb_data[f"{stage.name}_execution_time"] = self.stage_times.get(stage.name, 0)
-            self.log_wandb(wandb_data)
+            self.log_wandb(wandb_data, is_summary=True)
+    
+    def log_final_summary(self) -> None:
+        """Log all accumulated summary metrics to wandb."""
+        if hasattr(self, 'log_summary_metrics'):
+            # Add pipeline-level summary metrics
+            pipeline_summary = {
+                'pipeline_total_stages': len(self.stages),
+                'pipeline_total_time': self.get_execution_time(),
+                'pipeline_success': len(self.stage_errors) == 0,
+                'pipeline_error_count': len(self.stage_errors)
+            }
+            self.log_wandb(pipeline_summary, is_summary=True)
+            
+            # Log all accumulated summary metrics
+            self.log_summary_metrics()
+            
+            if hasattr(self, 'log'):
+                self.log("Logged final summary metrics to wandb", level="debug")
     
     def get_stage_summary(self) -> Dict[str, Any]:
         """Get a summary of pipeline execution."""
@@ -187,4 +225,4 @@ class PipelineBuilder:
         
     def build(self) -> Pipeline:
         """Build the pipeline."""
-        return Pipeline(self.stages, name=self.name, **self.config) 
+        return Pipeline(self.name, self.stages, **self.config) 

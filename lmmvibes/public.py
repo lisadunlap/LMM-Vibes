@@ -120,11 +120,12 @@ def explain(
     dataset = PropertyDataset.from_dataframe(df, method=method)
     
     # 2️⃣  Initialize wandb if enabled
+    wandb_run_name = f"explain_{method}_{int(time.time())}"
     if use_wandb:
         import wandb
         wandb.init(
             project=wandb_project or "lmm-vibes",
-            name=f"explain_{method}_{int(time.time())}",
+            name=wandb_run_name,
             config={
                 "method": method,
                 "system_prompt": system_prompt,
@@ -141,12 +142,19 @@ def explain(
                 "max_coarse_clusters": max_coarse_clusters,
                 "include_embeddings": include_embeddings,
                 "output_dir": output_dir,
-            }
+            },
+            reinit=False  # Don't reinitialize if already exists
         )
     
     # Use custom pipeline if provided, otherwise build default pipeline
     if custom_pipeline is not None:
         pipeline = custom_pipeline
+        # Ensure the custom pipeline uses the same wandb configuration
+        if hasattr(pipeline, 'use_wandb'):
+            pipeline.use_wandb = use_wandb
+            pipeline.wandb_project = wandb_project or "lmm-vibes"
+            if use_wandb:
+                pipeline._wandb_ok = True  # Mark that wandb is already initialized
     else:
         pipeline = _build_default_pipeline(
             method=method,
@@ -180,6 +188,10 @@ def explain(
     # 5️⃣  Save results if output_dir is provided
     if output_dir is not None:
         _save_results_to_dir(result_dataset, clustered_df, model_stats, output_dir, verbose)
+    
+    # Log accumulated summary metrics from pipeline stages
+    if use_wandb and hasattr(pipeline, 'log_final_summary'):
+        pipeline.log_final_summary()
     
     # Log final results to wandb if enabled
     if use_wandb:
@@ -281,6 +293,12 @@ def _build_default_pipeline(
     # Build and return the pipeline
     pipeline = builder.configure(**common_config).build()
     
+    # If wandb is already initialized globally, mark the pipeline as having wandb available
+    if use_wandb:
+        import wandb
+        if wandb.run is not None and hasattr(pipeline, '_wandb_ok'):
+            pipeline._wandb_ok = True
+    
     return pipeline
 
 
@@ -289,13 +307,12 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
     try:
         import wandb
         
-        # Log dataset summary
-        wandb.log({
-            "final_dataset_shape": str(df.shape),
-            "final_total_conversations": len(df['question_id'].unique()) if 'question_id' in df.columns else len(df),
-            "final_total_properties": len(df),
-            "final_unique_models": len(df['model'].unique()) if 'model' in df.columns else 0,
-        })
+        # Log dataset summary as summary metrics (not regular metrics)
+        if wandb.run is not None:
+            wandb.run.summary["final_dataset_shape"] = str(df.shape)
+            wandb.run.summary["final_total_conversations"] = len(df['question_id'].unique()) if 'question_id' in df.columns else len(df)
+            wandb.run.summary["final_total_properties"] = len(df)
+            wandb.run.summary["final_unique_models"] = len(df['model'].unique()) if 'model' in df.columns else 0
         
         # Log clustering results if present
         cluster_cols = [col for col in df.columns if 'cluster' in col.lower()]
@@ -307,40 +324,83 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
                     n_outliers = sum(1 for c in cluster_ids if c == -1)
                     
                     level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
-                    wandb.log({
-                        f"final_{level}_clusters": n_clusters,
-                        f"final_{level}_outliers": n_outliers,
-                        f"final_{level}_outlier_rate": n_outliers / len(df) if len(df) > 0 else 0,
-                    })
-        
-        # Log model statistics
+                    # Log these as summary metrics
+                    if wandb.run is not None:
+                        wandb.run.summary[f"final_{level}_clusters"] = n_clusters
+                        wandb.run.summary[f"final_{level}_outliers"] = n_outliers
+                        wandb.run.summary[f"final_{level}_outlier_rate"] = n_outliers / len(df) if len(df) > 0 else 0
+
+        # Log model statistics as tables - one table per model
         if model_stats:
-            wandb.log({
-                "final_models_analyzed": len(model_stats),
-                "final_model_stats": model_stats,
-            })
+            if wandb.run is not None:
+                wandb.run.summary["final_models_analyzed"] = len(model_stats)
+            
+            # Create detailed tables for each model
+            for model_name, stats in model_stats.items():
+                # Log fine-grained clusters table
+                if "fine" in stats and len(stats["fine"]) > 0:
+                    fine_table_data = []
+                    for stat in stats["fine"]:
+                        row = stat.to_dict()
+                        # Add examples_count for convenience
+                        row["examples_count"] = len(stat.examples) if stat.examples else 0
+                        # Rename property_description to cluster_label for consistency
+                        row["cluster_label"] = row.pop("property_description")
+                        fine_table_data.append(row)
+                    
+                    # Create and log the fine-grained table
+                    fine_table = wandb.Table(columns=list(fine_table_data[0].keys()), data=[list(row.values()) for row in fine_table_data])
+                    wandb.log({f"Metrics/model_stats_{model_name}_fine_clusters": fine_table})
+                
+                # Log coarse-grained clusters table if available
+                if "coarse" in stats and len(stats["coarse"]) > 0:
+                    coarse_table_data = []
+                    for stat in stats["coarse"]:
+                        row = stat.to_dict()
+                        # Add examples_count for convenience
+                        row["examples_count"] = len(stat.examples) if stat.examples else 0
+                        # Rename property_description to cluster_label for consistency
+                        row["cluster_label"] = row.pop("property_description")
+                        coarse_table_data.append(row)
+                    
+                    # Create and log the coarse-grained table
+                    coarse_table = wandb.Table(columns=list(coarse_table_data[0].keys()), data=[list(row.values()) for row in coarse_table_data])
+                    wandb.log({f"Metrics/model_stats_{model_name}_coarse_clusters": coarse_table})
+                
+                # Log model summary statistics as summary metrics
+                if "fine" in stats and wandb.run is not None:
+                    fine_stats = stats["fine"]
+                    avg_score = sum(stat.score for stat in fine_stats) / len(fine_stats)
+                    avg_quality_score = sum(stat.quality_score for stat in fine_stats) / len(fine_stats)
+                    total_size = sum(stat.size for stat in fine_stats)
+                    
+                    # Log summary statistics for this model as summary metrics
+                    wandb.run.summary[f"model_{model_name}_fine_clusters_count"] = len(fine_stats)
+                    wandb.run.summary[f"model_{model_name}_avg_score"] = avg_score
+                    wandb.run.summary[f"model_{model_name}_avg_quality_score"] = avg_quality_score
+                    wandb.run.summary[f"model_{model_name}_total_size"] = total_size
+                    wandb.run.summary[f"model_{model_name}_max_score"] = max(stat.score for stat in fine_stats)
+                    wandb.run.summary[f"model_{model_name}_min_score"] = min(stat.score for stat in fine_stats)
+                    wandb.run.summary[f"model_{model_name}_max_quality_score"] = max(stat.quality_score for stat in fine_stats)
+                    wandb.run.summary[f"model_{model_name}_min_quality_score"] = min(stat.quality_score for stat in fine_stats)
+                    
+                    if "coarse" in stats:
+                        coarse_stats = stats["coarse"]
+                        coarse_avg_quality_score = sum(stat.quality_score for stat in coarse_stats) / len(coarse_stats)
+                        wandb.run.summary[f"model_{model_name}_coarse_clusters_count"] = len(coarse_stats)
+                        wandb.run.summary[f"model_{model_name}_coarse_avg_score"] = sum(stat.score for stat in coarse_stats) / len(coarse_stats)
+                        wandb.run.summary[f"model_{model_name}_coarse_avg_quality_score"] = coarse_avg_quality_score
         
-        # Log a sample of the final results
-        if len(df) > 0:
-            sample_size = min(20, len(df))
-            sample_df = df.sample(n=sample_size, random_state=42) if len(df) > sample_size else df
-            
-            # Select key columns for the sample
-            key_cols = ['question_id', 'model', 'property_description', 'category', 'impact', 'type']
-            if 'property_description_fine_cluster_label' in df.columns:
-                key_cols.append('property_description_fine_cluster_label')
-            if 'property_description_coarse_cluster_label' in df.columns:
-                key_cols.append('property_description_coarse_cluster_label')
-            
-            available_cols = [col for col in key_cols if col in sample_df.columns]
-            sample_for_table = sample_df[available_cols].astype(str)
-            
-            wandb.log({
-                "final_results_sample": wandb.Table(dataframe=sample_for_table),
-            })
+        print("✅ Successfully logged detailed model statistics to wandb")
+        print(f"   • Dataset summary metrics")
+        print(f"   • Clustering results")
+        print(f"   • Model statistics tables: {len(model_stats)} models")
+        print(f"   • Summary metrics logged to run summary")
         
     except Exception as e:
         print(f"Failed to log final results to wandb: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def _save_results_to_dir(
@@ -386,32 +446,10 @@ def _save_results_to_dir(
     stats_for_json = {}
     for model_name, stats in model_stats.items():
         stats_for_json[str(model_name)] = {
-            "fine": [
-                {
-                    "property_description": stat.property_description,
-                    "model_name": stat.model_name,
-                    "score": stat.score,
-                    "size": stat.size,
-                    "proportion": stat.proportion,
-                    "examples": stat.examples,
-                    "metadata": getattr(stat, "metadata", {})
-                }
-                for stat in stats["fine"]
-            ]
+            "fine": [stat.to_dict() for stat in stats["fine"]]
         }
         if "coarse" in stats:
-            stats_for_json[str(model_name)]["coarse"] = [
-                {
-                    "property_description": stat.property_description,
-                    "model_name": stat.model_name,
-                    "score": stat.score,
-                    "size": stat.size,
-                    "proportion": stat.proportion,
-                    "examples": stat.examples,
-                    "metadata": getattr(stat, "metadata", {})
-                }
-                for stat in stats["coarse"]
-            ]
+            stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
     
     with open(stats_path, 'w') as f:
         json.dump(stats_for_json, f, indent=2)

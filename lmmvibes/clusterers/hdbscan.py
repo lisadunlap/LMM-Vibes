@@ -150,11 +150,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
                 import wandb
                 log_df = pd.DataFrame([c.to_dict() for c in clusters]).astype(str)
                 self.log_wandb({
-                    "hdbscan_clustered_table": wandb.Table(dataframe=log_df)
-                })
-                import json
-                self.log_wandb({
-                    "hdbscan_clusters_json": wandb.Html(f'<pre>{json.dumps([c.to_dict() for c in clusters], indent=2)}</pre>')
+                    "Clustering/hdbscan_clustered_table": wandb.Table(dataframe=log_df)
                 })
             except Exception as e:
                 self.log(f"Failed to log to wandb: {e}", level="warning")

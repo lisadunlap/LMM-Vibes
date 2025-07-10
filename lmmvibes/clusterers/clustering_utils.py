@@ -142,6 +142,7 @@ def _get_embeddings(texts: List[str], embedding_model: str, verbose: bool = Fals
 
 def _get_llm_cluster_summary(
     values: List[str],
+    model: str,
     column_name: str,
     cluster_type: str,
     sample_size: int = 50,
@@ -158,12 +159,12 @@ def _get_llm_cluster_summary(
 
     # Build request data for caching
     request_data = {
-        "model": "gpt-4.1",
+        "model": model,
         "messages": [
             {"role": "system", "content": clustering_systems_prompt},
             {"role": "user", "content": values_text}
         ],
-        "max_tokens": 100,
+        "max_completion_tokens": 100,
     }
 
     # Check cache first
@@ -194,6 +195,40 @@ def _get_llm_cluster_summary(
     return content
 
 
+def _clean_list_item(text: str) -> str:
+    """
+    Clean up numbered or bulleted list items to extract just the content.
+    
+    Handles formats like:
+    - "1. Item name" -> "Item name"
+    - "• Item name" -> "Item name" 
+    - "- Item name" -> "Item name"
+    - "* Item name" -> "Item name"
+    - "a) Item name" -> "Item name"
+    - "i. Item name" -> "Item name"
+    """
+    import re
+    
+    # Remove common list prefixes
+    patterns = [
+        r'^\s*\d+\.\s*',           # "1. ", "10. ", etc.
+        r'^\s*\d+\)\s*',           # "1) ", "10) ", etc.
+        r'^\s*[a-zA-Z]\.\s*',      # "a. ", "A. ", etc.
+        r'^\s*[a-zA-Z]\)\s*',      # "a) ", "A) ", etc.
+        r'^\s*[ivxlc]+\.\s*',      # Roman numerals "i. ", "iv. ", etc.
+        r'^\s*[IVXLC]+\.\s*',      # "I. ", "IV. ", etc.
+        r'^\s*[•·◦▪▫‣⁃]\s*',       # Bullet characters
+        r'^\s*[-*+]\s*',           # Dash, asterisk, plus bullets
+        r'^\s*[→⟶]\s*',            # Arrow bullets
+    ]
+    
+    cleaned = text.strip()
+    for pattern in patterns:
+        cleaned = re.sub(pattern, '', cleaned)
+    
+    return cleaned.strip()
+
+
 def llm_coarse_cluster_with_centers(
     fine_cluster_names: List[str],
     max_coarse_clusters: int = 15,
@@ -201,48 +236,59 @@ def llm_coarse_cluster_with_centers(
     model: str = "o3",
     cluster_assignment_model: str = "gpt-4.1-mini",
 ) -> Tuple[Dict[str, str], List[str]]:
-    """Group fine-grained cluster names into coarser concepts using an LLM."""
-
-    if verbose:
-        logger.info(
-            f"Creating coarse clusters from {len(fine_cluster_names)} fine cluster names using LLM concept centers… "
-            f"Using model: {model} for concept centers, "
-            f"Using model: {cluster_assignment_model} for cluster assignment"
-        )
-
-    # Remove noise / outlier labels
-    valid_fine_names = [n for n in fine_cluster_names if n not in {"Outliers", "outlier", "Noise"}]
+    """Use an LLM to create coarse-grained cluster centers from fine-grained clusters."""
+    valid_fine_names = [n for n in fine_cluster_names if n != "Outliers"]
+    
+    if not valid_fine_names:
+        logger.warning("No valid fine-grained cluster names found (all outliers)")
+        return {}, ["Outliers"]
+    
     if len(valid_fine_names) <= max_coarse_clusters:
-        if verbose:
-            logger.info("Only a few fine clusters – returning 1:1 mapping.")
-        # Return 1:1 mapping as dictionary {fine_name: fine_name}
-        fine_to_coarse = {name: name for name in fine_cluster_names}
-        return fine_to_coarse, fine_cluster_names
+        # If we already have few enough clusters, return them as-is
+        fine_to_coarse = {name: name for name in valid_fine_names}
+        return fine_to_coarse, valid_fine_names
+    
+    fine_cluster_text = "\n".join(valid_fine_names)
+    
+    system_prompt = f"""You are a machine learning expert specializing in the behavior of large language models. 
 
-    fine_names_text = "\n".join(valid_fine_names)
-    system_prompt = coarse_clustering_systems_prompt.format(max_properties=max_coarse_clusters)
-    user_prompt = f"Properties:\n\n{fine_names_text}"
+I will provide you with a list of fine-grained properties describing model behavior. Your task is to create {max_coarse_clusters} broader category names that capture the high-level themes across these properties.
 
-    print(f"Clustering {len(valid_fine_names)} fine clusters into {max_coarse_clusters} coarse clusters")
+Instructions:
+1. Analyze all the fine-grained properties
+2. Identify {max_coarse_clusters} major themes or categories
+3. Create clear, descriptive names for each category
+4. Each name should be 2-8 words and capture the essence of that behavioral theme
+5. Output ONLY the category names, one per line
+6. Do NOT include numbering, bullets, or other formatting - just the plain category names
 
-    # Build request data for caching
+Focus on creating categories that are:
+- Distinct from each other
+- Broad enough to encompass multiple fine-grained properties
+- Descriptive and meaningful for understanding model behavior"""
+    
+    user_prompt = f"Fine-grained properties:\n\n{fine_cluster_text}\n\nGenerate {max_coarse_clusters} coarse-grained category names:"
+    
+    # Use caching mechanism
     request_data = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ],
+        "max_completion_tokens": 1000,
     }
 
     # Check cache first
     cached_response = _cache.get_completion(request_data)
     if cached_response is not None:
         content = cached_response["choices"][0]["message"]["content"]
+        if verbose:
+            logger.info("Cache hit for coarse cluster generation!")
     else:
-        response = litellm.completion(
-            **request_data,
-            caching=False,  # Disable litellm caching since we're using our own
-        )
+        if verbose:
+            logger.info(f"Generating coarse cluster centers using {model}...")
+        response = litellm.completion(**request_data, caching=False)
         content = response.choices[0].message.content
         
         # Cache the response
@@ -256,7 +302,11 @@ def llm_coarse_cluster_with_centers(
         _cache.set_completion(request_data, response_dict)
 
     logger.info(content)
-    coarse_cluster_names = [n.strip() for n in content.strip().split("\n") if n.strip()]
+    
+    # Parse and clean the cluster names, removing any list formatting
+    raw_names = [n.strip() for n in content.strip().split("\n") if n.strip()]
+    coarse_cluster_names = [_clean_list_item(name) for name in raw_names if _clean_list_item(name)]
+    
     if verbose:
         logger.info("Generated concept centres:")
         for i, name in enumerate(coarse_cluster_names):
@@ -548,7 +598,7 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
         
         # Calculate clustering metrics
         cluster_cols = [col for col in df_light.columns if 'cluster_id' in col.lower()]
-        metrics = {"dataset_size": len(df_light)}
+        metrics = {"clustering_dataset_size": len(df_light)}
         
         for col in cluster_cols:
             cluster_ids = df_light[col].values
@@ -556,36 +606,38 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
             n_outliers = list(cluster_ids).count(-1)
             
             level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
-            metrics[f"{level}_clusters"] = n_clusters
-            metrics[f"{level}_outliers"] = n_outliers
-            metrics[f"{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
+            metrics[f"clustering_{level}_clusters"] = n_clusters
+            metrics[f"clustering_{level}_outliers"] = n_outliers
+            metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
             
             # Calculate cluster size distribution
             cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
             if cluster_sizes:
-                metrics[f"{level}_avg_cluster_size"] = np.mean(cluster_sizes)
-                metrics[f"{level}_min_cluster_size"] = min(cluster_sizes)
-                metrics[f"{level}_max_cluster_size"] = max(cluster_sizes)
+                metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
+                metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)
+                metrics[f"clustering_{level}_max_cluster_size"] = max(cluster_sizes)
         
         # Log clustering configuration
         config_dict = {
-            "min_cluster_size": config.min_cluster_size,
-            "embedding_model": config.embedding_model,
-            "hierarchical": config.hierarchical,
-            "assign_outliers": config.assign_outliers,
-            "disable_dim_reduction": config.disable_dim_reduction,
-            "min_samples": config.min_samples,
-            "cluster_selection_epsilon": config.cluster_selection_epsilon
+            "clustering_min_cluster_size": config.min_cluster_size,
+            "clustering_embedding_model": config.embedding_model,
+            "clustering_hierarchical": config.hierarchical,
+            "clustering_assign_outliers": config.assign_outliers,
+            "clustering_disable_dim_reduction": config.disable_dim_reduction,
+            "clustering_min_samples": config.min_samples,
+            "clustering_cluster_selection_epsilon": config.cluster_selection_epsilon
         }
         
-        # Log all metrics
-        wandb.log(metrics)
-        wandb.config.update(config_dict)
+        # Log all metrics as summary metrics (not regular metrics)
+        # Note: This function doesn't have access to WandbMixin, so we'll log directly to wandb.run.summary
+        all_metrics = {**metrics, **config_dict}
+        for key, value in all_metrics.items():
+            wandb.run.summary[key] = value
         
         logger.info(f"✅ Logged clustering results to wandb")
         logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
         logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
-        logger.info(f"   - Metrics: {list(metrics.keys())}")
+        logger.info(f"   - Summary metrics: {list(all_metrics.keys())}")
         
     except Exception as e:
         logger.error(f"❌ Failed to log to wandb: {e}")
