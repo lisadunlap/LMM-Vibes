@@ -395,17 +395,18 @@ def main():
         st.header("Model Summaries")
         st.caption("Top distinctive clusters where each model shows unique behavioral patterns")
         
-        # Add explanation box
-        st.info(
-            "**Frequency calculation:** For each cluster, frequency shows what percentage of a model's total battles resulted in that behavioral pattern. "
-            "For example, 5% frequency means the model exhibited this behavior in 5 out of every 100 battles it participated in.\n\n"
-            "**Distinctiveness:** The distinctiveness score shows how much more (or less) frequently a model exhibits a behavior compared to the median frequency across all models. "
-            "For example, '2.5x more distinctive' means this model exhibits this behavior 2.5 times more often than the typical model."
-        )
+        # Add explanation accordion (collapsed by default)
+        with st.expander("ℹ️ What do these numbers mean?", expanded=False):
+            st.info(
+                "**Frequency calculation:** For each cluster, frequency shows what percentage of a model's total battles resulted in that behavioral pattern. "
+                "For example, 5% frequency means the model exhibited this behavior in 5 out of every 100 battles it participated in.\n\n"
+                "**Distinctiveness:** The distinctiveness score shows how much more (or less) frequently a model exhibits a behavior compared to the median frequency across all models. "
+                "For example, '2.5x more distinctive' means this model exhibits this behavior 2.5 times more often than the typical model."
+            )
         
-        # Create model cards in a grid layout
+        # Create model cards in a list layout (one model per row)
         num_models = len(model_rankings)
-        cols_per_row = 3
+        cols_per_row = 1
         
         for i in range(0, num_models, cols_per_row):
             cols = st.columns(cols_per_row)
