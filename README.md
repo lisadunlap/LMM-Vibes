@@ -33,26 +33,24 @@ pip install lmmvibes[full]  # includes sentence-transformers, wandb
 import pandas as pd
 from lmmvibes import explain
 
-# Your data with model responses
+# Your data with model responses (can contain multiple models)
 df = pd.DataFrame({
     "question_id": ["q1", "q2", "q3"],
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
-    "model_a": ["gpt-4", "gpt-4", "gpt-4"],
-    "model_b": ["claude-3", "claude-3", "claude-3"],
-    "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
-    "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
+    "model": ["gpt-4", "gpt-4", "gpt-4"],
+    "model": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
     "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
 })
 
 # Extract and cluster behavioral properties
 clustered_df, model_stats = explain(
     df,
-    method="side_by_side",
+    method="single_model",
     min_cluster_size=10,
     output_dir="results/"
 )
 
-# Your data with model responses
+# Your data with model responses (for side-by-side comparrison)
 df = pd.DataFrame({
     "question_id": ["q1", "q2", "q3"],
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
@@ -105,69 +103,77 @@ This allows you to see not just which model "won" overall, but *why*—by surfac
 
 ## Input Data Requirements
 
-LMM-Vibes supports two primary analysis methods with specific data requirements:
+LMM-Vibes supports two analysis methods, each with specific data format requirements:
 
-### Single Model Analysis
-For analyzing individual model responses:
+### 📊 Single Model Analysis
+Analyze behavioral patterns from individual model responses.
 
-<details>
-<summary><strong>Required & Optional Columns</strong></summary>
+**Required Columns:**
+| Column | Description | Example |
+|--------|-------------|---------|
+| `question_id` | Unique identifier for each question | `"q1"`, `"math_problem_001"` |
+| `prompt` | The question or prompt given to the model | `"What is machine learning?"` |
+| `model` | Name of the model being analyzed | `"gpt-4"`, `"claude-3-opus"` |
+| `model_response` | The model's complete response | `"Machine learning is a subset..."` |
 
-**Required columns:**
-- `question_id` - Unique identifier for each conversation/question
-- `prompt` (or `user_prompt`) - The question or prompt given to the model
-- `model` - Name of the model
-- `model_response` (or `response`) - The model's response
+**Optional Columns:**
+| Column | Description | Example |
+|--------|-------------|---------|
+| `score` | Dictionary of evaluation metrics | `{"rating": 4.2, "accuracy": 0.85}` |
+| `category` | Question category/topic | `"math"`, `"coding"`, `"creative"` |
+| `difficulty` | Question difficulty level | `"easy"`, `"medium"`, `"hard"` |
 
-**Optional columns:**
-- `score` - Dictionary of metrics: `{"rating": 4.2, "accuracy": 0.85, "helpfulness": 0.9}`
-- Any additional metadata columns
-
-</details>
-
+**Example DataFrame:**
 ```python
 df = pd.DataFrame({
-    "question_id": ["q1", "q2"],
-    "prompt": ["Question text"],
-    "model": ["gpt-4", "gpt-4"],
-    "model_response": ["Model response"],
-    "score": [{"rating": 4.2, "accuracy": 0.8}, {"rating": 4.5, "accuracy": 0.9}],  # optional
-    "category": ["reasoning", "creative"],  # optional metadata
+    "question_id": ["q1", "q2", "q3"],
+    "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
+    "model": ["gpt-4", "gpt-4", "gpt-4"],
+    "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
+    "score": [{"rating": 4.5}, {"rating": 3.8}, {"rating": 4.2}]
 })
 ```
 
-### Side-by-Side Comparisons
-For comparing two models head-to-head (like Arena-style battles):
+### ⚔️ Side-by-Side Comparisons
+Compare two models head-to-head (Arena-style battles).
 
-<details>
-<summary><strong>Required & Optional Columns</strong></summary>
+**Required Columns:**
+| Column | Description | Example |
+|--------|-------------|---------|
+| `question_id` | Unique identifier for each question | `"q1"`, `"math_problem_001"` |
+| `prompt` | The question given to both models | `"What is machine learning?"` |
+| `model_a` | Name of the first model | `"gpt-4"`, `"claude-3-opus"` |
+| `model_b` | Name of the second model | `"gpt-3.5-turbo"`, `"llama-2"` |
+| `model_a_response` | Response from the first model | `"Machine learning is a subset..."` |
+| `model_b_response` | Response from the second model | `"ML involves training algorithms..."` |
 
-**Required columns:**
-- `question_id` - Unique identifier for each conversation/question
-- `prompt` (or `user_prompt`) - The question or prompt given to models
-- `model_a` - Name of the first model
-- `model_b` - Name of the second model  
-- `model_a_response` - Response from the first model
-- `model_b_response` - Response from the second model
+**Optional Columns:**
+| Column | Description | Example |
+|--------|-------------|---------|
+| `score` | Dictionary with winner and metrics | `{"winner": "model_a", "rating": 4.5}` |
+| `category` | Question category/topic | `"math"`, `"coding"`, `"creative"` |
+| `difficulty` | Question difficulty level | `"easy"`, `"medium"`, `"hard"` |
 
-**Optional columns:**
-- `score` - Dictionary of metrics: `{"winner": "model_a", "rating": 4.5, "helpfulness": 0.8}`
-- Any additional metadata columns (language, category, difficulty, etc.)
-
-</details>
-
+**Example DataFrame:**
 ```python
 df = pd.DataFrame({
-    "question_id": ["q1", "q2"],
-    "prompt": ["Question text"],
-    "model_a": ["gpt-4", "gpt-4"],
-    "model_b": ["claude-3", "claude-3"],
-    "model_a_response": ["Response from model A"],
-    "model_b_response": ["Response from model B"],
-    "score": [{"winner": "model_a"}, {"winner": "model_b", "confidence": 0.9}],  # optional
-    "language": ["en", "en"],  # optional metadata
+    "question_id": ["q1", "q2", "q3"],
+    "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
+    "model_a": ["gpt-4", "gpt-4", "gpt-4"],
+    "model_b": ["claude-3", "claude-3", "claude-3"],
+    "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
+    "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
+    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
 })
 ```
+
+### 🔄 Column Name Variations
+LMM-Vibes accepts alternative column names for flexibility:
+
+- `prompt` ↔ `user_prompt`
+- `model_response` ↔ `response`
+- `model_a_response` ↔ `response_a`
+- `model_b_response` ↔ `response_b`
 
 ## Pipeline Components
 

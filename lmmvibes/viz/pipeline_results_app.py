@@ -60,22 +60,59 @@ def load_pipeline_results(results_dir: str):
     
     # Load clustered results but only keep essential columns for overview
     clustered_path = results_path / "clustered_results.parquet"
-    if not clustered_path.exists():
-        st.error(f"clustered_results.parquet not found in {results_dir}")
+    csv_path = results_path / "clustered_results.csv"
+    
+    if not clustered_path.exists() and not csv_path.exists():
+        st.error(f"Neither clustered_results.parquet nor clustered_results.csv found in {results_dir}")
         st.stop()
     
-    # Try to load with essential columns only for performance
-    try:
-        essential_cols = [
-            'question_id', 'model', 'property_description', 
-            'fine_cluster_id', 'fine_cluster_label',
-            'coarse_cluster_id', 'coarse_cluster_label',
-            'score', 'id'  # property id for examples
-        ]
-        clustered_df = pd.read_parquet(clustered_path, columns=essential_cols)
-    except:
-        # Fallback: load all columns if specific ones don't exist
-        clustered_df = pd.read_parquet(clustered_path)
+    # Try to load parquet first, then CSV as fallback
+    clustered_df = None
+    
+    if clustered_path.exists():
+        # Try to load with essential columns only for performance
+        try:
+            essential_cols = [
+                'question_id', 'model', 'property_description', 
+                'fine_cluster_id', 'fine_cluster_label',
+                'coarse_cluster_id', 'coarse_cluster_label',
+                'score', 'id'  # property id for examples
+            ]
+            clustered_df = pd.read_parquet(clustered_path, columns=essential_cols)
+        except Exception as e:
+            st.warning(f"Could not load parquet with essential columns: {e}")
+            st.info("Attempting to load all columns...")
+            
+            try:
+                # Try loading all columns
+                clustered_df = pd.read_parquet(clustered_path)
+            except Exception as e2:
+                st.warning(f"Failed to load parquet file: {e2}")
+                st.info("This might be due to nested data structures in the parquet file.")
+                st.info("Trying alternative loading method...")
+                
+                try:
+                    # Try with different engine
+                    import pyarrow.parquet as pq
+                    table = pq.read_table(clustered_path)
+                    clustered_df = table.to_pandas()
+                except Exception as e3:
+                    st.warning(f"All parquet loading methods failed: {e3}")
+                    clustered_df = None
+    
+    # If parquet failed, try CSV
+    if clustered_df is None and csv_path.exists():
+        st.info("Loading from CSV file instead...")
+        try:
+            clustered_df = pd.read_csv(csv_path)
+            st.success("Successfully loaded from CSV file")
+        except Exception as e:
+            st.error(f"Failed to load CSV file: {e}")
+            st.stop()
+    
+    if clustered_df is None:
+        st.error("Could not load clustered results from any available format")
+        st.stop()
     
     return clustered_df, model_stats, results_path
 
@@ -87,12 +124,67 @@ def load_property_examples(results_path: Path, property_ids: List[str]):
         
     # Load full dataset to get prompt/response details
     clustered_path = results_path / "clustered_results.parquet"
-    full_df = pd.read_parquet(clustered_path)
+    csv_path = results_path / "clustered_results.csv"
+    
+    full_df = None
+    
+    # Try parquet first
+    if clustered_path.exists():
+        try:
+            full_df = pd.read_parquet(clustered_path)
+        except Exception as e:
+            st.warning(f"Failed to load examples from parquet: {e}")
+            full_df = None
+    
+    # Try CSV as fallback
+    if full_df is None and csv_path.exists():
+        try:
+            full_df = pd.read_csv(csv_path)
+        except Exception as e:
+            st.error(f"Failed to load examples from CSV: {e}")
+            return pd.DataFrame()
+    
+    if full_df is None:
+        st.error("Could not load example data from any available format")
+        return pd.DataFrame()
+    
     return full_df[full_df['id'].isin(property_ids)]
 
 # ---------------------------------------------------------------------------
 # Utility Functions
 # ---------------------------------------------------------------------------
+
+def extract_quality_score(quality_score) -> float:
+    """
+    Extract a float quality score from quality_score field.
+    
+    Args:
+        quality_score: Either a float or a dictionary with score keys
+        
+    Returns:
+        float: The quality score value
+    """
+    if isinstance(quality_score, dict):
+        # If it's a dictionary, take the first key's value
+        if quality_score:
+            return list(quality_score.values())[0]
+        else:
+            return 0.0
+    elif isinstance(quality_score, (int, float)):
+        return float(quality_score)
+    else:
+        return 0.0
+
+
+# Test the helper function
+if __name__ == "__main__":
+    # Test cases
+    assert extract_quality_score(0.5) == 0.5
+    assert extract_quality_score({"pass at one": 0.8}) == 0.8
+    assert extract_quality_score({"accuracy": 0.9, "helpfulness": 0.7}) == 0.9  # First key
+    assert extract_quality_score({}) == 0.0
+    assert extract_quality_score(None) == 0.0
+    print("✅ All extract_quality_score tests passed!")
 
 def compute_model_rankings(model_stats: Dict[str, Any]) -> List[tuple]:
     """Compute model rankings by average score"""
@@ -122,35 +214,56 @@ def get_top_clusters_for_model(model_stats: Dict[str, Any], model_name: str,
     clusters = model_data.get(level, [])
     return sorted(clusters, key=lambda x: x['score'], reverse=True)[:top_n]
 
-def _aggregate_quality_scores(quality_scores_series):
-    """Aggregate quality scores from multiple models for a cluster.
+# ---------------------------------------------------------------------------
+# UI Components
+# ---------------------------------------------------------------------------
+
+def show_cluster_examples(cluster_label: str, model_name: str, model_stats: Dict[str, Any], 
+                         results_path: Path, level: str = 'fine'):
+    """Show examples using the pre-stored property IDs"""
     
-    Args:
-        quality_scores_series: Series of quality score dictionaries
+    # Get the stored example property IDs from model_stats
+    model_data = model_stats.get(model_name, {})
+    clusters = model_data.get(level, [])
+    
+    target_cluster = None
+    for cluster in clusters:
+        if cluster['property_description'] == cluster_label:
+            target_cluster = cluster
+            break
+    
+    if not target_cluster or not target_cluster.get('examples'):
+        st.warning("No examples available for this cluster")
+        return
         
-    Returns:
-        Dictionary with average quality scores for each key
-    """
-    all_keys = set()
-    for qs in quality_scores_series:
-        if isinstance(qs, dict):
-            all_keys.update(qs.keys())
+    # Load only the specific examples (max 3 property IDs)
+    example_ids = target_cluster['examples']
+    examples_df = load_property_examples(results_path, example_ids)
     
-    if not all_keys:
-        return {}
+    if examples_df.empty:
+        st.warning("Could not load example data")
+        return
     
-    aggregated = {}
-    for key in all_keys:
-        values = []
-        for qs in quality_scores_series:
-            if isinstance(qs, dict) and key in qs:
-                values.append(qs[key])
-        if values:
-            aggregated[key] = sum(values) / len(values)
-        else:
-            aggregated[key] = 0.0
+    st.write(f"**Examples for {model_name} in cluster '{cluster_label}':**")
+    st.caption(f"Showing {len(examples_df)} example(s)")
     
-    return aggregated
+    for i, (_, row) in enumerate(examples_df.iterrows(), 1):
+        with st.expander(f"Example {i}: {row.get('id', 'Unknown')[:12]}..."):
+            st.write("**Prompt:**")
+            prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
+            st.write(prompt)
+            
+            st.write("**Model Response:**")
+            # Handle different response column formats
+            response = (row.get('model_response') or 
+                      row.get('model_a_response') or 
+                      row.get('model_b_response') or 
+                      row.get('responses', 'N/A'))
+            st.write(response)
+            
+            st.write("**Score:**")
+            score = row.get('score', 'N/A')
+            st.info(score)
 
 def create_model_leaderboard(model_rankings: List[tuple]):
     """Create a model leaderboard table"""
@@ -419,17 +532,10 @@ def main():
                                 frequency = cluster.get('proportion', 0) * 100  # Convert to percentage
                                 cluster_size = cluster.get('size', 0)  # This model's size in this cluster
                                 cluster_size_global = cluster.get('cluster_size_global', 0)  # Total across all models
-                                quality_score = cluster.get('quality_score', {})  # Quality score dict
+                                quality_score = extract_quality_score(cluster.get('quality_score', 0))  # Quality score
                                 
                                 # Calculate distinctiveness (using score as proxy)
                                 distinctiveness = cluster.get('score', 1.0)
-                                
-                                # Format quality scores for display
-                                quality_score_text = ""
-                                if isinstance(quality_score, dict) and quality_score:
-                                    quality_score_text = "<br>".join([f"{key}: {value:.3f}" for key, value in quality_score.items()])
-                                else:
-                                    quality_score_text = "No quality scores"
                                 
                                 st.markdown(f"""
                                 <div style="margin: 8px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
@@ -442,8 +548,8 @@ def main():
                                     <div style="font-size: 13px; color: #3182ce;">
                                         {distinctiveness:.1f}x more distinctive than other models
                                     </div>
-                                    <div style="position: absolute; bottom: 8px; right: 10px; font-size: 12px; font-weight: 600; color: #666; text-align: right;">
-                                        Quality Scores:<br>{quality_score_text}
+                                    <div style="position: absolute; bottom: 8px; right: 10px; font-size: 14px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
+                                        Quality: {quality_score:.3f}
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -473,7 +579,7 @@ def main():
                         'Score': f"{cluster['score']:.3f}",
                         'Size': cluster['size'],
                         'Proportion': f"{cluster['proportion']:.3f}",
-                        'Quality': f"{cluster.get('quality_score', 0):.3f}"
+                        'Quality': f"{extract_quality_score(cluster.get('quality_score')):.3f}"
                     })
                 
                 cluster_df = pd.DataFrame(cluster_df_data)
@@ -505,7 +611,7 @@ def main():
                     'property_description': cluster['property_description'],
                     'model': model_name,
                     'score': cluster.get('score', 0),
-                    'quality_score': cluster.get('quality_score', 0),
+                    'quality_score': extract_quality_score(cluster.get('quality_score', 0)),
                     'size': cluster.get('size', 0),
                     'cluster_size_global': cluster.get('cluster_size_global', 0),
                     'proportion': cluster.get('proportion', 0)
@@ -517,40 +623,24 @@ def main():
             # Group by cluster to get max scores and average quality
             cluster_summary = clusters_df.groupby('property_description').agg({
                 'score': 'max',  # Max distinctiveness across models
-                'quality_score': lambda x: _aggregate_quality_scores(x),  # Aggregate quality scores
+                'quality_score': 'mean',  # Average quality score
                 'cluster_size_global': 'first',  # Should be same for all models
                 'size': 'sum'  # Total size across all models (should equal cluster_size_global)
             }).reset_index()
             
             # Sort options
-            sort_options = ["Max Distinctiveness", "Cluster Size"]
-            
-            # Add quality score sorting options if quality scores exist
-            if not cluster_summary.empty and 'quality_score' in cluster_summary.columns:
-                first_qs = cluster_summary['quality_score'].iloc[0]
-                if isinstance(first_qs, dict) and first_qs:
-                    for key in first_qs.keys():
-                        sort_options.append(f"Quality Score - {key}")
-            
             sort_option = st.selectbox(
                 "Sort clusters by:",
-                sort_options,
-                help="Max Distinctiveness: clusters that maximally separate models\nQuality Score: clusters with high correlation to specific metrics"
+                ["Max Distinctiveness", "Average Quality Score", "Cluster Size"],
+                help="Max Distinctiveness: clusters that maximally separate models\nAverage Quality Score: clusters with high correlation to accuracy"
             )
             
             if sort_option == "Max Distinctiveness":
                 cluster_summary = cluster_summary.sort_values('score', ascending=False)
-            elif sort_option == "Cluster Size":
+            elif sort_option == "Average Quality Score":
+                cluster_summary = cluster_summary.sort_values('quality_score', ascending=False)
+            else:  # Cluster Size
                 cluster_summary = cluster_summary.sort_values('cluster_size_global', ascending=False)
-            elif sort_option.startswith("Quality Score - "):
-                # Extract the quality score key
-                key = sort_option.replace("Quality Score - ", "")
-                # Create a temporary column for sorting
-                cluster_summary['temp_qs'] = cluster_summary['quality_score'].apply(
-                    lambda x: x.get(key, 0) if isinstance(x, dict) else 0
-                )
-                cluster_summary = cluster_summary.sort_values('temp_qs', ascending=False)
-                cluster_summary = cluster_summary.drop('temp_qs', axis=1)
             
             # Display clusters
             st.subheader(f"Clusters sorted by {sort_option}")
@@ -561,19 +651,11 @@ def main():
                 lambda x: x[:100] + '...' if len(x) > 100 else x
             )
             display_df['Max Score'] = display_df['score'].apply(lambda x: f"{x:.3f}")
-            
-            # Handle quality scores as dictionary
-            def format_quality_scores(qs):
-                if isinstance(qs, dict) and qs:
-                    return "; ".join([f"{key}: {value:.3f}" for key, value in qs.items()])
-                else:
-                    return "No quality scores"
-            
-            display_df['Quality Scores'] = display_df['quality_score'].apply(format_quality_scores)
+            display_df['Avg Quality'] = display_df['quality_score'].apply(lambda x: f"{x:.3f}")
             display_df['Size'] = display_df['cluster_size_global']
             
             st.dataframe(
-                display_df[['Cluster Description', 'Max Score', 'Quality Scores', 'Size']],
+                display_df[['Cluster Description', 'Max Score', 'Avg Quality', 'Size']],
                 use_container_width=True,
                 hide_index=True
             )
@@ -627,33 +709,29 @@ def main():
                         
                         for i, (_, row) in enumerate(examples_df.iterrows(), 1):
                             with st.expander(f"Example {i}: {row.get('model', 'Unknown model')} - {row.get('id', 'Unknown')[:12]}..."):
-                                col1, col2 = st.columns(2)
+                                st.write("**Prompt:**")
+                                prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
+                                st.write(prompt)
                                 
-                                with col1:
-                                    st.write("**Prompt:**")
-                                    prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
-                                    st.write(prompt)
-                                    
-                                    st.write("**Metadata:**")
-                                    st.json({
-                                        'model': row.get('model', 'N/A'),
-                                        'question_id': row.get('question_id', 'N/A'),
-                                        'property_id': row.get('id', 'N/A'),
-                                        'cluster_id': row.get('fine_cluster_id', 'N/A')
-                                    })
+                                st.write("**Metadata:**")
+                                st.json({
+                                    'model': row.get('model', 'N/A'),
+                                    'question_id': row.get('question_id', 'N/A'),
+                                    'property_id': row.get('id', 'N/A'),
+                                    'cluster_id': row.get('fine_cluster_id', 'N/A')
+                                })
                                 
-                                with col2:
-                                    st.write("**Model Response:**")
-                                    # Handle different response column formats
-                                    response = (row.get('model_response') or 
-                                              row.get('model_a_response') or 
-                                              row.get('model_b_response') or 
-                                              row.get('responses', 'N/A'))
-                                    st.write(response)
-                                    
-                                    st.write("**Extracted Property:**")
-                                    property_desc = row.get('property_description', 'N/A')
-                                    st.info(property_desc)
+                                st.write("**Model Response:**")
+                                # Handle different response column formats
+                                response = (row.get('model_response') or 
+                                          row.get('model_a_response') or 
+                                          row.get('model_b_response') or 
+                                          row.get('responses', 'N/A'))
+                                st.write(response)
+                                
+                                st.write("**Extracted Property:**")
+                                property_desc = row.get('property_description', 'N/A')
+                                st.info(property_desc)
                     else:
                         st.warning("Could not load example data for this cluster")
                 else:
