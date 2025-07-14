@@ -3,7 +3,7 @@
 # LMM-Vibes
 ### *Extract, cluster, and analyze behavioral properties from Large Language Models*
 
-*Potential name options: Axiom, Tesseract, Quill, Mentat, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
+*Potential name options: VibeCheck, Axiom, Tesseract, Quill, MindPalace, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
 
 ---
 
@@ -51,6 +51,25 @@ clustered_df, model_stats = explain(
     min_cluster_size=10,
     output_dir="results/"
 )
+
+# Your data with model responses
+df = pd.DataFrame({
+    "question_id": ["q1", "q2", "q3"],
+    "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
+    "model_a": ["gpt-4", "gpt-4", "gpt-4"],
+    "model_b": ["claude-3", "claude-3", "claude-3"],
+    "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
+    "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
+    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
+})
+
+# Extract and cluster behavioral properties
+clustered_df, model_stats = explain(
+    df,
+    method="side_by_side",
+    min_cluster_size=10,
+    output_dir="results/"
+)
 ```
 
 ### Viewing Results in Streamlit
@@ -62,70 +81,60 @@ streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
 streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
 
-## What You Get
+## Outputs
 
-<table>
-<tr>
-<td width="50%">
+After running `explain`, you receive two main outputs:
 
-### **`clustered_df`** 
-Your original data plus:
-- Extracted behavioral properties (`property_description`, `category`, `impact`, `type`)
-- Cluster assignments (`property_description_fine_cluster_id`, `property_description_coarse_cluster_id`)
-- Cluster labels (`property_description_fine_cluster_label`, `property_description_coarse_cluster_label`)
+### `clustered_df`
+A DataFrame containing your original data plus new columns for extracted and clustered behavioral properties:
 
-</td>
-<td width="50%">
+- **property_description**: A short natural language description of a behavioral trait found in a model response (e.g., "Provides step-by-step reasoning").
+- **category**: A higher-level grouping for the property (e.g., "Reasoning", "Creativity").
+- **impact**: The estimated effect or importance of the property (e.g., "positive", "negative", or a numeric score).
+- **type**: The kind of property (e.g., "format", "content", "style").
+- **property_description_fine_cluster_label**: Human-readable label for the fine-grained cluster (e.g., "Step-by-step Reasoning").
+- **property_description_coarse_cluster_label**: Human-readable label for the coarse-grained cluster (e.g., "Reasoning Transparency").
 
-### **`model_stats`** 
-Per-model behavioral analysis:
-- Which behaviors each model shows most/least
-- Relative scores compared to other models
-- Example responses for each behavior cluster
+### `model_stats`
+A dictionary or DataFrame with per-model behavioral analysis, including:
+- Which behaviors each model exhibits most or least frequently.
+- Relative scores for each model on different behavioral clusters.
+- Example responses from each model for each behavior cluster.
 
-</td>
-</tr>
-</table>
-
-## Interactive Visualization
-
-Explore your results with two specialized viewers:
-
-<details>
-<summary><strong>Pipeline Results Viewer (Comprehensive Analysis)</strong></summary>
-
-```bash
-streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
-```
-
-**Features:**
-- Model performance leaderboards and rankings
-- Interactive heatmaps comparing models across behavioral clusters  
-- Score distribution analysis and statistics
-- Example viewer with actual model responses
-- Head-to-head model comparisons
-
-</details>
-
-<details>
-<summary><strong>Cluster Explorer (Detailed Clustering Analysis)</strong></summary>
-
-```bash
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
-```
-
-**Features:**
-- Browse clusters and their hierarchical structure
-- Explore cluster properties and relationships
-- View cluster statistics and metadata
-
-</details>
-
-> **Both viewers provide complementary perspectives** - use the Pipeline Results Viewer for comprehensive model analysis and the Cluster Explorer for detailed clustering insights.
+This allows you to see not just which model "won" overall, but *why*—by surfacing the behavioral patterns and strengths/weaknesses of each model.
 
 ## Input Data Requirements
 
 LMM-Vibes supports two primary analysis methods with specific data requirements:
+
+### Single Model Analysis
+For analyzing individual model responses:
+
+<details>
+<summary><strong>Required & Optional Columns</strong></summary>
+
+**Required columns:**
+- `question_id` - Unique identifier for each conversation/question
+- `prompt` (or `user_prompt`) - The question or prompt given to the model
+- `model` - Name of the model
+- `model_response` (or `response`) - The model's response
+
+**Optional columns:**
+- `score` - Dictionary of metrics: `{"rating": 4.2, "accuracy": 0.85, "helpfulness": 0.9}`
+- Any additional metadata columns
+
+</details>
+
+```python
+df = pd.DataFrame({
+    "question_id": ["q1", "q2"],
+    "prompt": ["Question text"],
+    "model": ["gpt-4", "gpt-4"],
+    "model_response": ["Model response"],
+    "score": [{"rating": 4.2, "accuracy": 0.8}, {"rating": 4.5, "accuracy": 0.9}],  # optional
+    "category": ["reasoning", "creative"],  # optional metadata
+})
+```
 
 ### Side-by-Side Comparisons
 For comparing two models head-to-head (like Arena-style battles):
@@ -157,35 +166,6 @@ df = pd.DataFrame({
     "model_b_response": ["Response from model B"],
     "score": [{"winner": "model_a"}, {"winner": "model_b", "confidence": 0.9}],  # optional
     "language": ["en", "en"],  # optional metadata
-})
-```
-
-### Single Model Analysis
-For analyzing individual model responses:
-
-<details>
-<summary><strong>Required & Optional Columns</strong></summary>
-
-**Required columns:**
-- `question_id` - Unique identifier for each conversation/question
-- `prompt` (or `user_prompt`) - The question or prompt given to the model
-- `model` - Name of the model
-- `model_response` (or `response`) - The model's response
-
-**Optional columns:**
-- `score` - Dictionary of metrics: `{"rating": 4.2, "accuracy": 0.85, "helpfulness": 0.9}`
-- Any additional metadata columns
-
-</details>
-
-```python
-df = pd.DataFrame({
-    "question_id": ["q1", "q2"],
-    "prompt": ["Question text"],
-    "model": ["gpt-4", "gpt-4"],
-    "model_response": ["Model response"],
-    "score": [{"rating": 4.2, "accuracy": 0.8}, {"rating": 4.5, "accuracy": 0.9}],  # optional
-    "category": ["reasoning", "creative"],  # optional metadata
 })
 ```
 
@@ -261,7 +241,7 @@ Computes which models excel at which behavioral patterns:
 clustered_df, model_stats = explain(
     df,
     method="side_by_side",              # or "single_model"
-    system_prompt="one_sided_system_prompt",  # custom extraction prompt
+    system_prompt=None # custom extraction prompt (you can also omit this and we will use our default)
     min_cluster_size=30,                # minimum cluster size
     embedding_model="openai",           # or any sentence-transformer model
     hierarchical=True,                  # create coarse clusters
