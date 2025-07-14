@@ -265,6 +265,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             for i, (msg, response, conv) in enumerate(zip(user_messages, raw_responses, conversations)):
                 extraction_data.append({
                     "question_id": conv.question_id,
+                    "system_prompt": self.system_prompt,
                     "input_message": msg,
                     "raw_response": response,
                     "response_length": len(response),
@@ -274,8 +275,8 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             # Log extraction table (as table, not summary)
             self.log_wandb({
                 "Property_Extraction/extraction_inputs_outputs": wandb.Table(
-                    columns=["question_id", "input_message", "raw_response", "response_length", "has_error"],
-                    data=[[row[col] for col in ["question_id", "input_message", "raw_response", "response_length", "has_error"]] 
+                    columns=["question_id", "system_prompt", "input_message", "raw_response", "response_length", "has_error"],
+                    data=[[row[col] for col in ["question_id", "system_prompt", "input_message", "raw_response", "response_length", "has_error"]] 
                           for row in extraction_data]
                 )
             })

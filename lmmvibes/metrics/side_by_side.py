@@ -118,6 +118,38 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         )
         total_q = total_q_series.to_dict()
 
+        # Calculate the average score per model
+        # If score is a dict with multiple keys, compute the average for each key per model
+        import collections
+
+        # First, get all possible keys in the score dicts
+        all_score_keys = set()
+        for s in df["score"]:
+            if isinstance(s, dict):
+                all_score_keys.update(s.keys())
+        all_score_keys = sorted(all_score_keys)
+
+        # For each key, compute the average score per model
+        avg_scores_per_key = {}
+        for key in all_score_keys:
+            # Extract the score for this key, converting winner scores to 1, -1, 0 format
+            if key == "winner":
+                # Convert winner scores to numeric format
+                df[f"score_{key}"] = df.apply(self.extract_winner_score, axis=1)
+            else:
+                # For other keys, extract directly (0 if missing or not a dict)
+                df[f"score_{key}"] = df["score"].apply(
+                    lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+                )
+            avg_scores_per_key[key] = df.groupby("model")[f"score_{key}"].mean()
+            print(f"Average score for key '{key}':")
+            print(avg_scores_per_key[key])
+
+        # Optionally, you could aggregate these into a DataFrame:
+        self.avg_score_per_model = pd.DataFrame(avg_scores_per_key)
+        print("Average scores per model (all keys):")
+        print(self.avg_score_per_model)
+
         stats: Dict[str, Dict[str, List[ModelStats]]] = defaultdict(lambda: {"fine": [], "coarse": []})
 
         # ---------------- Fine clusters ----------------
@@ -156,18 +188,52 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         else:
             return -1
     
-    def _compute_quality_score(self, group: pd.DataFrame) -> float:
-        """Compute the quality score of a cluster (average score per property)"""
-        # if the csores are empty dictionaries, return 0
-        try:
-            if "winner" in group["score"].iloc[0].keys():
-                scores = group.apply(self.extract_winner_score, axis=1)
+    def _compute_quality_score(self, group: pd.DataFrame) -> dict:
+        """
+        Compute the quality score of a cluster for each score key:
+        For each key, compute (average score in cluster for that model) / (average score for that model overall),
+        for each model present in the cluster. Exclude models not present in the cluster.
+        Returns a dictionary where keys are the score keys.
+        """
+        # Get all score keys from the first non-empty score dict
+        score_keys = []
+        for s in group["score"]:
+            if isinstance(s, dict) and s:
+                score_keys = list(s.keys())
+                break
+        if not score_keys:
+            return {}
 
+        # Compute per-model average for each key in the cluster
+        result = {}
+        models_in_cluster = group["model"].unique()
+        for key in score_keys:
+            ratios = []
+            for model in models_in_cluster:
+                model_rows = group[group["model"] == model]
+                # Average score for this model in this cluster
+                if key == "winner":
+                    # Convert winner scores to numeric format for this model's rows
+                    cluster_scores = model_rows.apply(self.extract_winner_score, axis=1)
+                else:
+                    cluster_scores = model_rows["score"].apply(
+                        lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+                    )
+                cluster_avg = cluster_scores.mean()
+                
+                # Average score for this model overall (from self.avg_score_per_model)
+                try:
+                    model_avg = self.avg_score_per_model.loc[model, key]
+                except Exception:
+                    model_avg = None
+                if model_avg and model_avg != 0:
+                    ratios.append(cluster_avg / model_avg)
+            # If no valid ratios, skip
+            if ratios:
+                result[key] = sum(ratios) / len(ratios)
             else:
-                scores = group["score"].apply(lambda x: list(x.values())[0] if x else 0)
-            return scores.mean()
-        except:
-            return 0
+                result[key] = 0
+        return result
 
     # ------------------------------------------------------------------
     def _compute(
@@ -195,11 +261,12 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
         for model, prop in props.items():
             score = prop / median_prop if median_prop else 0.0
+            quality_score = self._compute_quality_score(group)
             ms = ModelStats(
                 property_description=str(label),
                 model_name=str(model),
                 score=float(score),
-                quality_score=float(self._compute_quality_score(group)),
+                quality_score=quality_score,
                 cluster_size_global=int(len(group["id"].unique())),
                 size=int(counts.get(model, 0)),
                 proportion=float(prop),

@@ -122,68 +122,35 @@ def get_top_clusters_for_model(model_stats: Dict[str, Any], model_name: str,
     clusters = model_data.get(level, [])
     return sorted(clusters, key=lambda x: x['score'], reverse=True)[:top_n]
 
-# ---------------------------------------------------------------------------
-# UI Components
-# ---------------------------------------------------------------------------
-
-def show_cluster_examples(cluster_label: str, model_name: str, model_stats: Dict[str, Any], 
-                         results_path: Path, level: str = 'fine'):
-    """Show examples using the pre-stored property IDs"""
+def _aggregate_quality_scores(quality_scores_series):
+    """Aggregate quality scores from multiple models for a cluster.
     
-    # Get the stored example property IDs from model_stats
-    model_data = model_stats.get(model_name, {})
-    clusters = model_data.get(level, [])
-    
-    target_cluster = None
-    for cluster in clusters:
-        if cluster['property_description'] == cluster_label:
-            target_cluster = cluster
-            break
-    
-    if not target_cluster or not target_cluster.get('examples'):
-        st.warning("No examples available for this cluster")
-        return
+    Args:
+        quality_scores_series: Series of quality score dictionaries
         
-    # Load only the specific examples (max 3 property IDs)
-    example_ids = target_cluster['examples']
-    examples_df = load_property_examples(results_path, example_ids)
+    Returns:
+        Dictionary with average quality scores for each key
+    """
+    all_keys = set()
+    for qs in quality_scores_series:
+        if isinstance(qs, dict):
+            all_keys.update(qs.keys())
     
-    if examples_df.empty:
-        st.warning("Could not load example data")
-        return
+    if not all_keys:
+        return {}
     
-    st.write(f"**Examples for {model_name} in cluster '{cluster_label}':**")
-    st.caption(f"Showing {len(examples_df)} example(s)")
+    aggregated = {}
+    for key in all_keys:
+        values = []
+        for qs in quality_scores_series:
+            if isinstance(qs, dict) and key in qs:
+                values.append(qs[key])
+        if values:
+            aggregated[key] = sum(values) / len(values)
+        else:
+            aggregated[key] = 0.0
     
-    for i, (_, row) in enumerate(examples_df.iterrows(), 1):
-        with st.expander(f"Example {i}: {row.get('id', 'Unknown')[:12]}..."):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("**Prompt:**")
-                prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
-                st.write(prompt)
-                
-                st.write("**Metadata:**")
-                st.json({
-                    'question_id': row.get('question_id', 'N/A'),
-                    'property_id': row.get('id', 'N/A'),
-                    'cluster_id': row.get('fine_cluster_id', 'N/A'),
-                    'score': row.get('score', 'N/A')
-                })
-            
-            with col2:
-                st.write("**Model Response:**")
-                # Handle different response column formats
-                response = (row.get('model_response') or 
-                          row.get('model_a_response') or 
-                          row.get('model_b_response') or 
-                          row.get('responses', 'N/A'))
-                st.write(response)
-                
-                st.write("**Extracted Property:**")
-                property_desc = row.get('property_description', 'N/A')
-                st.info(property_desc)
+    return aggregated
 
 def create_model_leaderboard(model_rankings: List[tuple]):
     """Create a model leaderboard table"""
@@ -444,9 +411,7 @@ def main():
                         if top_clusters:
                             # Calculate total battles by summing all cluster sizes for this model
                             total_battles = sum(cluster.get('size', 0) for cluster in top_clusters)
-                            st.caption(f"{total_battles:,} battles")
-                            
-                            st.markdown("📈 **Top clusters by frequency**")
+                            st.caption(f"{total_battles:,} battles &nbsp; &nbsp; &nbsp; &nbsp; Top clusters by frequency &nbsp;  <span style='font-size:1.2em;'>⬇️</span>", unsafe_allow_html=True)
                             
                             # Show top 3 clusters
                             for idx, cluster in enumerate(top_clusters[:3]):
@@ -454,24 +419,31 @@ def main():
                                 frequency = cluster.get('proportion', 0) * 100  # Convert to percentage
                                 cluster_size = cluster.get('size', 0)  # This model's size in this cluster
                                 cluster_size_global = cluster.get('cluster_size_global', 0)  # Total across all models
-                                quality_score = cluster.get('quality_score', 0)  # Quality score
+                                quality_score = cluster.get('quality_score', {})  # Quality score dict
                                 
                                 # Calculate distinctiveness (using score as proxy)
                                 distinctiveness = cluster.get('score', 1.0)
                                 
+                                # Format quality scores for display
+                                quality_score_text = ""
+                                if isinstance(quality_score, dict) and quality_score:
+                                    quality_score_text = "<br>".join([f"{key}: {value:.3f}" for key, value in quality_score.items()])
+                                else:
+                                    quality_score_text = "No quality scores"
+                                
                                 st.markdown(f"""
-                                <div style="margin: 15px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
-                                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 5px;">
+                                <div style="margin: 8px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
+                                    <div style="font-weight: 600; font-size: 16px; margin-bottom: 5px;">
                                         {cluster_desc}
                                     </div>
-                                    <div style="font-size: 12px; color: #666;">
+                                    <div style="font-size: 14px; color: #666;">
                                         <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {cluster_size_global} total across all models)
                                     </div>
-                                    <div style="font-size: 11px; color: #3182ce;">
+                                    <div style="font-size: 13px; color: #3182ce;">
                                         {distinctiveness:.1f}x more distinctive than other models
                                     </div>
-                                    <div style="position: absolute; bottom: 8px; right: 10px; font-size: 10px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
-                                        Quality: {quality_score:.3f}
+                                    <div style="position: absolute; bottom: 8px; right: 10px; font-size: 12px; font-weight: 600; color: #666; text-align: right;">
+                                        Quality Scores:<br>{quality_score_text}
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -545,24 +517,40 @@ def main():
             # Group by cluster to get max scores and average quality
             cluster_summary = clusters_df.groupby('property_description').agg({
                 'score': 'max',  # Max distinctiveness across models
-                'quality_score': 'mean',  # Average quality score
+                'quality_score': lambda x: _aggregate_quality_scores(x),  # Aggregate quality scores
                 'cluster_size_global': 'first',  # Should be same for all models
                 'size': 'sum'  # Total size across all models (should equal cluster_size_global)
             }).reset_index()
             
             # Sort options
+            sort_options = ["Max Distinctiveness", "Cluster Size"]
+            
+            # Add quality score sorting options if quality scores exist
+            if not cluster_summary.empty and 'quality_score' in cluster_summary.columns:
+                first_qs = cluster_summary['quality_score'].iloc[0]
+                if isinstance(first_qs, dict) and first_qs:
+                    for key in first_qs.keys():
+                        sort_options.append(f"Quality Score - {key}")
+            
             sort_option = st.selectbox(
                 "Sort clusters by:",
-                ["Max Distinctiveness", "Average Quality Score", "Cluster Size"],
-                help="Max Distinctiveness: clusters that maximally separate models\nAverage Quality Score: clusters with high correlation to accuracy"
+                sort_options,
+                help="Max Distinctiveness: clusters that maximally separate models\nQuality Score: clusters with high correlation to specific metrics"
             )
             
             if sort_option == "Max Distinctiveness":
                 cluster_summary = cluster_summary.sort_values('score', ascending=False)
-            elif sort_option == "Average Quality Score":
-                cluster_summary = cluster_summary.sort_values('quality_score', ascending=False)
-            else:  # Cluster Size
+            elif sort_option == "Cluster Size":
                 cluster_summary = cluster_summary.sort_values('cluster_size_global', ascending=False)
+            elif sort_option.startswith("Quality Score - "):
+                # Extract the quality score key
+                key = sort_option.replace("Quality Score - ", "")
+                # Create a temporary column for sorting
+                cluster_summary['temp_qs'] = cluster_summary['quality_score'].apply(
+                    lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+                )
+                cluster_summary = cluster_summary.sort_values('temp_qs', ascending=False)
+                cluster_summary = cluster_summary.drop('temp_qs', axis=1)
             
             # Display clusters
             st.subheader(f"Clusters sorted by {sort_option}")
@@ -573,11 +561,19 @@ def main():
                 lambda x: x[:100] + '...' if len(x) > 100 else x
             )
             display_df['Max Score'] = display_df['score'].apply(lambda x: f"{x:.3f}")
-            display_df['Avg Quality'] = display_df['quality_score'].apply(lambda x: f"{x:.3f}")
+            
+            # Handle quality scores as dictionary
+            def format_quality_scores(qs):
+                if isinstance(qs, dict) and qs:
+                    return "; ".join([f"{key}: {value:.3f}" for key, value in qs.items()])
+                else:
+                    return "No quality scores"
+            
+            display_df['Quality Scores'] = display_df['quality_score'].apply(format_quality_scores)
             display_df['Size'] = display_df['cluster_size_global']
             
             st.dataframe(
-                display_df[['Cluster Description', 'Max Score', 'Avg Quality', 'Size']],
+                display_df[['Cluster Description', 'Max Score', 'Quality Scores', 'Size']],
                 use_container_width=True,
                 hide_index=True
             )

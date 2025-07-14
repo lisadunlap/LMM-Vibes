@@ -23,12 +23,12 @@ def main():
     # Optional overrides
     parser.add_argument("--sample_size", type=int, default=None,
                         help="Sample size to use (default: use full dataset)")
-    parser.add_argument("--min_cluster_size", type=int, default=5,
-                        help="Minimum cluster size (default: 5)")
-    parser.add_argument("--max_coarse_clusters", type=int, default=10,
-                        help="Maximum number of coarse clusters (default: 10)")
-    parser.add_argument("--max_workers", type=int, default=8,
-                        help="Maximum number of workers (default: 8)")
+    parser.add_argument("--min_cluster_size", type=int, default=15,
+                        help="Minimum cluster size (default: 15)")
+    parser.add_argument("--max_coarse_clusters", type=int, default=30,
+                        help="Maximum number of coarse clusters (default: 30)")
+    parser.add_argument("--max_workers", type=int, default=16,
+                        help="Maximum number of workers (default: 16)")
     
     # Flags
     parser.add_argument("--no_hierarchical", action="store_true",
@@ -41,7 +41,7 @@ def main():
     args = parser.parse_args()
     
     # Set the data path
-    data_path = "data/wildbench_full_vibe_results_parsed_processed.jsonl"
+    data_path = "data/helm/helm_wildbench_results.jsonl"
     
     # Check if data exists
     if not os.path.exists(data_path):

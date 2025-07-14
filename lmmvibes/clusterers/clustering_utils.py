@@ -28,7 +28,20 @@ from .clustering_prompts import clustering_systems_prompt, coarse_clustering_sys
 from ..core.caching import LMDBCache
 
 # Global cache instance
-_cache = LMDBCache()
+def _get_cache_config():
+    """Get cache configuration from environment variables."""
+    import os
+    
+    # Get cache directory from environment or use default
+    cache_dir = os.environ.get("LITELLM_CACHE_DIR_CLUSTERING", ".cache/lmmvibes/clustering")
+    
+    # Get cache size from environment or use default
+    cache_size = os.environ.get("LITELLM_CACHE_SIZE", "10GB")
+    
+    return cache_dir, cache_size
+
+_cache_dir, _cache_size = _get_cache_config()
+_cache = LMDBCache(cache_dir=_cache_dir, max_size=_cache_size)
 
 # Module-level logger
 logger = logging.getLogger(__name__)

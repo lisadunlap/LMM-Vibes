@@ -55,7 +55,10 @@ def run_pipeline(
     max_workers=4,
     use_wandb=False,
     verbose=True,
-    sample_size=None
+    sample_size=None,
+    extraction_cache_dir=None,
+    clustering_cache_dir=None,
+    metrics_cache_dir=None
 ):
     """Run the complete pipeline on a dataset."""
     
@@ -90,7 +93,10 @@ def run_pipeline(
         max_workers=max_workers,
         use_wandb=use_wandb,
         verbose=verbose,
-        output_dir=str(output_path)
+        output_dir=str(output_path),
+        extraction_cache_dir=extraction_cache_dir,
+        clustering_cache_dir=clustering_cache_dir,
+        metrics_cache_dir=metrics_cache_dir
     )
     
     # Calculate runtime
