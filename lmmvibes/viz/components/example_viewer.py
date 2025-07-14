@@ -4,11 +4,35 @@ Provides widgets for displaying and exploring actual model responses
 that demonstrate specific behavioral properties.
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 import streamlit as st
 import pandas as pd
 import json
+
+
+def extract_quality_score(quality_score) -> float:
+    """
+    Extract a float quality score from quality_score field.
+    
+    Args:
+        quality_score: Either a float or a dictionary with score keys
+        
+    Returns:
+        float: The quality score value
+    """
+    if isinstance(quality_score, dict):
+        # If it's a dictionary, take the first key's value
+        if quality_score:
+            return list(quality_score.values())[0]
+        else:
+            return 0.0
+    elif isinstance(quality_score, (int, float)):
+        return float(quality_score)
+    else:
+        return 0.0
 
 
 class ExampleViewerWidget:
@@ -39,12 +63,31 @@ class ExampleViewerWidget:
         
         # Load full dataset to get prompt/response details
         clustered_path = _self.results_path / "clustered_results.parquet"
-        try:
-            full_df = pd.read_parquet(clustered_path)
-            return full_df[full_df['id'].isin(property_ids)]
-        except Exception as e:
-            st.error(f"Error loading examples: {e}")
+        csv_path = _self.results_path / "clustered_results.csv"
+        
+        full_df = None
+        
+        # Try parquet first
+        if clustered_path.exists():
+            try:
+                full_df = pd.read_parquet(clustered_path)
+            except Exception as e:
+                st.warning(f"Failed to load examples from parquet: {e}")
+                full_df = None
+        
+        # Try CSV as fallback
+        if full_df is None and csv_path.exists():
+            try:
+                full_df = pd.read_csv(csv_path)
+            except Exception as e:
+                st.error(f"Failed to load examples from CSV: {e}")
+                return pd.DataFrame()
+        
+        if full_df is None:
+            st.error("Could not load example data from any available format")
             return pd.DataFrame()
+        
+        return full_df[full_df['id'].isin(property_ids)]
     
     def render_cluster_examples(self, cluster_label: str, model_name: str, 
                               level: str = 'fine', show_metadata: bool = True) -> None:
@@ -83,12 +126,8 @@ class ExampleViewerWidget:
             with col3:
                 st.metric("Proportion", f"{target_cluster['proportion']:.3f}")
             with col4:
-                quality_score = target_cluster.get('quality_score', {})
-                if isinstance(quality_score, dict) and quality_score:
-                    quality_text = "<br>".join([f"{key}: {value:.3f}" for key, value in quality_score.items()])
-                    st.markdown(f"**Quality Scores:**<br>{quality_text}", unsafe_allow_html=True)
-                else:
-                    st.metric("Quality Score", "N/A")
+                quality_score = target_cluster.get('quality_score', 0)
+                st.metric("Quality Score", f"{extract_quality_score(quality_score):.3f}")
         
         # Load examples
         example_ids = target_cluster['examples']

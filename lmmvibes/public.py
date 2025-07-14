@@ -493,9 +493,27 @@ def _save_results_to_dir(
     
     # 1. Save clustered DataFrame as parquet
     clustered_parquet_path = output_path / "clustered_results.parquet"
-    clustered_df.to_parquet(clustered_parquet_path, index=False)
-    if verbose:
-        print(f"  ✓ Saved clustered DataFrame (parquet): {clustered_parquet_path}")
+    
+    # Convert problematic columns to strings to avoid parquet serialization issues
+    df_for_parquet = clustered_df.copy()
+    for col in df_for_parquet.columns:
+        if df_for_parquet[col].dtype == 'object':
+            # Convert complex objects to strings
+            df_for_parquet[col] = df_for_parquet[col].astype(str)
+    
+    try:
+        df_for_parquet.to_parquet(clustered_parquet_path, index=False)
+        if verbose:
+            print(f"  ✓ Saved clustered DataFrame (parquet): {clustered_parquet_path}")
+    except Exception as e:
+        if verbose:
+            print(f"  ⚠️ Failed to save parquet: {e}")
+            print(f"  📄 Saving as CSV instead...")
+        # Fallback to CSV if parquet fails
+        csv_path = output_path / "clustered_results.csv"
+        df_for_parquet.to_csv(csv_path, index=False)
+        if verbose:
+            print(f"  ✓ Saved clustered DataFrame (CSV): {csv_path}")
     
     # 2. Save complete PropertyDataset as JSON
     dataset_json_path = output_path / "full_dataset.json"
