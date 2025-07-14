@@ -97,7 +97,7 @@ class ModelStats:
     model_name: str # name of model we are comparing
     cluster_size_global: int # number of properties in the cluster
     score: float # score of the property cluster
-    quality_score: float # quality score of the property cluster
+    quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys)
     size: int # number of properties in the cluster
     proportion: float # proportion of all properties that are in the cluster
     examples: List[str] # example property id's in the cluster
@@ -299,7 +299,7 @@ class PropertyDataset:
                     safe_key = str(k)
                 json_safe_dict[safe_key] = self._json_safe(v)
             return json_safe_dict
-        # Fallback – use string representation
+
         return str(obj)
 
     def to_serializable_dict(self) -> Dict[str, Any]:
@@ -307,7 +307,7 @@ class PropertyDataset:
         return {
             "conversations": [self._json_safe(asdict(conv)) for conv in self.conversations],
             "properties": [self._json_safe(asdict(prop)) for prop in self.properties],
-            "clusters": self._json_safe(self.clusters),
+            "clusters": [self._json_safe(asdict(cluster)) for cluster in self.clusters],
             "model_stats": self._json_safe(self.model_stats),
             "all_models": self.all_models,
         }
@@ -366,12 +366,31 @@ class PropertyDataset:
         if fmt == "json":
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            
+            # Expected format: dictionary with keys like "conversations", "properties", etc.
             conversations = [ConversationRecord(**conv) for conv in data.get("conversations", [])]
             properties = [Property(**prop) for prop in data.get("properties", [])]
-            clusters = data.get("clusters", {})
+            
+            # Convert cluster data to Cluster objects
+            clusters = [Cluster(**cluster) for cluster in data.get("clusters", [])]
+            
             model_stats = data.get("model_stats", {})
             all_models = data.get("all_models", PropertyDataset.get_all_models(conversations))
             return cls(conversations=conversations, properties=properties, clusters=clusters, model_stats=model_stats, all_models=all_models)
+        elif fmt == "dataframe":
+            # Handle dataframe format - this creates a list of objects when saved
+            import pandas as pd
+            try:
+                # Try to load as JSON Lines first
+                df = pd.read_json(path, orient="records", lines=True)
+            except ValueError:
+                # If that fails, try regular JSON
+                df = pd.read_json(path, orient="records")
+            
+            # Detect method based on columns
+            method = "side_by_side" if {"model_a", "model_b"}.issubset(df.columns) else "single_model"
+            
+            return cls.from_dataframe(df, method=method)
         elif fmt in {"pkl", "pickle"}:
             with open(path, "rb") as f:
                 obj = pickle.load(f)
@@ -420,4 +439,4 @@ class PropertyDataset:
 
             return dataset
         else:
-            raise ValueError(f"Unsupported format: {format}. Use 'json' or 'pickle'.") 
+            raise ValueError(f"Unsupported format: {format}. Use 'json', 'dataframe', 'parquet', or 'pickle'.") 

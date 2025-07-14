@@ -10,9 +10,6 @@ import argparse
 import os
 from run_full_pipeline import run_pipeline
 
-import litellm
-litellm._turn_on_debug()
-
 
 def main():
     """Main function for arena dataset processing."""

@@ -28,6 +28,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         can opt-in to strict mode by passing ``fail_fast=True``.
         """
         super().__init__(fail_fast=fail_fast, **kwargs)
+        self.parsing_failures = []
         
     def run(self, data: PropertyDataset) -> PropertyDataset:
         """
@@ -59,10 +60,25 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                 parse_errors += 1
                 consecutive_errors += 1
                 
+                # Analyze the raw response to determine the specific issue
+                error_details = self._analyze_json_parsing_error(prop.raw_response)
+                
+                # Collect failure information
+                self.parsing_failures.append({
+                    'property_id': prop.id,
+                    'question_id': prop.question_id,
+                    'model': prop.model,
+                    'raw_response': prop.raw_response,
+                    'error_type': 'JSON_PARSE_ERROR',
+                    'error_message': error_details,
+                    'consecutive_errors': consecutive_errors,
+                    'index': i
+                })
+                
                 # Debug: show a snippet of the offending response to aid troubleshooting
                 snippet = (prop.raw_response or "")[:200].replace("\n", " ")
                 self.log(
-                    f"Failed to parse JSON for property {prop.id} ({consecutive_errors} consecutive errors). Snippet: {snippet}…",
+                    f"Failed to parse JSON for property {prop.id} ({consecutive_errors} consecutive errors). {error_details} Snippet: {snippet}…",
                     level="error",
                 )
                 
@@ -77,7 +93,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     self.log(error_msg, level="error")
                     raise RuntimeError(error_msg)
                 
-                self.handle_error(ValueError("Failed to parse JSON"), f"property {prop.id}")
+                self.handle_error(ValueError(f"Failed to parse JSON: {error_details}"), f"property {prop.id}")
                 continue
 
             # Successfully parsed JSON - reset consecutive error counter
@@ -93,6 +109,21 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             else:
                 consecutive_errors += 1  # Count structure errors as parsing errors too
                 
+                error_details = f"Parsed JSON has unsupported type: {type(parsed_json)}. Expected dict, list, or dict with 'properties' key."
+                
+                # Collect structure error information
+                self.parsing_failures.append({
+                    'property_id': prop.id,
+                    'question_id': prop.question_id,
+                    'model': prop.model,
+                    'raw_response': prop.raw_response,
+                    'parsed_json': str(parsed_json),
+                    'error_type': 'UNSUPPORTED_JSON_SHAPE',
+                    'error_message': error_details,
+                    'consecutive_errors': consecutive_errors,
+                    'index': i
+                })
+                
                 if consecutive_errors > max_consecutive_errors:
                     error_msg = (
                         f"ERROR: More than {max_consecutive_errors} consecutive parsing errors detected "
@@ -103,14 +134,14 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     self.log(error_msg, level="error")
                     raise RuntimeError(error_msg)
                     
-                self.handle_error(ValueError("Unsupported JSON shape"), f"property {prop.id}")
+                self.handle_error(ValueError(error_details), f"property {prop.id}")
                 parse_errors += 1
                 continue
 
             # Successfully processed structure - reset consecutive error counter
             consecutive_errors = 0
             
-            for p_dict in prop_dicts:
+            for j, p_dict in enumerate(prop_dicts):
                 try:
                     parsed_properties.append(self._to_property(p_dict, prop))
                 except ValueError as e:
@@ -119,14 +150,46 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                         self.log(f"Filtered property with unknown model: {e}", level="debug")
                     else:
                         parse_errors += 1
+                        
+                        # Analyze the property dict to determine what's missing
+                        error_details = self._analyze_property_dict_error(p_dict, prop, str(e))
+                        
+                        # Collect property building error information
+                        self.parsing_failures.append({
+                            'property_id': prop.id,
+                            'question_id': prop.question_id,
+                            'model': prop.model,
+                            'raw_response': prop.raw_response,
+                            'property_dict': p_dict,
+                            'error_type': 'PROPERTY_BUILDING_ERROR',
+                            'error_message': error_details,
+                            'consecutive_errors': consecutive_errors,
+                            'index': i
+                        })
+                        
                         self.handle_error(e, f"building property from JSON for {prop.question_id}")
                 except Exception as e:
                     parse_errors += 1
+                    
+                    # Collect general error information
+                    self.parsing_failures.append({
+                        'property_id': prop.id,
+                        'question_id': prop.question_id,
+                        'model': prop.model,
+                        'raw_response': prop.raw_response,
+                        'property_dict': p_dict if 'p_dict' in locals() else None,
+                        'error_type': 'GENERAL_ERROR',
+                        'error_message': str(e),
+                        'consecutive_errors': consecutive_errors,
+                        'index': i
+                    })
+                    
                     self.handle_error(e, f"building property from JSON for {prop.question_id}")
 
         self.log(f"Parsed {len(parsed_properties)} properties successfully")
         self.log(f"Filtered out {unknown_model_filtered} properties with unknown models")
         self.log(f"{parse_errors} properties failed parsing")
+        self.log(f"Collected {len(self.parsing_failures)} detailed failure records")
         
         # Log to wandb if enabled
         if hasattr(self, 'use_wandb') and self.use_wandb:
@@ -140,23 +203,207 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             model_stats=data.model_stats
         )
     
+    def get_parsing_failures(self) -> List[Dict[str, Any]]:
+        """Get the collected parsing failures."""
+        return self.parsing_failures
+    
+    def _analyze_json_parsing_error(self, raw_response: str) -> str:
+        """Analyze a raw response to determine why JSON parsing failed."""
+        if not raw_response:
+            return "Raw response is empty or None"
+        
+        raw_response = raw_response.strip()
+        
+        # Check if it looks like JSON at all
+        if not (raw_response.startswith('{') or raw_response.startswith('[')):
+            if '```json' in raw_response:
+                return "Response contains ```json markdown block but JSON extraction failed (missing closing ``` or malformed block)"
+            elif '```' in raw_response:
+                return "Response contains code block but JSON extraction failed (missing closing ``` or malformed block)"
+            else:
+                return "Response is not formatted as JSON (doesn't start with { or [)"
+        
+        # Try to identify common JSON syntax errors
+        try:
+            # Check for unclosed brackets/braces
+            brace_count = raw_response.count('{') - raw_response.count('}')
+            bracket_count = raw_response.count('[') - raw_response.count(']')
+            
+            if brace_count != 0:
+                return f"Unmatched braces: {brace_count} more opening braces than closing braces"
+            if bracket_count != 0:
+                return f"Unmatched brackets: {bracket_count} more opening brackets than closing brackets"
+            
+            # Check for common syntax issues
+            if raw_response.count('"') % 2 != 0:
+                return "Unmatched quotes in JSON"
+            
+            # Try to parse and see what the specific error is
+            import json
+            json.loads(raw_response)
+            return "JSON appears valid but parsing still failed (unknown reason)"
+            
+        except json.JSONDecodeError as e:
+            return f"JSON syntax error: {str(e)}"
+        except Exception as e:
+            return f"Unexpected error during JSON analysis: {str(e)}"
+    
+    def _analyze_property_dict_error(self, p_dict: Dict[str, Any], prop: Property, original_error: str) -> str:
+        """Analyze a property dict to determine what's missing or invalid."""
+        issues = []
+        
+        # Check for required fields
+        required_fields = ['property_description']
+        for field in required_fields:
+            if field not in p_dict:
+                issues.append(f"Missing required field: '{field}'")
+            elif not p_dict[field]:
+                issues.append(f"Required field '{field}' is empty or null")
+        
+        # Check for model field issues
+        if 'model' not in p_dict:
+            issues.append("Missing 'model' field in property dict")
+        elif not p_dict['model']:
+            issues.append("'model' field is empty or null")
+        
+        # Check for common field type issues
+        if 'property_description' in p_dict and not isinstance(p_dict['property_description'], str):
+            issues.append(f"'property_description' should be string, got {type(p_dict['property_description'])}")
+        
+        if 'category' in p_dict and not isinstance(p_dict['category'], str):
+            issues.append(f"'category' should be string, got {type(p_dict['category'])}")
+        
+        if 'impact' in p_dict and not isinstance(p_dict['impact'], str):
+            issues.append(f"'impact' should be string, got {type(p_dict['impact'])}")
+        
+        # Check for boolean fields
+        boolean_fields = ['contains_errors', 'unexpected_behavior']
+        for field in boolean_fields:
+            if field in p_dict and not isinstance(p_dict[field], bool):
+                issues.append(f"'{field}' should be boolean, got {type(p_dict[field])}")
+        
+        # If we found specific issues, return them
+        if issues:
+            return f"Property validation failed: {'; '.join(issues)}"
+        
+        # If no specific issues found, return the original error
+        return f"Property validation failed: {original_error}"
+    
     def _parse_json_response(self, response_text: str) -> Optional[Any]:
         """
         Parse JSON response from model, handling potential formatting issues.
         
         This method migrates the parse_json_response function from post_processing.py.
         """
-        try:
-            if "```json" in response_text:
+        if not response_text:
+            return None
+            
+        response_text = response_text.strip()
+        
+        # Try multiple extraction strategies
+        json_content = None
+        
+        # Strategy 1: Look for ```json blocks
+        if "```json" in response_text:
+            try:
                 json_start = response_text.find("```json") + 7
                 json_end = response_text.find("```", json_start)
-                json_content = response_text[json_start:json_end].strip()
-            else:
-                json_content = response_text.strip()
-            parsed_json = json.loads(json_content)
-            return parsed_json
-        except Exception as e:
-            return None 
+                if json_end != -1:
+                    json_content = response_text[json_start:json_end].strip()
+            except Exception:
+                pass
+        
+        # Strategy 2: Look for ``` blocks (any language)
+        if not json_content and "```" in response_text:
+            try:
+                # Find the first code block
+                start_marker = response_text.find("```")
+                if start_marker != -1:
+                    # Find the end of the first line (language identifier)
+                    first_line_end = response_text.find("\n", start_marker)
+                    if first_line_end != -1:
+                        # Start after the language identifier
+                        content_start = first_line_end + 1
+                        # Find the closing ```
+                        content_end = response_text.find("```", content_start)
+                        if content_end != -1:
+                            json_content = response_text[content_start:content_end].strip()
+            except Exception:
+                pass
+        
+        # Strategy 3: Look for JSON-like content between any markers
+        if not json_content:
+            # Try to find JSON-like content (starts with { or [)
+            for start_char in ['{', '[']:
+                start_pos = response_text.find(start_char)
+                if start_pos != -1:
+                    # Find matching closing bracket
+                    bracket_stack = []
+                    for i, char in enumerate(response_text[start_pos:], start_pos):
+                        if char in '{[':
+                            bracket_stack.append(char)
+                        elif char in ']}':
+                            if bracket_stack:
+                                if (char == '}' and bracket_stack[-1] == '{') or (char == ']' and bracket_stack[-1] == '['):
+                                    bracket_stack.pop()
+                                    if not bracket_stack:  # Found complete JSON
+                                        json_content = response_text[start_pos:i+1].strip()
+                                        break
+                    if json_content:
+                        break
+        
+        # Strategy 4: Use the entire response if it looks like JSON
+        if not json_content:
+            if response_text.startswith('{') or response_text.startswith('['):
+                json_content = response_text
+        
+        # If we found content, try to parse it
+        if json_content:
+            try:
+                # Clean up common issues
+                json_content = self._clean_json_content(json_content)
+                return json.loads(json_content)
+            except json.JSONDecodeError:
+                # Try to fix common JSON issues
+                fixed_content = self._fix_common_json_issues(json_content)
+                try:
+                    return json.loads(fixed_content)
+                except json.JSONDecodeError:
+                    pass
+        
+        return None
+    
+    def _clean_json_content(self, content: str) -> str:
+        """Clean up common issues in JSON content."""
+        import re
+        content = re.sub(r',(\s*[}\]])', r'\1', content)
+        
+        # Remove any trailing commas
+        content = re.sub(r',\s*$', '', content)
+        
+        # Fix common quote issues
+        content = content.replace('"', '"').replace('"', '"')
+        content = content.replace(''', "'").replace(''', "'")
+        
+        return content.strip()
+    
+    def _fix_common_json_issues(self, content: str) -> str:
+        """Try to fix common JSON formatting issues."""
+        import re
+        
+        # Look for the largest valid JSON object/array
+        json_patterns = [
+            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # Nested objects
+            r'\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]',  # Nested arrays
+        ]
+        
+        for pattern in json_patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                # Return the longest match (most complete)
+                return max(matches, key=len)
+        
+        return content
 
     # ------------------------------------------------------------------
     # Internal helper
@@ -178,12 +425,19 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             or (isinstance(model, float) and (model != model))  # NaN check
             or model.strip() == ""
         ):
-            raise ValueError(f"Property has unknown or invalid model: {model}")
-
-        # Model validation is now handled in the Property dataclass (__post_init__) so
-        # we no longer need to manually filter here. If model is 'unknown', Property
-        # will raise a ValueError which will be caught by the caller and treated the
-        # same way as any other parsing error.
+            error_details = f"Model validation failed: model='{model}' (type: {type(model)})"
+            if model == "unknown":
+                error_details += ". The JSON property dict is missing a 'model' field or it couldn't be resolved from the original conversation model."
+            elif isinstance(model, (list, tuple)):
+                error_details += ". Model should be a string, not a list/tuple."
+            elif not isinstance(model, str):
+                error_details += ". Model should be a string."
+            elif isinstance(model, float) and (model != model):
+                error_details += ". Model is NaN (Not a Number)."
+            elif model.strip() == "":
+                error_details += ". Model is empty or whitespace only."
+            
+            raise ValueError(error_details)
 
         return Property(
             id=str(uuid.uuid4()),
@@ -198,7 +452,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             contains_errors=p.get("contains_errors"),
             unexpected_behavior=p.get("unexpected_behavior"),
             user_preference_direction=p.get("user_preference_direction"),
-        ) 
+        )
 
     def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int):
         """Log parsing results to wandb."""

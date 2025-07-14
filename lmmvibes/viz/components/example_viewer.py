@@ -83,8 +83,12 @@ class ExampleViewerWidget:
             with col3:
                 st.metric("Proportion", f"{target_cluster['proportion']:.3f}")
             with col4:
-                quality_score = target_cluster.get('quality_score', 0)
-                st.metric("Quality Score", f"{quality_score:.3f}")
+                quality_score = target_cluster.get('quality_score', {})
+                if isinstance(quality_score, dict) and quality_score:
+                    quality_text = "<br>".join([f"{key}: {value:.3f}" for key, value in quality_score.items()])
+                    st.markdown(f"**Quality Scores:**<br>{quality_text}", unsafe_allow_html=True)
+                else:
+                    st.metric("Quality Score", "N/A")
         
         # Load examples
         example_ids = target_cluster['examples']

@@ -35,6 +35,7 @@ def get_metrics(method: str, **kwargs) -> "PipelineStage":
     if method == "side_by_side":
         return SideBySideMetrics(**kwargs)
     elif method == "single_model":
-        return SideBySideMetrics(**kwargs)
+        return SingleModelMetrics(**kwargs)
     else:
         raise ValueError(f"Unknown metrics method: {method}") 
+    

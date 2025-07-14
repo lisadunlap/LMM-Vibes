@@ -10,10 +10,18 @@ This directory contains scripts for running the complete LMM-Vibes pipeline on f
 
 **⚡ Error Handling**: Added proper error handling to fail fast when no properties are extracted.
 
+**📊 Metrics-Only Mode**: Added ability to run just the metrics computation on existing pipeline results.
+
 ## Scripts Overview
 
 ### `run_full_pipeline.py`
 The main script that provides a flexible command-line interface for running the pipeline on any dataset.
+
+### `run_metrics_only.py` ⭐ NEW
+Run only the metrics computation stage on existing pipeline results. Useful for:
+- Recomputing metrics with different parameters
+- Running metrics on results from previous pipeline runs  
+- Debugging metrics computation without re-running the full pipeline
 
 ### Dataset-specific convenience scripts:
 - `run_arena_pipeline.py` - For the Arena dataset
@@ -33,6 +41,40 @@ python scripts/run_full_pipeline.py \
     --data_path data/arena_single.jsonl \
     --output_dir results/arena_full_results
 ```
+
+### Metrics-Only Mode ⭐ NEW
+
+Run just the metrics computation on existing pipeline results:
+
+```bash
+# Run metrics on existing pipeline results
+python scripts/run_metrics_only.py \
+    --input results/previous_run/full_dataset.json \
+    --output results/metrics_only \
+    --method single_model
+
+# Run metrics on a directory containing pipeline outputs
+python scripts/run_metrics_only.py \
+    --input results/previous_run/ \
+    --output results/metrics_only \
+    --method side_by_side
+
+# Run metrics with custom output directory for metrics files
+python scripts/run_metrics_only.py \
+    --input results/previous_run/full_dataset.parquet \
+    --output results/metrics_custom \
+    --method single_model \
+    --metrics-output-dir custom_metrics_output
+```
+
+**Supported Input Formats:**
+- Individual files: `.json`, `.parquet`, `.pkl`
+- Directories: Automatically detects `full_dataset.json`, `full_dataset.parquet`, `clustered_results.parquet`, etc.
+
+**Output Files:**
+- `metrics_results.parquet` - DataFrame with metrics results
+- `metrics_dataset.json` - Complete PropertyDataset with metrics
+- `metrics_stats.json` - Model statistics and rankings
 
 ### Convenience Scripts
 

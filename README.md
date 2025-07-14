@@ -3,11 +3,6 @@
 # LMM-Vibes
 ### *Extract, cluster, and analyze behavioral properties from Large Language Models*
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI version](https://badge.fury.io/py/lmmvibes.svg)](https://badge.fury.io/py/lmmvibes)
-[![Downloads](https://pepy.tech/badge/lmmvibes)](https://pepy.tech/project/lmmvibes)
-
 *Potential name options: Axiom, Tesseract, Quill, Mentat, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
 
 ---
@@ -46,7 +41,7 @@ df = pd.DataFrame({
     "model_b": ["claude-3", "claude-3", "claude-3"],
     "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
     "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "winner": ["model_a", "model_b", "tie"]
+    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
 })
 
 # Extract and cluster behavioral properties

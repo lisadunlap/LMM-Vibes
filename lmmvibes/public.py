@@ -8,13 +8,14 @@ from typing import Dict, List, Any, Callable, Optional, Union, Tuple
 import pandas as pd
 from .core.data_objects import PropertyDataset
 from .pipeline import Pipeline, PipelineBuilder
+from .prompts import get_default_system_prompt
 import time
 
 
 def explain(
     df: pd.DataFrame,
-    method: str = "side_by_side",
-    system_prompt: str = "one_sided_system_prompt_no_examples",
+    method: str = "single_model",
+    system_prompt: str = None,
     prompt_builder: Optional[Callable[[pd.Series], str]] = None,
     *,
     # Extraction parameters
@@ -41,6 +42,10 @@ def explain(
     output_dir: Optional[str] = None,
     # Pipeline configuration
     custom_pipeline: Optional[Pipeline] = None,
+    # Cache configuration
+    extraction_cache_dir: Optional[str] = None,
+    clustering_cache_dir: Optional[str] = None,
+    metrics_cache_dir: Optional[str] = None,
     **kwargs
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
@@ -51,8 +56,8 @@ def explain(
     
     Args:
         df: DataFrame with conversation data
-        method: "side_by_side" or "single_model" 
-        system_prompt: System prompt for property extraction
+        method: "side_by_side" or "single_model"
+        system_prompt: System prompt for property extraction (if None, will be auto-determined)
         prompt_builder: Optional custom prompt builder function
         
         # Extraction parameters
@@ -116,6 +121,14 @@ def explain(
         >>> print(model_stats.keys())
     """
     
+    # Auto-determine system prompt if not provided
+    if system_prompt is None:
+        # Check if data contains score/preference information
+        contains_score = _check_contains_score(df, method)
+        system_prompt = get_default_system_prompt(method, contains_score)
+        if verbose:
+            print(f"Auto-selected system prompt for method '{method}' (contains_score={contains_score})")
+    
     # Create PropertyDataset from input DataFrame
     dataset = PropertyDataset.from_dataframe(df, method=method)
     
@@ -175,6 +188,9 @@ def explain(
             wandb_project=wandb_project,
             include_embeddings=include_embeddings,
             verbose=verbose,
+            extraction_cache_dir=extraction_cache_dir,
+            clustering_cache_dir=clustering_cache_dir,
+            metrics_cache_dir=metrics_cache_dir,
             **kwargs
         )
     
@@ -187,7 +203,7 @@ def explain(
     
     # 5️⃣  Save results if output_dir is provided
     if output_dir is not None:
-        _save_results_to_dir(result_dataset, clustered_df, model_stats, output_dir, verbose)
+        _save_results_to_dir(result_dataset, clustered_df, model_stats, output_dir, verbose, pipeline)
     
     # Log accumulated summary metrics from pipeline stages
     if use_wandb and hasattr(pipeline, 'log_final_summary'):
@@ -198,6 +214,35 @@ def explain(
         _log_final_results_to_wandb(clustered_df, model_stats)
     
     return clustered_df, model_stats
+
+
+def _check_contains_score(df: pd.DataFrame, method: str) -> bool:
+    """
+    Check if the DataFrame contains score/preference information.
+    
+    Args:
+        df: Input DataFrame
+        method: Analysis method
+        
+    Returns:
+        True if the data contains scores, False otherwise
+    """
+    if method == "side_by_side":
+        if "score" in df.columns:
+            # Check if score column has any non-empty, non-None values
+            return df["score"].notna().any() and (df["score"] != {}).any()
+        return False
+    
+    elif method == "single_model":
+        # Check for score column
+        if "score" in df.columns:
+            # Check if score column has any non-empty, non-None values
+            return df["score"].notna().any() and (df["score"] != {}).any()
+        return False
+    
+    else:
+        # Default to False for unknown methods
+        return False
 
 
 def _build_default_pipeline(
@@ -219,6 +264,9 @@ def _build_default_pipeline(
     wandb_project: Optional[str],
     include_embeddings: bool,
     verbose: bool,
+    extraction_cache_dir: Optional[str] = None,
+    clustering_cache_dir: Optional[str] = None,
+    metrics_cache_dir: Optional[str] = None,
     **kwargs
 ) -> Pipeline:
     """
@@ -246,16 +294,22 @@ def _build_default_pipeline(
     }
     
     # 1. Property extraction stage
-    extractor = get_extractor(
-        model_name=model_name,
-        system_prompt=system_prompt,
-        prompt_builder=prompt_builder,
-        temperature=temperature,
-        top_p=top_p,
-        max_tokens=max_tokens,
-        max_workers=max_workers,
+    extractor_kwargs = {
+        'model_name': model_name,
+        'system_prompt': system_prompt,
+        'prompt_builder': prompt_builder,
+        'temperature': temperature,
+        'top_p': top_p,
+        'max_tokens': max_tokens,
+        'max_workers': max_workers,
         **common_config
-    )
+    }
+    
+    # Add cache directory for extraction if provided
+    if extraction_cache_dir:
+        extractor_kwargs['cache_dir'] = extraction_cache_dir
+    
+    extractor = get_extractor(**extractor_kwargs)
     builder.extract_properties(extractor)
     
     # 2. JSON parsing stage
@@ -267,27 +321,38 @@ def _build_default_pipeline(
     builder.add_stage(validator)
     
     # 4. Clustering stage
+    clusterer_kwargs = {
+        'min_cluster_size': min_cluster_size,
+        'embedding_model': embedding_model,
+        'hierarchical': hierarchical,
+        'assign_outliers': assign_outliers,
+        'include_embeddings': include_embeddings,
+        **common_config
+    }
+    
+    # Add cache directory for clustering if provided
+    if clustering_cache_dir:
+        clusterer_kwargs['cache_dir'] = clustering_cache_dir
+    
     if isinstance(clusterer, str):
-        clusterer_stage = get_clusterer(
-            clusterer,
-            min_cluster_size=min_cluster_size,
-            embedding_model=embedding_model,
-            hierarchical=hierarchical,
-            assign_outliers=assign_outliers,
-            include_embeddings=include_embeddings,
-            **common_config
-        )
+        clusterer_stage = get_clusterer(clusterer, **clusterer_kwargs)
     else:
         clusterer_stage = clusterer
     
     builder.cluster_properties(clusterer_stage)
     
     # 5. Metrics computation stage
-    metrics_stage = get_metrics(
-        method,
+    metrics_kwargs = {
+        'method': method,
         **(metrics_kwargs or {}),
         **common_config
-    )
+    }
+    
+    # Add cache directory for metrics if provided
+    if metrics_cache_dir:
+        metrics_kwargs['cache_dir'] = metrics_cache_dir
+    
+    metrics_stage = get_metrics(**metrics_kwargs)
     builder.compute_metrics(metrics_stage)
     
     # Build and return the pipeline
@@ -371,25 +436,29 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
                 if "fine" in stats and wandb.run is not None:
                     fine_stats = stats["fine"]
                     avg_score = sum(stat.score for stat in fine_stats) / len(fine_stats)
-                    avg_quality_score = sum(stat.quality_score for stat in fine_stats) / len(fine_stats)
+                    # avg_quality_score = sum(stat.quality_score for stat in fine_stats) / len(fine_stats)
                     total_size = sum(stat.size for stat in fine_stats)
                     
                     # Log summary statistics for this model as summary metrics
                     wandb.run.summary[f"model_{model_name}_fine_clusters_count"] = len(fine_stats)
                     wandb.run.summary[f"model_{model_name}_avg_score"] = avg_score
-                    wandb.run.summary[f"model_{model_name}_avg_quality_score"] = avg_quality_score
+                    # wandb.run.summary[f"model_{model_name}_avg_quality_score"] = avg_quality_score
                     wandb.run.summary[f"model_{model_name}_total_size"] = total_size
                     wandb.run.summary[f"model_{model_name}_max_score"] = max(stat.score for stat in fine_stats)
                     wandb.run.summary[f"model_{model_name}_min_score"] = min(stat.score for stat in fine_stats)
-                    wandb.run.summary[f"model_{model_name}_max_quality_score"] = max(stat.quality_score for stat in fine_stats)
-                    wandb.run.summary[f"model_{model_name}_min_quality_score"] = min(stat.quality_score for stat in fine_stats)
+                    for key in fine_stats[0].quality_score.keys():
+                        wandb.run.summary[f"model_{model_name}_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in fine_stats)
+                        wandb.run.summary[f"model_{model_name}_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in fine_stats)
                     
                     if "coarse" in stats:
                         coarse_stats = stats["coarse"]
-                        coarse_avg_quality_score = sum(stat.quality_score for stat in coarse_stats) / len(coarse_stats)
+                        # coarse_avg_quality_score = sum(stat.quality_score for stat in coarse_stats) / len(coarse_stats)
                         wandb.run.summary[f"model_{model_name}_coarse_clusters_count"] = len(coarse_stats)
                         wandb.run.summary[f"model_{model_name}_coarse_avg_score"] = sum(stat.score for stat in coarse_stats) / len(coarse_stats)
-                        wandb.run.summary[f"model_{model_name}_coarse_avg_quality_score"] = coarse_avg_quality_score
+                        # wandb.run.summary[f"model_{model_name}_coarse_avg_quality_score"] = coarse_avg_quality_score
+                        for key in coarse_stats[0].quality_score.keys():
+                            wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in coarse_stats)
+                            wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in coarse_stats)
         
         print("✅ Successfully logged detailed model statistics to wandb")
         print(f"   • Dataset summary metrics")
@@ -408,7 +477,8 @@ def _save_results_to_dir(
     clustered_df: pd.DataFrame,
     model_stats: Dict[str, Any],
     output_dir: str,
-    verbose: bool = True
+    verbose: bool = True,
+    pipeline: Optional[Pipeline] = None
 ):
     """Save results to the specified output directory."""
     import pathlib
@@ -456,7 +526,63 @@ def _save_results_to_dir(
     if verbose:
         print(f"  ✓ Saved model statistics (JSON): {stats_path}")
     
-    # 5. Save summary statistics
+    # 5. Save parsing failures if pipeline is provided
+    if pipeline:
+        # Find the LLMJsonParser stage
+        from .postprocess import LLMJsonParser
+        parser_stage = None
+        for stage in pipeline.stages:
+            if isinstance(stage, LLMJsonParser):
+                parser_stage = stage
+                break
+        
+        if parser_stage and hasattr(parser_stage, 'get_parsing_failures'):
+            failures = parser_stage.get_parsing_failures()
+            if failures:
+                # Convert failures to serializable format
+                serializable_failures = []
+                for failure in failures:
+                    # Convert any non-serializable objects to strings
+                    serializable_failure = {
+                        'property_id': failure['property_id'],
+                        'question_id': failure['question_id'],
+                        'model': str(failure['model']),
+                        'raw_response': failure['raw_response'],
+                        'error_type': failure['error_type'],
+                        'error_message': failure['error_message'],
+                        'consecutive_errors': failure['consecutive_errors'],
+                        'index': failure['index']
+                    }
+                    
+                    # Add optional fields if they exist
+                    if 'parsed_json' in failure:
+                        serializable_failure['parsed_json'] = failure['parsed_json']
+                    if 'property_dict' in failure:
+                        serializable_failure['property_dict'] = failure['property_dict']
+                    
+                    serializable_failures.append(serializable_failure)
+                
+                # Save parsing failures
+                failures_path = output_path / "parsing_failures.json"
+                with open(failures_path, 'w') as f:
+                    json.dump(serializable_failures, f, indent=2)
+                
+                if verbose:
+                    print(f"  ✓ Saved parsing failures: {failures_path}")
+                    print(f"    • Total parsing failures: {len(serializable_failures)}")
+                    
+                    # Show summary of error types
+                    error_types = {}
+                    for failure in serializable_failures:
+                        error_type = failure['error_type']
+                        error_types[error_type] = error_types.get(error_type, 0) + 1
+                    
+                    if error_types:
+                        print(f"    • Error types:")
+                        for error_type, count in error_types.items():
+                            print(f"      - {error_type}: {count}")
+    
+    # 6. Save summary statistics
     summary_path = output_path / "summary.txt"
     with open(summary_path, 'w') as f:
         f.write("LMM-Vibes Results Summary\n")
@@ -479,6 +605,7 @@ def _save_results_to_dir(
         f.write(f"  - full_dataset.json: Complete PropertyDataset object (JSON format)\n")
         f.write(f"  - full_dataset.parquet: Complete PropertyDataset object (parquet format)\n")
         f.write(f"  - model_stats.json: Model statistics and rankings\n")
+        f.write(f"  - parsing_failures.json: Detailed parsing failure information\n")
         f.write(f"  - summary.txt: This summary file\n")
         
         # Model rankings
@@ -498,13 +625,14 @@ def _save_results_to_dir(
         print(f"    • DataFrame: clustered_results.parquet")
         print(f"    • PropertyDataset: full_dataset.json + full_dataset.parquet")
         print(f"    • Model stats: model_stats.json")
+        print(f"    • Parsing failures: parsing_failures.json")
         print(f"    • Summary: summary.txt")
 
 
 # Convenience functions for common use cases
 def explain_side_by_side(
     df: pd.DataFrame,
-    system_prompt: str = "one_sided_system_prompt",
+    system_prompt: str = None,
     **kwargs
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
@@ -512,7 +640,7 @@ def explain_side_by_side(
     
     Args:
         df: DataFrame with columns: model_a, model_b, model_a_response, model_b_response, winner
-        system_prompt: System prompt for extraction
+        system_prompt: System prompt for extraction (if None, will be auto-determined)
         **kwargs: Additional arguments passed to explain()
         
     Returns:
@@ -523,7 +651,7 @@ def explain_side_by_side(
 
 def explain_single_model(
     df: pd.DataFrame,
-    system_prompt: str = "single_model_system_prompt",
+    system_prompt: str = None,
     **kwargs
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
@@ -531,7 +659,7 @@ def explain_single_model(
     
     Args:
         df: DataFrame with columns: model, model_response, score
-        system_prompt: System prompt for extraction
+        system_prompt: System prompt for extraction (if None, will be auto-determined)
         **kwargs: Additional arguments passed to explain()
         
     Returns:
@@ -543,17 +671,190 @@ def explain_single_model(
 def explain_with_custom_pipeline(
     df: pd.DataFrame,
     pipeline: Pipeline,
-    method: str = "side_by_side"
+    method: str = "single_model"
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Run explanation with a custom pipeline.
+    Explain model behavior using a custom pipeline.
     
     Args:
-        df: Input DataFrame
-        pipeline: Custom Pipeline instance
-        method: Data format method
+        df: DataFrame with conversation data
+        pipeline: Custom pipeline to use
+        method: "side_by_side" or "single_model"
         
     Returns:
         Tuple of (clustered_df, model_stats)
     """
-    return explain(df, method=method, custom_pipeline=pipeline) 
+    dataset = PropertyDataset.from_dataframe(df, method=method)
+    result_dataset = pipeline.run(dataset)
+    return result_dataset.to_dataframe(), result_dataset.model_stats
+
+
+def compute_metrics_only(
+    input_path: str,
+    method: str = "single_model",
+    output_dir: Optional[str] = None,
+    metrics_kwargs: Optional[Dict[str, Any]] = None,
+    use_wandb: bool = False,
+    verbose: bool = True
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Run only the metrics computation stage on existing pipeline results.
+    
+    This function loads existing pipeline results (from extraction and clustering stages)
+    and runs only the metrics computation stage. Useful for:
+    - Recomputing metrics with different parameters
+    - Running metrics on results from previous pipeline runs
+    - Debugging metrics computation without re-running the full pipeline
+    
+    Args:
+        input_path: Path to existing pipeline results (file or directory)
+        method: "single_model" or "side_by_side"
+        output_dir: Directory to save metrics results (optional)
+        metrics_kwargs: Additional arguments for metrics computation
+        use_wandb: Whether to enable wandb logging
+        verbose: Whether to print verbose output
+        
+    Returns:
+        Tuple of (clustered_df, model_stats)
+        
+    Example:
+        >>> from lmmvibes import compute_metrics_only
+        >>> 
+        >>> # Run metrics on existing pipeline results
+        >>> clustered_df, model_stats = compute_metrics_only(
+        ...     input_path="results/previous_run/full_dataset.json",
+        ...     method="single_model",
+        ...     output_dir="results/metrics_only"
+        ... )
+        >>> 
+        >>> # Or run on a directory containing pipeline outputs
+        >>> clustered_df, model_stats = compute_metrics_only(
+        ...     input_path="results/previous_run/",
+        ...     method="side_by_side"
+        ... )
+    """
+    from pathlib import Path
+    from .metrics import get_metrics
+    from .pipeline import Pipeline
+    import json
+    
+    input_path = Path(input_path)
+    
+    # Load existing dataset
+    if input_path.is_dir():
+        # Try to load from a directory containing pipeline outputs
+        possible_files = [
+            input_path / "full_dataset.json",
+            input_path / "full_dataset.parquet", 
+            input_path / "clustered_results.parquet",
+            input_path / "dataset.json",
+            input_path / "dataset.parquet"
+        ]
+        
+        for file_path in possible_files:
+            if file_path.exists():
+                if verbose:
+                    print(f"Loading from: {file_path}")
+                dataset = PropertyDataset.load(str(file_path))
+                break
+        else:
+            raise FileNotFoundError(f"No recognizable dataset file found in {input_path}")
+    
+    elif input_path.is_file():
+        # Load from a specific file
+        if verbose:
+            print(f"Loading from: {input_path}")
+        dataset = PropertyDataset.load(str(input_path))
+    
+    else:
+        raise FileNotFoundError(f"Input path does not exist: {input_path}")
+    
+    # Verify we have the required data for metrics
+    if not dataset.clusters:
+        raise ValueError("No clusters found in the dataset. Metrics computation requires clustered data.")
+    
+    if not dataset.properties:
+        raise ValueError("No properties found in the dataset. Metrics computation requires extracted properties.")
+    
+    if verbose:
+        print(f"Loaded dataset with:")
+        print(f"  - {len(dataset.conversations)} conversations")
+        print(f"  - {len(dataset.properties)} properties")
+        print(f"  - {len(dataset.clusters)} clusters")
+        print(f"  - Models: {dataset.all_models}")
+    
+    # Create metrics stage
+    metrics_config = {
+        'method': method,
+        'use_wandb': use_wandb,
+        'verbose': verbose,
+        **(metrics_kwargs or {})
+    }
+    
+    # Add output directory if provided
+    if output_dir:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        metrics_config['output_dir'] = str(output_path)
+    
+    metrics_stage = get_metrics(**metrics_config)
+    
+    # Create a minimal pipeline with just the metrics stage
+    pipeline = Pipeline("Metrics-Only", [metrics_stage])
+    
+    # Run metrics computation
+    if verbose:
+        print("\n" + "="*60)
+        print("COMPUTING METRICS")
+        print("="*60)
+    
+    result_dataset = pipeline.run(dataset)
+    
+    # Convert back to DataFrame format
+    clustered_df = result_dataset.to_dataframe()
+    model_stats = result_dataset.model_stats
+    
+    # Save results if output_dir is provided
+    if output_dir:
+        if verbose:
+            print(f"\nSaving results to: {output_dir}")
+        
+        # 1. Save clustered DataFrame as parquet
+        clustered_parquet_path = output_path / "metrics_results.parquet"
+        clustered_df.to_parquet(clustered_parquet_path, index=False)
+        if verbose:
+            print(f"  ✓ Saved metrics DataFrame (parquet): {clustered_parquet_path}")
+        
+        # 2. Save complete PropertyDataset as JSON
+        dataset_json_path = output_path / "metrics_dataset.json"
+        result_dataset.save(str(dataset_json_path), format="json")
+        if verbose:
+            print(f"  ✓ Saved metrics PropertyDataset (JSON): {dataset_json_path}")
+        
+        # 3. Save model statistics as JSON
+        stats_path = output_path / "metrics_stats.json"
+        
+        # Convert ModelStats objects to dictionaries for JSON serialization
+        stats_for_json = {}
+        for model_name, stats in model_stats.items():
+            stats_for_json[str(model_name)] = {
+                "fine": [stat.to_dict() for stat in stats["fine"]]
+            }
+            if "coarse" in stats:
+                stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
+        
+        with open(stats_path, 'w') as f:
+            json.dump(stats_for_json, f, indent=2)
+        if verbose:
+            print(f"  ✓ Saved model statistics (JSON): {stats_path}")
+        
+        # Print summary
+        if verbose:
+            print(f"\n📊 Metrics Summary:")
+            print(f"  - Models analyzed: {len(model_stats)}")
+            for model_name, stats in model_stats.items():
+                print(f"  - {model_name}: {len(stats['fine'])} fine clusters")
+                if 'coarse' in stats:
+                    print(f"    {len(stats['coarse'])} coarse clusters")
+    
+    return clustered_df, model_stats 
