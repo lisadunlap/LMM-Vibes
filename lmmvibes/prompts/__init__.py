@@ -7,8 +7,22 @@ This module contains system prompts and prompt utilities for property extraction
 from .extractor_prompts import (
     sbs_w_metrics_system_prompt,
     one_sided_system_prompt_no_examples,
+    search_enabled_system_prompt_no_examples,
+    webdev_system_prompt,
+    webdev_system_prompt_no_examples,
+    webdev_single_model_system_prompt,
     single_model_no_score_system_prompt,
-    single_model_system_prompt
+    single_model_system_prompt,
+)
+
+# Import agent-specific prompts for agentic environments
+from .agents import (
+    taubench_comparison_system_prompt,
+    taubench_system_prompt,
+    agentic_swe_system_prompt,
+    agentic_tool_focused_prompt,
+    agentic_reasoning_focused_prompt,
+    agentic_reward_hacking_focused_prompt
 )
 
 
@@ -42,8 +56,21 @@ def get_default_system_prompt(method: str, contains_score: bool = True) -> str:
 
 __all__ = [
     "get_default_system_prompt",
+    # Standard model comparison prompts
     "sbs_w_metrics_system_prompt",
-    "one_sided_system_prompt_no_examples", 
+    "one_sided_system_prompt_no_examples",
+    "search_enabled_system_prompt_no_examples",
+    # Web development prompts
+    "webdev_system_prompt",
+    "webdev_system_prompt_no_examples", 
+    "webdev_single_model_system_prompt",
+    # Single model prompts
     "single_model_no_score_system_prompt",
-    "single_model_system_prompt"
+    "single_model_system_prompt",
+    # Agent-specific prompts for agentic environments
+    "taubench_comparison_system_prompt",
+    "taubench_system_prompt",
+    "agentic_swe_system_prompt",
+    "agentic_tool_focused_prompt",
+    "agentic_reasoning_focused_prompt"
 ] 

@@ -128,6 +128,14 @@ def explain(
         system_prompt = get_default_system_prompt(method, contains_score)
         if verbose:
             print(f"Auto-selected system prompt for method '{method}' (contains_score={contains_score})")
+
+    # Print the system prompt for verification
+    if verbose:
+        print("\n" + "="*80)
+        print("SYSTEM PROMPT")
+        print("="*80)
+        print(system_prompt)
+        print("="*80 + "\n")
     
     # Create PropertyDataset from input DataFrame
     dataset = PropertyDataset.from_dataframe(df, method=method)
@@ -196,6 +204,27 @@ def explain(
     
     # 4️⃣  Execute pipeline
     result_dataset = pipeline.run(dataset)
+
+       # Check for 0 properties before attempting to save
+    if len([p for p in result_dataset.properties if p.property_description is not None]) == 0:
+        raise RuntimeError(
+            "\n" + "="*60 + "\n"
+            "ERROR: Pipeline completed with 0 valid properties!\n"
+            "="*60 + "\n"
+            "This indicates that all property extraction attempts failed.\n"
+            "Common causes:\n\n"
+            "1. JSON PARSING FAILURES:\n"
+            "   - LLM returning natural language instead of JSON\n"
+            "   - Check logs above for 'Failed to parse JSON' errors\n\n"
+            "2. SYSTEM PROMPT MISMATCH:\n"
+            "   - Current system_prompt may not suit your data format\n"
+            "   - Try a different system_prompt parameter\n\n"
+            "3. API/MODEL ISSUES:\n"
+            "   - OpenAI API key invalid or quota exceeded\n"
+            "   - Model configuration problems\n\n"
+            "Cannot save results with 0 properties.\n"
+            "="*60
+        )
     
     # Convert back to DataFrame format
     clustered_df = result_dataset.to_dataframe()
@@ -447,8 +476,22 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
                     wandb.run.summary[f"model_{model_name}_max_score"] = max(stat.score for stat in fine_stats)
                     wandb.run.summary[f"model_{model_name}_min_score"] = min(stat.score for stat in fine_stats)
                     for key in fine_stats[0].quality_score.keys():
-                        wandb.run.summary[f"model_{model_name}_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in fine_stats)
-                        wandb.run.summary[f"model_{model_name}_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in fine_stats)
+                        # Check if quality_score[key] is a scalar or dict
+                        first_quality_value = fine_stats[0].quality_score[key]
+                        if isinstance(first_quality_value, (int, float)):
+                            # Handle scalar quality scores
+                            wandb.run.summary[f"model_{model_name}_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in fine_stats)
+                            wandb.run.summary[f"model_{model_name}_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in fine_stats)
+                        elif isinstance(first_quality_value, dict):
+                            # Handle nested dictionary quality scores
+                            for sub_key in first_quality_value.keys():
+                                try:
+                                    sub_values = [stat.quality_score[key][sub_key] for stat in fine_stats if sub_key in stat.quality_score[key]]
+                                    if sub_values and all(isinstance(v, (int, float)) for v in sub_values):
+                                        wandb.run.summary[f"model_{model_name}_max_quality_score_{key}_{sub_key}"] = max(sub_values)
+                                        wandb.run.summary[f"model_{model_name}_min_quality_score_{key}_{sub_key}"] = min(sub_values)
+                                except (KeyError, TypeError):
+                                    continue  # Skip if there are issues with this sub_key
                     
                     if "coarse" in stats:
                         coarse_stats = stats["coarse"]
@@ -457,8 +500,22 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
                         wandb.run.summary[f"model_{model_name}_coarse_avg_score"] = sum(stat.score for stat in coarse_stats) / len(coarse_stats)
                         # wandb.run.summary[f"model_{model_name}_coarse_avg_quality_score"] = coarse_avg_quality_score
                         for key in coarse_stats[0].quality_score.keys():
-                            wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in coarse_stats)
-                            wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in coarse_stats)
+                            # Check if quality_score[key] is a scalar or dict
+                            first_quality_value = coarse_stats[0].quality_score[key]
+                            if isinstance(first_quality_value, (int, float)):
+                                # Handle scalar quality scores
+                                wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in coarse_stats)
+                                wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in coarse_stats)
+                            elif isinstance(first_quality_value, dict):
+                                # Handle nested dictionary quality scores
+                                for sub_key in first_quality_value.keys():
+                                    try:
+                                        sub_values = [stat.quality_score[key][sub_key] for stat in coarse_stats if sub_key in stat.quality_score[key]]
+                                        if sub_values and all(isinstance(v, (int, float)) for v in sub_values):
+                                            wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}_{sub_key}"] = max(sub_values)
+                                            wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}_{sub_key}"] = min(sub_values)
+                                    except (KeyError, TypeError):
+                                        continue  # Skip if there are issues with this sub_key
         
         print("✅ Successfully logged detailed model statistics to wandb")
         print(f"   • Dataset summary metrics")
@@ -491,43 +548,80 @@ def _save_results_to_dir(
     if verbose:
         print(f"Saving results to: {output_path}")
     
-    # 1. Save clustered DataFrame as parquet
-    clustered_parquet_path = output_path / "clustered_results.parquet"
-    
-    # Convert problematic columns to strings to avoid parquet serialization issues
-    df_for_parquet = clustered_df.copy()
-    for col in df_for_parquet.columns:
-        if df_for_parquet[col].dtype == 'object':
-            # Convert complex objects to strings
-            df_for_parquet[col] = df_for_parquet[col].astype(str)
+    # 1. Save clustered DataFrame as JSON (primary format - preserves data structures)
+    clustered_json_path = output_path / "clustered_results.json"
     
     try:
-        df_for_parquet.to_parquet(clustered_parquet_path, index=False)
+        # Save as JSON with proper handling of nested structures
+        clustered_df.to_json(clustered_json_path, orient='records', lines=True, force_ascii=False)
+        if verbose:
+            print(f"  ✓ Saved clustered DataFrame (JSON): {clustered_json_path}")
+    except Exception as e:
+        if verbose:
+            print(f"  ⚠️ Failed to save JSON: {e}")
+    
+    # 2. Save clustered DataFrame as parquet (secondary format - for efficiency)
+    clustered_parquet_path = output_path / "clustered_results.parquet"
+    
+    # For parquet, exclude columns with complex nested data that can't be reliably serialized
+    df_for_parquet = clustered_df.copy()
+    
+    # Identify problematic columns (those with nested dicts/lists)
+    problematic_cols = []
+    for col in df_for_parquet.columns:
+        if df_for_parquet[col].dtype == 'object':
+            # Check if column contains nested structures
+            sample_non_null = df_for_parquet[col].dropna()
+            if len(sample_non_null) > 0:
+                sample_val = sample_non_null.iloc[0]
+                if isinstance(sample_val, (dict, list)):
+                    problematic_cols.append(col)
+                    continue
+                # Also check if it's a string representation of nested data
+                if isinstance(sample_val, str) and (sample_val.startswith('{') or sample_val.startswith('[')):
+                    try:
+                        import ast
+                        ast.literal_eval(sample_val)  # If this works, it's probably nested data as string
+                        problematic_cols.append(col)
+                        continue
+                    except:
+                        pass  # Not nested data, keep the column
+    
+    # Remove problematic columns and save a note about what was excluded
+    if problematic_cols:
+        df_for_parquet = df_for_parquet.drop(columns=problematic_cols)
+        if verbose:
+            print(f"  ⚠️  Excluding columns with nested data from parquet: {problematic_cols}")
+            print(f"  💡 Use clustered_results.json for complete data with nested structures")
+    
+    try:
+        df_for_parquet.to_parquet(clustered_parquet_path, index=False, engine='pyarrow')
         if verbose:
             print(f"  ✓ Saved clustered DataFrame (parquet): {clustered_parquet_path}")
+            if problematic_cols:
+                print(f"    Note: {len(problematic_cols)} columns with nested data excluded")
     except Exception as e:
         if verbose:
             print(f"  ⚠️ Failed to save parquet: {e}")
             print(f"  📄 Saving as CSV instead...")
-        # Fallback to CSV if parquet fails
+        # Fallback to CSV if parquet still fails
         csv_path = output_path / "clustered_results.csv"
-        df_for_parquet.to_csv(csv_path, index=False)
-        if verbose:
-            print(f"  ✓ Saved clustered DataFrame (CSV): {csv_path}")
+        try:
+            df_for_parquet.to_csv(csv_path, index=False)
+            if verbose:
+                print(f"  ✓ Saved clustered DataFrame (CSV): {csv_path}")
+        except Exception as csv_e:
+            if verbose:
+                print(f"  ❌ Failed to save CSV: {csv_e}")
+                print(f"  💡 Data available in JSON format: {clustered_json_path}")
     
-    # 2. Save complete PropertyDataset as JSON
+    # 3. Save complete PropertyDataset as JSON
     dataset_json_path = output_path / "full_dataset.json"
     result_dataset.save(str(dataset_json_path), format="json")
     if verbose:
         print(f"  ✓ Saved full PropertyDataset (JSON): {dataset_json_path}")
     
-    # 3. Save complete PropertyDataset as parquet
-    dataset_parquet_path = output_path / "full_dataset.parquet"
-    result_dataset.save(str(dataset_parquet_path), format="parquet")
-    if verbose:
-        print(f"  ✓ Saved full PropertyDataset (parquet): {dataset_parquet_path}")
-    
-    # 4. Save model statistics as JSON
+    # 5. Save model statistics as JSON
     stats_path = output_path / "model_stats.json"
     
     # Convert ModelStats objects to dictionaries for JSON serialization
@@ -544,7 +638,7 @@ def _save_results_to_dir(
     if verbose:
         print(f"  ✓ Saved model statistics (JSON): {stats_path}")
     
-    # 5. Save parsing failures if pipeline is provided
+    # 6. Save parsing failures if pipeline is provided
     if pipeline:
         # Find the LLMJsonParser stage
         from .postprocess import LLMJsonParser
@@ -600,7 +694,7 @@ def _save_results_to_dir(
                         for error_type, count in error_types.items():
                             print(f"      - {error_type}: {count}")
     
-    # 6. Save summary statistics
+    # 7. Save summary statistics
     summary_path = output_path / "summary.txt"
     with open(summary_path, 'w') as f:
         f.write("LMM-Vibes Results Summary\n")
@@ -619,7 +713,8 @@ def _save_results_to_dir(
             f.write(f"Coarse clusters: {n_coarse_clusters}\n")
         
         f.write(f"\nFiles saved:\n")
-        f.write(f"  - clustered_results.parquet: Complete DataFrame with clusters\n")
+        f.write(f"  - clustered_results.json: Complete DataFrame with clusters (JSON)\n")
+        f.write(f"  - clustered_results.parquet: Complete DataFrame with clusters (parquet)\n")
         f.write(f"  - full_dataset.json: Complete PropertyDataset object (JSON format)\n")
         f.write(f"  - full_dataset.parquet: Complete PropertyDataset object (parquet format)\n")
         f.write(f"  - model_stats.json: Model statistics and rankings\n")
@@ -640,7 +735,7 @@ def _save_results_to_dir(
     if verbose:
         print(f"  ✓ Saved summary: {summary_path}")
         print(f"🎉 All results saved to: {output_path}")
-        print(f"    • DataFrame: clustered_results.parquet")
+        print(f"    • DataFrame: clustered_results.json + clustered_results.parquet")
         print(f"    • PropertyDataset: full_dataset.json + full_dataset.parquet")
         print(f"    • Model stats: model_stats.json")
         print(f"    • Parsing failures: parsing_failures.json")

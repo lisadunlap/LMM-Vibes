@@ -192,10 +192,10 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
     
     def _compute_quality_score(self, group: pd.DataFrame) -> dict:
         """
-        Compute the quality score of a cluster for each score key:
+        Compute the quality score of a cluster for each score key and model:
         For each key, compute (average score in cluster for that model) / (average score for that model overall),
         for each model present in the cluster. Exclude models not present in the cluster.
-        Returns a dictionary where keys are the score keys.
+        Returns a dictionary where keys are the score keys and values are dictionaries of model -> ratio.
         """
         # Get all score keys from the first non-empty score dict
         score_keys = []
@@ -210,7 +210,7 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
         result = {}
         models_in_cluster = group["model"].unique()
         for key in score_keys:
-            ratios = []
+            model_ratios = {}
             for model in models_in_cluster:
                 model_rows = group[group["model"] == model]
                 # Average score for this model in this cluster
@@ -223,12 +223,10 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
                 except Exception:
                     model_avg = None
                 if model_avg and model_avg != 0:
-                    ratios.append(cluster_avg / model_avg)
-            # If no valid ratios, skip
-            if ratios:
-                result[key] = sum(ratios) / len(ratios)
-            else:
-                result[key] = 0
+                    model_ratios[model] = cluster_avg / model_avg
+                else:
+                    model_ratios[model] = 0
+            result[key] = model_ratios
         return result
 
     # ------------------------------------------------------------------

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Run the LMM-Vibes pipeline on the WebDev dataset.
+Run the LMM-Vibes pipeline on the Taubench airline dataset.
 
-This is a convenience script for running the full pipeline on the webdev dataset
+This is a convenience script for running the full pipeline on the taubench airline dataset
 with optimized parameters.
 """
 
@@ -10,15 +10,19 @@ import argparse
 import os
 from run_full_pipeline import run_pipeline
 import pandas as pd
+from lmmvibes.prompts import taubench_system_prompt
 
 def main():
-    """Main function for webdev dataset processing."""
-    parser = argparse.ArgumentParser(description="Run LMM-Vibes pipeline on WebDev dataset")
+    """Main function for taubench airline dataset processing."""
+    parser = argparse.ArgumentParser(description="Run LMM-Vibes pipeline on Taubench airline dataset")
     
     # Output directory
     parser.add_argument("--output_dir", type=str, 
-                        default="results/bigcodebench_full_pipeline",
-                        help="Output directory for results (default: results/bigcodebench_full_pipeline)")
+                        default="results/taubench_airline_full_pipeline",
+                        help="Output directory for results (default: results/taubench_airline_full_pipeline)")
+    parser.add_argument("--input_file", type=str,
+                        default="data/taubench/airline_data.jsonl",
+                        help="Input file for results (default: data/taubench/airline_data.jsonl)")
     
     # Optional overrides
     parser.add_argument("--sample_size", type=int, default=None,
@@ -46,28 +50,15 @@ def main():
     
     args = parser.parse_args()
     
-    # # Handle cache management
-    # if args.clear_cache:
-    #     import shutil
-    #     import os
-    #     cache_dir = os.path.expanduser("~/.cache/litellm")
-    #     if os.path.exists(cache_dir):
-    #         print(f"Clearing cache directory: {cache_dir}")
-    #         shutil.rmtree(cache_dir)
-    #         print("Cache cleared successfully")
-    
-    # if args.no_cache:
-    #     import os
-    #     os.environ["LITELLM_CACHE_ENABLED"] = "false"
-    #     print("Caching disabled")
-    
     # Set the data path
-    data_path = "data/helm/helm_bigcodebench_results_processed.jsonl"
+    data_path = args.input_file
     
     # Check if data exists
     if not os.path.exists(data_path):
-        print(f"Error: HELM dataset not found at {data_path}")
+        print(f"Error: Taubench airline dataset not found at {data_path}")
         print("Please make sure the dataset is available.")
+        print("You may need to run the data processing script first:")
+        print("  python scripts/data_processing/taubench.py")
         return
     
     if args.metrics_only:
@@ -178,7 +169,7 @@ def main():
         return
     
     print("="*60)
-    print("HELM DATASET PIPELINE")
+    print("TAUBENCH AIRLINE DATASET PIPELINE")
     print("="*60)
     print(f"Dataset: {data_path}")
     print(f"Output: {args.output_dir}")
@@ -188,12 +179,12 @@ def main():
         print("Using full dataset")
     print("="*60)
     
-    # Run pipeline with webdev-optimized parameters
+    # Run pipeline with taubench-optimized parameters
     pipeline_kwargs = {
         'data_path': data_path,
         'output_dir': args.output_dir,
         'method': "single_model",
-        'system_prompt': "single_model_system_prompt",
+        'system_prompt': taubench_system_prompt,
         'clusterer': "hdbscan",
         'min_cluster_size': args.min_cluster_size,
         'max_coarse_clusters': args.max_coarse_clusters,
@@ -207,7 +198,7 @@ def main():
     
     clustered_df, model_stats = run_pipeline(**pipeline_kwargs)
     
-    print(f"\n🎉 HELM pipeline completed! Results saved to: {args.output_dir}")
+    print(f"\n🎉 Taubench airline pipeline completed! Results saved to: {args.output_dir}")
     print(f"📄 Parsing failures saved to: {args.output_dir}/parsing_failures.json")
 
 

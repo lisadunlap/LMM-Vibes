@@ -7,7 +7,7 @@ Run with:
     streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir path/to/results/
 
 Where results_dir contains:
-    - clustered_results.parquet
+    - clustered_results.json
     - model_stats.json  
     - full_dataset.json (optional)
 """
@@ -59,14 +59,14 @@ def load_pipeline_results(results_dir: str):
         model_stats = json.load(f)
     
     # Load clustered results but only keep essential columns for overview
-    clustered_path = results_path / "clustered_results.parquet"
+    clustered_path = results_path / "clustered_results.json"
     csv_path = results_path / "clustered_results.csv"
     
     if not clustered_path.exists() and not csv_path.exists():
-        st.error(f"Neither clustered_results.parquet nor clustered_results.csv found in {results_dir}")
+        st.error(f"Neither clustered_results.json nor clustered_results.csv found in {results_dir}")
         st.stop()
     
-    # Try to load parquet first, then CSV as fallback
+    # Try to load json first, then CSV as fallback
     clustered_df = None
     
     if clustered_path.exists():
@@ -78,37 +78,12 @@ def load_pipeline_results(results_dir: str):
                 'coarse_cluster_id', 'coarse_cluster_label',
                 'score', 'id'  # property id for examples
             ]
-            clustered_df = pd.read_parquet(clustered_path, columns=essential_cols)
+            clustered_df = pd.read_json(clustered_path, lines=True)
         except Exception as e:
-            st.warning(f"Could not load parquet with essential columns: {e}")
+            st.warning(f"Could not load json with essential columns: {e}")
             st.info("Attempting to load all columns...")
-            
-            try:
-                # Try loading all columns
-                clustered_df = pd.read_parquet(clustered_path)
-            except Exception as e2:
-                st.warning(f"Failed to load parquet file: {e2}")
-                st.info("This might be due to nested data structures in the parquet file.")
-                st.info("Trying alternative loading method...")
-                
-                try:
-                    # Try with different engine
-                    import pyarrow.parquet as pq
-                    table = pq.read_table(clustered_path)
-                    clustered_df = table.to_pandas()
-                except Exception as e3:
-                    st.warning(f"All parquet loading methods failed: {e3}")
-                    clustered_df = None
-    
-    # If parquet failed, try CSV
-    if clustered_df is None and csv_path.exists():
-        st.info("Loading from CSV file instead...")
-        try:
-            clustered_df = pd.read_csv(csv_path)
-            st.success("Successfully loaded from CSV file")
-        except Exception as e:
-            st.error(f"Failed to load CSV file: {e}")
-            st.stop()
+            clustered_df = pd.read_json(clustered_path, lines=True)
+            st.success("Successfully loaded from json file")
     
     if clustered_df is None:
         st.error("Could not load clustered results from any available format")
@@ -123,26 +98,17 @@ def load_property_examples(results_path: Path, property_ids: List[str]):
         return pd.DataFrame()
         
     # Load full dataset to get prompt/response details
-    clustered_path = results_path / "clustered_results.parquet"
-    csv_path = results_path / "clustered_results.csv"
+    clustered_path = results_path / "clustered_results.json"
     
     full_df = None
     
-    # Try parquet first
+    # Try json first
     if clustered_path.exists():
         try:
-            full_df = pd.read_parquet(clustered_path)
+            full_df = pd.read_json(clustered_path, lines=True)
         except Exception as e:
-            st.warning(f"Failed to load examples from parquet: {e}")
+            st.warning(f"Failed to load examples from json: {e}")
             full_df = None
-    
-    # Try CSV as fallback
-    if full_df is None and csv_path.exists():
-        try:
-            full_df = pd.read_csv(csv_path)
-        except Exception as e:
-            st.error(f"Failed to load examples from CSV: {e}")
-            return pd.DataFrame()
     
     if full_df is None:
         st.error("Could not load example data from any available format")
@@ -154,36 +120,85 @@ def load_property_examples(results_path: Path, property_ids: List[str]):
 # Utility Functions
 # ---------------------------------------------------------------------------
 
+def scan_for_result_subfolders(base_dir: str) -> List[str]:
+    """Scan a directory for subfolders containing pipeline results"""
+    base_path = Path(base_dir)
+    if not base_path.exists() or not base_path.is_dir():
+        return []
+    
+    valid_subfolders = []
+    
+    # Check if the base directory itself contains results
+    if (base_path / "model_stats.json").exists() or (base_path / "clustered_results.json").exists():
+        valid_subfolders.append(".")  # Current directory
+    
+    # Check subdirectories
+    try:
+        for item in base_path.iterdir():
+            if item.is_dir():
+                # Check if this subdirectory contains pipeline results
+                has_model_stats = (item / "model_stats.json").exists()
+                has_clustered_results = (item / "clustered_results.json").exists()
+                
+                if has_model_stats or has_clustered_results:
+                    valid_subfolders.append(item.name)
+    except PermissionError:
+        pass  # Skip directories we can't read
+    
+    return sorted(valid_subfolders)
+
 def extract_quality_score(quality_score) -> float:
     """
     Extract a float quality score from quality_score field.
     
     Args:
-        quality_score: Either a float or a dictionary with score keys
+        quality_score: Either a float, int, dictionary, or nested structure with score keys
         
     Returns:
-        float: The quality score value
+        float: The quality score value, always guaranteed to be a float
     """
-    if isinstance(quality_score, dict):
-        # If it's a dictionary, take the first key's value
-        if quality_score:
-            return list(quality_score.values())[0]
-        else:
-            return 0.0
+    if quality_score is None:
+        return 0.0
     elif isinstance(quality_score, (int, float)):
         return float(quality_score)
-    else:
+    elif isinstance(quality_score, dict):
+        # Handle dictionary cases
+        if not quality_score:  # Empty dict
+            return 0.0
+        
+        # Try to extract a numeric value from the dictionary
+        for key, value in quality_score.items():
+            if isinstance(value, (int, float)):
+                return float(value)
+            elif isinstance(value, dict):
+                # Handle nested dictionaries recursively
+                nested_result = extract_quality_score(value)
+                if nested_result != 0.0:  # Found a valid value
+                    return nested_result
+        
+        # If no numeric values found, return 0.0
         return 0.0
+    else:
+        # For any other type, try to convert to float, fallback to 0.0
+        try:
+            return float(quality_score)
+        except (ValueError, TypeError):
+            return 0.0
 
 
 # Test the helper function
 if __name__ == "__main__":
-    # Test cases
+    # Test cases for extract_quality_score
     assert extract_quality_score(0.5) == 0.5
+    assert extract_quality_score(5) == 5.0  # Test integer
     assert extract_quality_score({"pass at one": 0.8}) == 0.8
-    assert extract_quality_score({"accuracy": 0.9, "helpfulness": 0.7}) == 0.9  # First key
+    assert extract_quality_score({"accuracy": 0.9, "helpfulness": 0.7}) == 0.9  # First numeric value
     assert extract_quality_score({}) == 0.0
     assert extract_quality_score(None) == 0.0
+    assert extract_quality_score({"nested": {"inner": 0.75}}) == 0.75  # Nested dict
+    assert extract_quality_score({"non_numeric": "text", "score": 0.6}) == 0.6  # Mixed types
+    assert extract_quality_score("0.5") == 0.5  # String that can be converted
+    assert extract_quality_score("invalid") == 0.0  # String that can't be converted
     print("✅ All extract_quality_score tests passed!")
 
 def compute_model_rankings(model_stats: Dict[str, Any]) -> List[tuple]:
@@ -218,6 +233,41 @@ def get_top_clusters_for_model(model_stats: Dict[str, Any], model_name: str,
 # UI Components
 # ---------------------------------------------------------------------------
 
+def split_conversation_at_user(prompt_text: str) -> tuple[str, str]:
+    """
+    Split conversation text at user marker.
+    
+    Args:
+        prompt_text: The full prompt text that may contain metadata
+        
+    Returns:
+        tuple: (metadata_before_user, conversation_after_user)
+    """
+    if not isinstance(prompt_text, str):
+        return "", str(prompt_text)
+    
+    # Look for various user markers (with and without bold formatting)
+    user_markers = ["**user:**", "user:", "**User:**", "User:"]
+    
+    for marker in user_markers:
+        if marker in prompt_text:
+            parts = prompt_text.split(marker, 1)  # Split only on first occurrence
+            metadata = parts[0].strip()
+            conversation = marker + parts[1].strip() if len(parts) > 1 else ""
+            return metadata, conversation
+    
+    # If no user marker found, also check for assistant marker as fallback
+    assistant_markers = ["**assistant:**", "assistant:", "**Assistant:**", "Assistant:"]
+    for marker in assistant_markers:
+        if marker in prompt_text:
+            parts = prompt_text.split(marker, 1)
+            metadata = parts[0].strip()
+            conversation = marker + parts[1].strip() if len(parts) > 1 else ""
+            return metadata, conversation
+    
+    # No markers found, treat entire text as conversation
+    return "", prompt_text
+
 def show_cluster_examples(cluster_label: str, model_name: str, model_stats: Dict[str, Any], 
                          results_path: Path, level: str = 'fine'):
     """Show examples using the pre-stored property IDs"""
@@ -249,17 +299,36 @@ def show_cluster_examples(cluster_label: str, model_name: str, model_stats: Dict
     
     for i, (_, row) in enumerate(examples_df.iterrows(), 1):
         with st.expander(f"Example {i}: {row.get('id', 'Unknown')[:12]}..."):
-            st.write("**Prompt:**")
+            # Get the prompt and response
             prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
-            st.write(prompt)
             
-            st.write("**Model Response:**")
-            # Handle different response column formats
+            # Get the model response and split it if it contains metadata
             response = (row.get('model_response') or 
                       row.get('model_a_response') or 
                       row.get('model_b_response') or 
                       row.get('responses', 'N/A'))
-            st.write(response)
+            
+            # Debug: Print the full response to terminal to see its format
+            print(f"\n{'='*80}")
+            print(f"DEBUG: Full response for example {i}")
+            print(f"{'='*80}")
+            print(response)
+            print(f"{'='*80}\n")
+            
+            metadata, conversation = split_conversation_at_user(response)
+            
+            st.write("**Prompt:**")
+            st.text(prompt)
+            
+            # Display metadata if it exists
+            if metadata:
+                st.markdown("**📋 Metadata & Context:**")
+                st.markdown(metadata)
+                st.divider()
+            
+            # Display the conversation
+            st.markdown("**💬 Conversation:**")
+            st.markdown(conversation)
             
             st.write("**Score:**")
             score = row.get('score', 'N/A')
@@ -406,16 +475,76 @@ def main():
             results_dir = st.text_input(
                 "Results Directory", 
                 placeholder="path/to/results/",
-                help="Directory containing clustered_results.parquet and model_stats.json"
+                help="Directory containing pipeline results directly, or parent directory with result subfolders"
             )
         
         if not results_dir:
             st.info("Please provide a results directory to begin")
             st.stop()
         
+        # Determine final results path based on whether subfolders exist
+        final_results_dir = results_dir
+        
+        # Scan for valid subfolders
+        valid_subfolders = scan_for_result_subfolders(results_dir)
+        
+        # Check if the base directory itself contains results
+        base_path = Path(results_dir)
+        has_direct_results = (base_path / "model_stats.json").exists() or (base_path / "clustered_results.json").exists()
+        
+        if len(valid_subfolders) > 1 or (len(valid_subfolders) == 1 and valid_subfolders[0] != "."):
+            # Multiple options available, show selection
+            st.subheader("📁 Select Results Folder")
+            
+            # Show count of found folders
+            folder_count = len([f for f in valid_subfolders if f != "."]) + (1 if has_direct_results else 0)
+            st.caption(f"Found {folder_count} pipeline result folder(s)")
+            
+            # Prepare options for display
+            folder_options = []
+            folder_values = []
+            
+            if has_direct_results:
+                folder_options.append(f"📊 {Path(results_dir).name} (current directory)")
+                folder_values.append(".")
+            
+            for subfolder in valid_subfolders:
+                if subfolder != ".":
+                    folder_options.append(f"📁 {subfolder}")
+                    folder_values.append(subfolder)
+            
+            if folder_options:
+                selected_idx = st.selectbox(
+                    "Choose results to load:",
+                    range(len(folder_options)),
+                    format_func=lambda x: folder_options[x],
+                    help="Select which set of pipeline results to analyze"
+                )
+                
+                selected_folder = folder_values[selected_idx]
+                if selected_folder != ".":
+                    final_results_dir = str(Path(results_dir) / selected_folder)
+                    st.success(f"Selected: {selected_folder}")
+                else:
+                    st.info(f"Using current directory: {Path(results_dir).name}")
+            else:
+                st.error(f"No valid pipeline results found in {results_dir}")
+                st.stop()
+                
+        elif has_direct_results:
+            # Only direct results available
+            st.info(f"Loading results from: {Path(results_dir).name}")
+        else:
+            # No results found anywhere
+            st.error(f"No pipeline results found in {results_dir}")
+            st.info("Please ensure the directory contains either:")
+            st.info("• model_stats.json and clustered_results.json files")
+            st.info("• Subfolders containing these files")
+            st.stop()
+        
         # Load data
         try:
-            clustered_df, model_stats, results_path = load_pipeline_results(results_dir)
+            clustered_df, model_stats, results_path = load_pipeline_results(final_results_dir)
             st.session_state.results_path = results_path
         except Exception as e:
             st.error(f"Error loading results: {e}")
@@ -424,9 +553,15 @@ def main():
         # Basic info
         st.write(f"**Models:** {len(model_stats)}")
         st.write(f"**Properties:** {len(clustered_df):,}")
+        
+        # Show cluster counts for both fine and coarse levels
         if 'fine_cluster_id' in clustered_df.columns:
-            n_clusters = clustered_df['fine_cluster_id'].nunique()
-            st.write(f"**Clusters:** {n_clusters}")
+            n_fine_clusters = clustered_df['fine_cluster_id'].nunique()
+            st.write(f"**Fine Clusters:** {n_fine_clusters}")
+        
+        if 'coarse_cluster_id' in clustered_df.columns:
+            n_coarse_clusters = clustered_df['coarse_cluster_id'].nunique()
+            st.write(f"**Coarse Clusters:** {n_coarse_clusters}")
         
         st.divider()
         
@@ -534,6 +669,10 @@ def main():
                                 cluster_size_global = cluster.get('cluster_size_global', 0)  # Total across all models
                                 quality_score = extract_quality_score(cluster.get('quality_score', 0))  # Quality score
                                 
+                                # Additional safety check to ensure quality_score is a float
+                                if not isinstance(quality_score, (int, float)):
+                                    quality_score = 0.0
+                                
                                 # Calculate distinctiveness (using score as proxy)
                                 distinctiveness = cluster.get('score', 1.0)
                                 
@@ -575,7 +714,7 @@ def main():
                 cluster_df_data = []
                 for cluster in clusters[:top_n_clusters]:
                     cluster_df_data.append({
-                        'Cluster': cluster['property_description'][:80] + ('...' if len(cluster['property_description']) > 80 else ''),
+                        'Cluster': cluster['property_description'],  # Show full text, no truncation
                         'Score': f"{cluster['score']:.3f}",
                         'Size': cluster['size'],
                         'Proportion': f"{cluster['proportion']:.3f}",
@@ -584,10 +723,26 @@ def main():
                 
                 cluster_df = pd.DataFrame(cluster_df_data)
                 
-                # Add example buttons if enabled
+                # Display the cluster table with text wrapping
+                st.dataframe(
+                    cluster_df, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        'Cluster': st.column_config.TextColumn(
+                            'Cluster Description',
+                            width='large',
+                            help="Full behavioral cluster description"
+                        ),
+                        'Score': st.column_config.NumberColumn('Score', width='small'),
+                        'Size': st.column_config.NumberColumn('Size', width='small'),
+                        'Proportion': st.column_config.NumberColumn('Proportion', width='small'),
+                        'Quality': st.column_config.NumberColumn('Quality', width='small')
+                    }
+                )
+                
+                # Add example viewing section if enabled
                 if show_examples:
-                    st.dataframe(cluster_df, use_container_width=True, hide_index=True)
-                    
                     st.subheader("View Examples")
                     cluster_names = [c['property_description'] for c in clusters[:top_n_clusters]]
                     selected_cluster = st.selectbox("Select cluster to view examples", cluster_names)
@@ -595,8 +750,6 @@ def main():
                     if selected_cluster and st.button("Load Examples"):
                         show_cluster_examples(selected_cluster, selected_model, model_stats, 
                                             results_path, cluster_level)
-                else:
-                    st.dataframe(cluster_df, use_container_width=True, hide_index=True)
     
     with tab3:
         st.header("View Clusters")
@@ -647,17 +800,27 @@ def main():
             
             # Format for display
             display_df = cluster_summary.copy()
-            display_df['Cluster Description'] = display_df['property_description'].apply(
-                lambda x: x[:100] + '...' if len(x) > 100 else x
-            )
+            display_df['Cluster Description'] = display_df['property_description']  # Show full text, no truncation
             display_df['Max Score'] = display_df['score'].apply(lambda x: f"{x:.3f}")
-            display_df['Avg Quality'] = display_df['quality_score'].apply(lambda x: f"{x:.3f}")
+            display_df['Avg Quality'] = display_df['quality_score'].apply(
+                lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else "0.000"
+            )
             display_df['Size'] = display_df['cluster_size_global']
             
             st.dataframe(
                 display_df[['Cluster Description', 'Max Score', 'Avg Quality', 'Size']],
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                column_config={
+                    'Cluster Description': st.column_config.TextColumn(
+                        'Cluster Description',
+                        width='large',
+                        help="Full behavioral cluster description"
+                    ),
+                    'Max Score': st.column_config.NumberColumn('Max Score', width='small'),
+                    'Avg Quality': st.column_config.NumberColumn('Avg Quality', width='small'), 
+                    'Size': st.column_config.NumberColumn('Size', width='small')
+                }
             )
             
             # Show detailed view for selected cluster
@@ -709,9 +872,36 @@ def main():
                         
                         for i, (_, row) in enumerate(examples_df.iterrows(), 1):
                             with st.expander(f"Example {i}: {row.get('model', 'Unknown model')} - {row.get('id', 'Unknown')[:12]}..."):
-                                st.write("**Prompt:**")
+                                # Get the prompt and response
                                 prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
-                                st.write(prompt)
+                                
+                                # Get the model response and split it if it contains metadata
+                                response = (row.get('model_response') or 
+                                          row.get('model_a_response') or 
+                                          row.get('model_b_response') or 
+                                          row.get('responses', 'N/A'))
+                                
+                                # Debug: Print the full response to terminal to see its format
+                                print(f"\n{'='*80}")
+                                print(f"DEBUG: Full response for cluster example {i}")
+                                print(f"{'='*80}")
+                                print(response)
+                                print(f"{'='*80}\n")
+                                
+                                metadata, conversation = split_conversation_at_user(response)
+                                
+                                st.write("**Prompt:**")
+                                st.text(prompt)
+                                
+                                # Display metadata if it exists
+                                if metadata:
+                                    st.markdown("**📋 Metadata & Context:**")
+                                    st.markdown(metadata)
+                                    st.divider()
+                                
+                                # Display the conversation
+                                st.markdown("**💬 Conversation:**")
+                                st.markdown(conversation)
                                 
                                 st.write("**Metadata:**")
                                 st.json({
@@ -720,14 +910,6 @@ def main():
                                     'property_id': row.get('id', 'N/A'),
                                     'cluster_id': row.get('fine_cluster_id', 'N/A')
                                 })
-                                
-                                st.write("**Model Response:**")
-                                # Handle different response column formats
-                                response = (row.get('model_response') or 
-                                          row.get('model_a_response') or 
-                                          row.get('model_b_response') or 
-                                          row.get('responses', 'N/A'))
-                                st.write(response)
                                 
                                 st.write("**Extracted Property:**")
                                 property_desc = row.get('property_description', 'N/A')

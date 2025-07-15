@@ -59,10 +59,6 @@ class Property:
             raise ValueError(
                 f"Property impact must be 'High', 'Medium', or 'Low', got: {self.impact}"
             )
-        if self.user_preference_direction is not None and self.user_preference_direction not in ["Capability-focused", "Experience-focused", "Neutral", "Negative"]:
-            raise ValueError(
-                f"User preference direction must be 'Capability-focused', 'Experience-focused', 'Neutral', or 'Negative', got: {self.user_preference_direction}"
-            )
 
 @dataclass
 class Cluster:
@@ -97,7 +93,7 @@ class ModelStats:
     model_name: str # name of model we are comparing
     cluster_size_global: int # number of properties in the cluster
     score: float # score of the property cluster
-    quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys)
+    quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys and model names as keys)
     size: int # number of properties in the cluster
     proportion: float # proportion of all properties that are in the cluster
     examples: List[str] # example property id's in the cluster

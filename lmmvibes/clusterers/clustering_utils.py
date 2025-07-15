@@ -265,28 +265,28 @@ def llm_coarse_cluster_with_centers(
     
     system_prompt = f"""You are a machine learning expert specializing in the behavior of large language models. 
 
-I will provide you with a list of fine-grained properties describing model behavior. Your task is to create {max_coarse_clusters} broader category names that capture the high-level themes across these properties.
+I will provide you with a list of fine-grained properties describing model behavior. Your task is to create {max_coarse_clusters} broader property names that capture the high-level themes across these properties.
 
 Instructions:
 1. Analyze all the fine-grained properties
-2. Identify {max_coarse_clusters} major themes or categories
-3. Create clear, descriptive names for each category
-4. Each name should be 2-8 words and capture the essence of that behavioral theme
-5. Output ONLY the category names, one per line
-6. Do NOT include numbering, bullets, or other formatting - just the plain category names
+2. Identify {max_coarse_clusters} major properties
+3. Create clear, descriptive names for each property
+4. Each property should be a short sentence or two that captures the essence of that property
+5. Output ONLY the property names, one per line
+6. Do NOT include numbering, bullets, or other formatting - just the plain property names
 
-Focus on creating categories that are:
+Focus on creating properties that are:
 - Distinct from each other
 - Broad enough to encompass multiple fine-grained properties
 - Descriptive and meaningful for understanding model behavior"""
     
-    user_prompt = f"Fine-grained properties:\n\n{fine_cluster_text}\n\nGenerate {max_coarse_clusters} coarse-grained category names:"
+    user_prompt = f"Fine-grained properties:\n\n{fine_cluster_text}\n\nGenerate {max_coarse_clusters} coarse-grained property names:"
     
     # Use caching mechanism
     request_data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": coarse_clustering_systems_prompt},
             {"role": "user", "content": user_prompt},
         ],
         "max_completion_tokens": 1000,

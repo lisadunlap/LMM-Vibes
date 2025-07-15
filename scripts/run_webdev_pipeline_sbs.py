@@ -19,6 +19,9 @@ def main():
     parser.add_argument("--output_dir", type=str, 
                         default="results/webdev_full_pipeline",
                         help="Output directory for results (default: results/webdev_full_pipeline)")
+    parser.add_argument("--input_file", type=str,
+                        default="data/arena_webdev_sbs.jsonl",
+                        help="Input file for results (default: data/arena_webdev_sbs.jsonl)")
     
     # Optional overrides
     parser.add_argument("--sample_size", type=int, default=None,
@@ -41,7 +44,7 @@ def main():
     args = parser.parse_args()
     
     # Set the data path
-    data_path = "data/arena_webdev_sbs.jsonl"
+    data_path = args.input_file
     
     # Check if data exists
     if not os.path.exists(data_path):

@@ -40,6 +40,35 @@ class PropertyValidator(LoggingMixin, PipelineStage):
                 
         self.log(f"Kept {len(valid_properties)} valid properties")
         
+        # Check for 0 valid properties and provide helpful error message
+        if len(valid_properties) == 0:
+            raise RuntimeError(
+                "\n" + "="*60 + "\n"
+                "ERROR: 0 valid properties after validation!\n"
+                "="*60 + "\n"
+                "This typically indicates one of the following issues:\n\n"
+                "1. JSON PARSING FAILURES:\n"
+                "   - The LLM is returning natural language instead of JSON\n"
+                "   - Check the logs above for 'Failed to parse JSON' errors\n"
+                "   - Verify your OpenAI API key and quota limits\n\n"
+                "2. SYSTEM PROMPT ISSUES:\n"
+                "   - The system prompt may not be suitable for your data format\n"
+                "   - Try a different system_prompt parameter\n\n"
+                "3. DATA FORMAT PROBLEMS:\n"
+                "   - Input conversations may be malformed or empty\n"
+                "   - Check that 'model_response' and 'prompt' columns contain valid data\n\n"
+                "4. API/MODEL CONFIGURATION:\n"
+                "   - OpenAI API connectivity issues\n"
+                "   - Model configuration problems\n\n"
+                "DEBUGGING STEPS:\n"
+                "- Check for 'Failed to parse JSON' errors in the logs above\n"
+                "- Verify your OpenAI API key: export OPENAI_API_KEY=your_key\n"
+                "- Try with a smaller sample_size to test\n"
+                "- Examine your input data format and content\n"
+                "- Consider using a different system_prompt\n"
+                "="*60
+            )
+        
         return PropertyDataset(
             conversations=data.conversations,
             all_models=data.all_models,
