@@ -47,7 +47,7 @@ clustered_df, model_stats = explain(
     df,
     method="single_model",
     min_cluster_size=10,
-    output_dir="results/"
+    output_dir="results/test"
 )
 
 # Your data with model responses (for side-by-side comparrison)
@@ -66,7 +66,7 @@ clustered_df, model_stats = explain(
     df,
     method="side_by_side",
     min_cluster_size=10,
-    output_dir="results/"
+    output_dir="results/test"
 )
 ```
 
@@ -74,9 +74,6 @@ clustered_df, model_stats = explain(
 ```bash
 # View clusters, examples, and metrics
 streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
-
-# View your clustered results interactively
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
 
 ## Outputs
@@ -105,7 +102,7 @@ This allows you to see not just which model "won" overall, but *why*—by surfac
 
 LMM-Vibes supports two analysis methods, each with specific data format requirements:
 
-### 📊 Single Model Analysis
+### Single Model Analysis
 Analyze behavioral patterns from individual model responses.
 
 **Required Columns:**
@@ -167,7 +164,7 @@ df = pd.DataFrame({
 })
 ```
 
-### 🔄 Column Name Variations
+### Column Name Variations
 LMM-Vibes accepts alternative column names for flexibility:
 
 - `prompt` ↔ `user_prompt`
