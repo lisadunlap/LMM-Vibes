@@ -1,6 +1,6 @@
 # LMM-Vibes – Abstraction README
 
-_A high-level design & user guide for the forthcoming pip package._
+_A high-level design & user guide for the LMM-Vibes package._
 
 ---
 
@@ -10,23 +10,31 @@ _A high-level design & user guide for the forthcoming pip package._
 from lmmvibes import explain          # pip install lmmvibes
 
 clustered_df, model_stats = explain(
-    df,                                 # pandas DataFrame with columns: prompt, responses, score (+ any metadata)
+    df,                                 # pandas DataFrame with conversation data
     method="side_by_side",              # or "single_model"
-    system_prompt="one_sided_system_prompt", # systems prompt to extract properties, optional
-    prompt_builder=build_pair_prompt,   # your own function; optional
+    system_prompt=None,                 # auto-determined based on data format
+    # Extraction parameters
+    model_name="gpt-4o-mini",          # LLM for property extraction
+    temperature=0.7,
+    max_workers=16,
+    # Clustering parameters  
     clusterer="hdbscan",                # or "hdbscan_native", "hierarchical"
-    min_cluster_size=30,                # clustering parameters
-    embedding_model="openai",            # or any sentence-transformer model
-    output_dir="results/"               # automatically save results here
+    min_cluster_size=30,
+    embedding_model="openai",           # or any sentence-transformer model
+    hierarchical=False,                 # create coarse clusters
+    # Output & logging
+    output_dir="results/",              # automatically save results
+    use_wandb=True,                     # log to Weights & Biases
+    verbose=True
 )
 ```
 
 * **`clustered_df`** – original rows plus  
   • extracted properties (`property_description`, `category`, `impact`, `type`, `reason`, `evidence`)  
   • cluster ids & labels (`property_description_fine_cluster_id`, `property_description_coarse_cluster_id`, etc.)
-  • embeddings (optional, `property_description_embedding`, `property_description_fine_cluster_label_embedding`)
+  • embeddings (optional, `property_description_embedding`)
 
-* **`model_stats`** – `{model_name → [property_dict …]}` sorted by the chosen metric (frequency, proportion, etc.).
+* **`model_stats`** – `{model_name → {"fine": [ModelStats...], "coarse": [ModelStats...]}}` sorted by score.
 
 That's it—no pipeline objects, no loaders—just vibes.
 
@@ -38,7 +46,7 @@ That's it—no pipeline objects, no loaders—just vibes.
 2. **Plug-and-play** – add new extractors / clusterers / metrics without touching the rest.  
 3. **Single data contract** – every stage passes a `PropertyDataset` object.  
 4. **User-friendly facade** – `explain` hides all complexity but the rich pipeline remains for power users.
-5. **Migration path** – wrap existing code (`generate_differences.py`, `clustering/hierarchical_clustering.py`) into stages.
+5. **Migration path** – wrap existing code into stages with consistent interfaces.
 
 ---
 
@@ -52,8 +60,8 @@ class ConversationRecord:
     """A single conversation with prompt, responses, and metadata."""
     question_id: str
     prompt: str
-    model: str | tuple[str, str]  # model name(s) - single string or tuple for side-by-side comparisons
-    responses: str | tuple[str, str] # responses matching model format
+    model: str | List[str]  # model name(s) - single string or list for side-by-side comparisons
+    responses: str | List[str] # responses matching model format
     scores: Dict[str, Any]     # {score_name: score_value}
     meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc.
 
@@ -87,6 +95,19 @@ class Cluster:
     question_ids: List[str] = field(default_factory=list) # ids of the conversations in the cluster
 
 @dataclass
+class ModelStats:
+    """Model statistics for a cluster."""
+    property_description: str # name of property cluster (either fine or coarse)
+    model_name: str # name of model we are comparing
+    cluster_size_global: int # number of properties in the cluster
+    score: float # score of the property cluster
+    quality_score: Dict[str, Any] # quality score of the property cluster
+    size: int # number of properties in the cluster for this model
+    proportion: float # proportion of model's responses showing this behavior
+    examples: List[str] # example property id's in the cluster
+    metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
+
+@dataclass
 class PropertyDataset:
     """Container for all data flowing through the pipeline."""
     conversations: List[ConversationRecord] = field(default_factory=list)
@@ -100,6 +121,7 @@ Key features:
 - **ConversationRecord**: Handles both single-model and side-by-side comparisons
 - **Property**: Rich metadata about extracted behavioral properties
 - **Cluster**: Supports hierarchical clustering with parent/child relationships
+- **ModelStats**: Computed statistics for model performance in each cluster
 - **PropertyDataset**: The core data contract passed between pipeline stages
 
 The dataset provides rich DataFrame conversion and persistence methods:
@@ -120,14 +142,14 @@ df = dataset.to_dataframe(type="all")  # or "base", "properties", "clusters"
 
 ```python
 class PipelineStage(ABC):
-    @abstractmethod
+    @abstract
     def run(self, data: PropertyDataset) -> PropertyDataset: ...
 ```
 
 Concrete subclasses:
 
 * **Extractors** – `OpenAIExtractor`, `BatchExtractor`, `VLLMExtractor`
-* **Post-processors** – `LLMJsonParser`, `PropertyValidator`, `NaNPruner`
+* **Post-processors** – `LLMJsonParser`, `PropertyValidator`
 * **Clusterers** – `HDBSCANClusterer`, `HDBSCANNativeClusterer`, `HierarchicalClusterer`
 * **Metrics** – `SideBySideMetrics`, `SingleModelMetrics`
 
@@ -155,7 +177,7 @@ while still letting every mix-in in the MRO chain run its setup code.
 ```
 User DataFrame  ──▶ PropertyDataset wrapper
                   │
-                  ├─ OpenAIExtractor(system_prompt, prompt_builder, model="gpt-4o-mini")
+                  ├─ OpenAIExtractor(system_prompt, model="gpt-4o-mini")
                   ├─ LLMJsonParser()  # Parse JSON responses, handle errors
                   ├─ PropertyValidator()  # Clean/validate extracted properties
                   ├─ HDBSCANClusterer(min_cluster_size=30, embedding_model="openai")
@@ -171,13 +193,13 @@ Signature (complete):
 ```python
 def explain(
         df: pd.DataFrame,
-        method: str = "side_by_side",                # or "single_model"
-        system_prompt: str = "one_sided_system_prompt",
+        method: str = "single_model",                # or "side_by_side"
+        system_prompt: str = None,                   # auto-determined if None
         prompt_builder: Callable[[pd.Series], str] | None = None,
         *,
         # Extraction parameters
         model_name: str = "gpt-4o-mini",
-        temperature: float = 0.6,
+        temperature: float = 0.7,
         top_p: float = 0.95,
         max_tokens: int = 16000,
         max_workers: int = 16,
@@ -187,13 +209,23 @@ def explain(
         embedding_model: str = "openai",
         hierarchical: bool = False,
         assign_outliers: bool = False,
+        max_coarse_clusters: int = 25,
         # Metrics parameters
         metrics_kwargs: dict | None = None,
         # Caching & logging
         use_wandb: bool = True,
         wandb_project: str | None = None,
         include_embeddings: bool = True,
-        output_dir: str = "results/",
+        verbose: bool = True,
+        # Output parameters
+        output_dir: str | None = None,
+        # Pipeline configuration
+        custom_pipeline: Pipeline | None = None,
+        # Cache configuration
+        extraction_cache_dir: str | None = None,
+        clustering_cache_dir: str | None = None,
+        metrics_cache_dir: str | None = None,
+        **kwargs
 ) -> tuple[pd.DataFrame, dict]:
     ...
 ```
@@ -203,205 +235,120 @@ Advanced users can pass:
 * Custom `Clusterer` instances with specific configurations
 * `metrics_kwargs` for alternative scoring formulas
 * Full control over LLM parameters and caching
+* Custom pipeline for complete control
 
 ---
 
-## 5. Migration from existing code
+## 5. Factory functions and stage configuration
 
-### 5.1 Extraction Stage (from `generate_differences.py`)
-
-```python
-class OpenAIExtractor(PipelineStage, LoggingMixin):
-    def __init__(self, system_prompt: str, prompt_builder: Callable, 
-                 model: str = "gpt-4o-mini", temperature: float = 0.6, 
-                 max_workers: int = 16):
-        self.system_prompt = system_prompt
-        self.prompt_builder = prompt_builder
-        self.model = model
-        self.temperature = temperature
-        self.max_workers = max_workers
-    
-    def run(self, data: PropertyDataset) -> PropertyDataset:
-        # Migrate your process_openai_batch logic here
-        # Format conversations using prompt_builder
-        # Extract properties using litellm
-        # Return updated PropertyDataset with populated properties
-        pass
-```
-
-### 5.2 Clustering Stage
-
-The clustering stage uses HDBSCAN to group similar properties and optionally create a hierarchical structure. The implementation is split into configuration and execution:
+### 5.1 Extractors (`lmmvibes.extractors`)
 
 ```python
-@dataclass
-class ClusterConfig:
-    """Configuration for clustering operations."""
-    min_cluster_size: int = 30
-    embedding_model: str = "openai"
-    verbose: bool = True
-    include_embeddings: bool = True
-    context: Optional[str] = None
-    hierarchical: bool = False
-    assign_outliers: bool = False
-    min_grandparent_size: int = 5
-    max_coarse_clusters: int = 15
-    # Dimension reduction settings
-    dim_reduction_method: str = "adaptive"  # "adaptive", "umap", "pca", "none"
-    umap_n_components: int = 100
-    umap_n_neighbors: int = 30
-    umap_min_dist: float = 0.1
-    umap_metric: str = "cosine"
-    # Wandb logging
-    use_wandb: bool = True
-    wandb_project: Optional[str] = None
+from lmmvibes.extractors import get_extractor, OpenAIExtractor, BatchExtractor
 
-class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
-    """HDBSCAN clustering stage."""
-    
-    def __init__(
-        self,
-        min_cluster_size: int = 30,
-        embedding_model: str = "openai", 
-        hierarchical: bool = False,
-        assign_outliers: bool = False,
-        include_embeddings: bool = True,
-        use_wandb: bool = False,
-        wandb_project: str = None,
-    ):
-        super().__init__(use_wandb=use_wandb, wandb_project=wandb_project)
-        self.min_cluster_size = min_cluster_size
-        self.embedding_model = embedding_model
-        self.hierarchical = hierarchical
-        self.assign_outliers = assign_outliers
-        self.include_embeddings = include_embeddings
-```
-
-Usage example:
-
-```python
-from lmmvibes.clusterers.hdbscan import HDBSCANClusterer
-
-# Load dataset with extracted properties
-dataset = PropertyDataset.load("extracted_properties.json")
-
-# Configure and run clustering
-clusterer = HDBSCANClusterer(
-    min_cluster_size=30,
-    embedding_model="openai",
-    hierarchical=True,  # Enable hierarchical clustering
-    assign_outliers=True,  # Try to assign outlier points to nearest cluster
-    include_embeddings=True  # Keep embeddings in output for visualization
+# Factory function for automatic extractor selection
+extractor = get_extractor(
+    model_name="gpt-4o-mini",          # Auto-selects OpenAIExtractor
+    system_prompt="one_sided_system_prompt",
+    temperature=0.7,
+    max_workers=16
 )
 
-# Run clustering
-result = clusterer(dataset)
-
-# Inspect results
-print(f"Created {len(result.clusters)} clusters")
-for cluster in result.clusters:
-    print(f"\nCluster {cluster.id}: {cluster.label}")
-    print(f"Size: {cluster.size}")
-    if cluster.parent_id:
-        print(f"Parent cluster: {cluster.parent_label} ({cluster.parent_id})")
-    print("Sample properties:")
-    for desc in cluster.property_descriptions[:3]:
-        print(f"  • {desc}")
-
-# Save results
-result.save("clustered_results.parquet", format="parquet")
+# Direct instantiation
+extractor = OpenAIExtractor(
+    model="gpt-4o-mini",
+    system_prompt="one_sided_system_prompt",
+    temperature=0.7,
+    max_workers=16
+)
 ```
 
-The clustering process:
-1. Computes embeddings for property descriptions using the specified model
-2. Optionally reduces dimensionality using UMAP (adaptive based on data size)
-3. Runs HDBSCAN to create fine-grained clusters
-4. If hierarchical=True, creates a second level of coarse clusters
-5. Assigns cluster IDs and labels back to the original properties
-6. Optionally logs results to Weights & Biases for visualization
+**Available extractors:**
+- `OpenAIExtractor` - Uses OpenAI API (GPT models)
+- `VLLMExtractor` - Uses local models via vLLM
+- `BatchExtractor` - Creates batch files for batch API processing
 
-### 5.3 Post-processing Stage (from `post_processing.py`)
+### 5.2 Post-processors (`lmmvibes.postprocess`)
 
 ```python
-class LLMJsonParser(PipelineStage):
-    def run(self, data: PropertyDataset) -> PropertyDataset:
-        # Parse JSON responses from raw differences
-        # Handle parsing errors gracefully
-        # Convert parsed dicts to Property objects
-        # Filter out invalid/incomplete properties
-        pass
+from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
+
+# Parse raw LLM responses into structured properties
+parser = LLMJsonParser()
+
+# Validate and clean extracted properties
+validator = PropertyValidator()
 ```
 
-### 5.4 Metrics Stage
-
-The metrics stage computes how strongly each model exhibits different behavioral properties compared to its peers in side-by-side comparisons:
+### 5.3 Clusterers (`lmmvibes.clusterers`)
 
 ```python
-from lmmvibes.metrics import SideBySideMetrics
+from lmmvibes.clusterers import get_clusterer
 
-# Configure metrics computation
-metrics_stage = SideBySideMetrics(output_dir="outputs/metrics")
-
-# Run on clustered dataset
-result = metrics_stage(dataset)
-
-# Access computed statistics
-for model_name, stats in result.model_stats.items():
-    print(f"\nModel: {model_name}")
-    
-    # Fine-grained cluster metrics
-    for stat in stats["fine"][:5]:  # Top 5 clusters
-        print(f"  • {stat.property_description}")
-        print(f"    Score: {stat.score:.2f} | Size: {stat.size} | Proportion: {stat.proportion:.3f}")
-        print(f"    Examples: {stat.examples}")
-    
-    # Coarse cluster metrics (if hierarchical clustering was used)
-    if "coarse" in stats:
-        for stat in stats["coarse"][:3]:
-            print(f"  Coarse: {stat.property_description} (score: {stat.score:.2f})")
+# Factory function for automatic clusterer selection
+clusterer = get_clusterer(
+    method="hdbscan",                   # or "hdbscan_native", "hierarchical"
+    min_cluster_size=30,
+    embedding_model="openai",
+    hierarchical=True,
+    assign_outliers=False
+)
 ```
 
-**Metric Definition:**
-- `proportion(model, cluster)` = (# questions where model shows cluster behavior) / (# questions answered by model)
-- `score(model, cluster)` = proportion(model, cluster) / median_proportion(all_models, cluster)
+**Available clusterers:**
+- `HDBSCANClusterer` - Density-based clustering (recommended for >10k samples)
+- `HDBSCANNativeClusterer` - Native HDBSCAN implementation
+- `HierarchicalClusterer` - Traditional hierarchical clustering with LLM-powered naming
 
-A score > 1 means the model is **over-represented** in that cluster, score < 1 means **under-represented**.
+### 5.4 Metrics (`lmmvibes.metrics`)
 
-**Output Files:**
-The stage automatically writes JSONL files for each model containing all cluster statistics:
-- `{model_name}_fine_metrics.jsonl` - Fine-grained cluster metrics
-- `{model_name}_coarse_metrics.jsonl` - Coarse cluster metrics (if hierarchical)
+```python
+from lmmvibes.metrics import get_metrics
 
-Each ModelStats object contains:
-- `property_description`: Cluster label/description
-- `model_name`: Name of the model
-- `score`: Relative score compared to other models
-- `size`: Number of properties in this cluster for this model
-- `proportion`: Fraction of model's responses showing this behavior
-- `examples`: Up to 3 example property IDs from this cluster
-- `metadata`: Additional cluster information (ID, level, global size)
+# Factory function for automatic metrics selection
+metrics = get_metrics(
+    method="side_by_side",              # or "single_model"
+    output_dir="outputs/metrics"
+)
+```
+
+**Available metrics:**
+- `SideBySideMetrics` - For model comparison data (Arena-style)
+- `SingleModelMetrics` - For individual model analysis
 
 ---
 
 ## 6. Pipeline orchestration (advanced use)
 
 ```python
-from lmmvibes.pipeline import Pipeline
-from lmmvibes.extractors import OpenAIExtractor, BatchExtractor
+from lmmvibes.pipeline import Pipeline, PipelineBuilder
+from lmmvibes.extractors import get_extractor
 from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
-from lmmvibes.clusterers import HDBSCANClusterer
-from lmmvibes.metrics import SideBySideMetrics
+from lmmvibes.clusterers import get_clusterer
+from lmmvibes.metrics import get_metrics
 
-# Custom pipeline with batch API
-pipeline = Pipeline([
-    BatchExtractor(system_prompt="one_sided_system_prompt"),  # Creates batch files
-    # ... manual batch processing step ...
-    LLMJsonParser(),  # Parse batch results
-    PropertyValidator(),  # Clean and validate
-    HDBSCANClusterer(min_cluster_size=20, hierarchical=True),
-    SideBySideMetrics()
-])
+# Method 1: Using PipelineBuilder (recommended)
+builder = PipelineBuilder(name="Custom-Pipeline")
+pipeline = (builder
+    .extract_properties(get_extractor(model_name="gpt-4o-mini"))
+    .parse_properties(LLMJsonParser())
+    .add_stage(PropertyValidator())
+    .cluster_properties(get_clusterer(method="hdbscan", hierarchical=True))
+    .compute_metrics(get_metrics(method="side_by_side"))
+    .configure(use_wandb=True, verbose=True)
+    .build()
+)
 
+# Method 2: Direct Pipeline construction
+pipeline = Pipeline("Custom-Pipeline", [
+    get_extractor(model_name="gpt-4o-mini"),
+    LLMJsonParser(),
+    PropertyValidator(),
+    get_clusterer(method="hdbscan", hierarchical=True),
+    get_metrics(method="side_by_side")
+], use_wandb=True, verbose=True)
+
+# Run the pipeline
 dataset = PropertyDataset.from_dataframe(df, method="side_by_side")
 result = pipeline.run(dataset)
 
@@ -412,101 +359,93 @@ model_stats = result.model_stats
 
 ---
 
-## 7. Configuration-driven runs
+## 7. System prompts and auto-detection
 
-Provide a YAML and run from CLI:
+The `explain` function automatically determines the appropriate system prompt based on your data:
 
-```bash
-python -m lmmvibes run --config config.yaml
+```python
+from lmmvibes.prompts import get_default_system_prompt
+
+# Auto-detection based on method and data format
+system_prompt = get_default_system_prompt(
+    method="side_by_side", 
+    contains_score=True  # auto-detected from DataFrame
+)
 ```
 
-`config.yaml`
-
-```yaml
-# Data loading
-dataset_path: arena.parquet
-method: side_by_side
-
-# Extraction
-extraction:
-system_prompt: one_sided_system_prompt
-  model: gpt-4o-mini
-  temperature: 0.6
-  max_workers: 16
-  use_batch_api: false
-
-# Clustering  
-clustering:
-  type: hdbscan
-  min_cluster_size: 30
-  embedding_model: openai
-  hierarchical: true
-  assign_outliers: false
-
-# Metrics
-metrics:
-  type: side_by_side
-  
-# Logging
-wandb:
-  project: lmm-vibes
-  entity: your-org
-  
-output_dir: outputs/
-```
+**Available system prompts:**
+- `sbs_w_metrics_system_prompt` - Side-by-side with score/preference data
+- `one_sided_system_prompt_no_examples` - Side-by-side without scores
+- `single_model_system_prompt` - Single model with scores
+- `single_model_no_score_system_prompt` - Single model without scores
+- `webdev_system_prompt` - Web development specific prompts
+- Agent-specific prompts for agentic environments
 
 ---
 
-## 8. Package layout
+## 8. Output files and persistence
+
+When you specify `output_dir`, LMM-Vibes automatically saves:
+
+| File | Description |
+|------|-------------|
+| `clustered_results.json` | Complete DataFrame with clusters (JSON format) |
+| `clustered_results.parquet` | Complete DataFrame with clusters (parquet format) |
+| `full_dataset.json` | Complete PropertyDataset object (JSON format) |
+| `full_dataset.parquet` | Complete PropertyDataset object (parquet format) |
+| `model_stats.json` | Per-model behavioral statistics |
+| `parsing_failures.json` | Detailed parsing failure information |
+| `summary.txt` | Human-readable summary with dataset counts and leaderboard |
+
+These filenames are **stable** so downstream notebooks and dashboards can rely on them.
+
+---
+
+## 9. Package layout
 
 ```
 lmmvibes/
 │
 ├─ core/                    # data objects & stage base classes
 │  ├─ __init__.py
-│  ├─ data_objects.py       # PropertyDataset, ConversationRecord, Property
+│  ├─ data_objects.py       # PropertyDataset, ConversationRecord, Property, Cluster, ModelStats
 │  ├─ stage.py              # PipelineStage ABC
 │  └─ mixins.py             # LoggingMixin, CacheMixin, etc.
 │
-├─ loaders/                 # data loading (migrate from data_loader.py)
-│  ├─ __init__.py
-│  ├─ arena.py              # load_arena_data
-│  └─ webdev.py             # load_webdev_data
-│
 ├─ extractors/              # property extraction
-│  ├─ __init__.py
-│  ├─ openai.py             # OpenAIExtractor (from generate_differences.py)
+│  ├─ __init__.py           # get_extractor factory function
+│  ├─ openai.py             # OpenAIExtractor
 │  ├─ batch.py              # BatchExtractor
 │  └─ vllm.py               # VLLMExtractor
 │
 ├─ postprocess/             # post-processing stages
 │  ├─ __init__.py
-│  ├─ parser.py             # LLMJsonParser (from post_processing.py)
+│  ├─ parser.py             # LLMJsonParser
 │  └─ validator.py          # PropertyValidator
 │
-├─ clusterers/              # clustering (migrate from clustering/)
-│  ├─ __init__.py
-│  ├─ hdbscan.py            # HDBSCANClusterer
+├─ clusterers/              # clustering
+│  ├─ __init__.py           # get_clusterer factory function
+│  ├─ hdbscan.py            # HDBSCANClusterer, HDBSCANNativeClusterer
 │  ├─ hierarchical.py       # HierarchicalClusterer
-│  └─ config.py             # ClusterConfig (from clustering/hierarchical_clustering.py)
+│  ├─ clustering_prompts.py # LLM prompts for cluster naming
+│  └─ clustering_utils.py   # Shared clustering utilities
 │
 ├─ metrics/                 # metrics computation
-│  ├─ __init__.py
+│  ├─ __init__.py           # get_metrics factory function
 │  ├─ side_by_side.py       # SideBySideMetrics
 │  └─ single_model.py       # SingleModelMetrics
+│
+├─ prompts/                 # prompt templates
+│  ├─ __init__.py           # get_default_system_prompt
+│  ├─ extractor_prompts.py  # Property extraction prompts
+│  └─ agents.py             # Agent-specific prompts
 │
 ├─ viz/                     # optional Streamlit dashboards
 │  ├─ __init__.py
 │  └─ interactive_app.py    # summary visualization
 │
-├─ prompts/                 # prompt templates (migrate from prompts.py)
-│  ├─ __init__.py
-│  ├─ arena.py              # one_sided_system_prompt, etc.
-│  └─ webdev.py             # webdev_system_prompt, etc.
-│
-├─ public.py                # explain lives here
-├─ pipeline.py              # Pipeline orchestration
-├─ cli.py                   # CLI interface
+├─ public.py                # explain() function lives here
+├─ pipeline.py              # Pipeline & PipelineBuilder classes
 └─ __init__.py              # re-export explain
 ```
 
@@ -514,16 +453,13 @@ No circular imports—subpackages only depend on `core` or lower layers.
 
 ---
 
-## 9. Interactive visualisation (Streamlit)
+## 10. Interactive visualisation (Streamlit)
 
 The package ships with a zero-config **Streamlit** app that lets you *browse clusters visually*:
 
 ```bash
-# Full PropertyDataset                   # Or clusters-only DataFrame
-streamlit run lmmvibes/viz/interactive_app.py \
-    -- --dataset clustered_results.parquet
-#                                         streamlit run lmmvibes/viz/interactive_app.py \
-#                                         -- --dataset property_with_clusters.jsonl
+# View clusters, examples, and metrics
+streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
 
 Key features:
@@ -534,59 +470,121 @@ Key features:
 4. Optional bar-chart and word-cloud summaries.
 5. Accepts either a full `PropertyDataset` file *(json / pkl / parquet)* **or** a clusters DataFrame saved as JSONL / CSV / Parquet.
 
-`lmmvibes.viz` also exposes helpers:
+---
+
+## 11. Advanced features
+
+### 11.1 Caching
 
 ```python
-from lmmvibes.viz import load_dataset, build_hierarchy,
-    load_clusters_dataframe, build_hierarchy_from_df
+# Enable caching for expensive operations
+clustered_df, model_stats = explain(
+    df,
+    extraction_cache_dir="cache/extraction/",
+    clustering_cache_dir="cache/clustering/",
+    metrics_cache_dir="cache/metrics/"
+)
 ```
 
-These make it trivial to embed the same visuals in Jupyter, Dash, or a custom web app.
+### 11.2 Custom pipelines
+
+```python
+from lmmvibes import explain_with_custom_pipeline
+
+# Use a completely custom pipeline
+clustered_df, model_stats = explain_with_custom_pipeline(
+    df,
+    pipeline=my_custom_pipeline,
+    method="side_by_side"
+)
+```
+
+### 11.3 Metrics-only computation
+
+```python
+from lmmvibes import compute_metrics_only
+
+# Recompute metrics on existing pipeline results
+clustered_df, model_stats = compute_metrics_only(
+    input_path="results/previous_run/full_dataset.json",
+    method="side_by_side",
+    output_dir="results/metrics_only"
+)
+```
+
+### 11.4 Convenience functions
+
+```python
+from lmmvibes import explain_side_by_side, explain_single_model
+
+# Convenience functions for common use cases
+clustered_df, model_stats = explain_side_by_side(df, min_cluster_size=20)
+clustered_df, model_stats = explain_single_model(df, hierarchical=True)
+```
 
 ---
 
-## 10. Extending the ecosystem
+## 12. Extending the ecosystem
 
-| Goal | What to implement | Migration from |
-|------|-------------------|----------------|
+| Goal | What to implement | Example |
+|------|-------------------|---------|
 | New extraction technique | `class MyExtractor(PipelineStage)` | Wrap your existing LLM calling code |
 | Alternative clustering  | `class MyClusterer(PipelineStage)` | Wrap existing clustering functions |
 | Different metric        | `class MyMetrics(PipelineStage)` | Implement new metric calculations |
-| New prompt library      | Add to `prompts/` module | Move from existing `prompts.py` |
+| New prompt library      | Add to `prompts/` module | Add domain-specific prompts |
 | Custom post-processing  | `class MyValidator(PipelineStage)` | Wrap existing cleaning logic |
-| Batch API support       | `class BatchExtractor(PipelineStage)` | Migrate batch logic from `generate_differences.py` |
+| Batch API support       | `class BatchExtractor(PipelineStage)` | Migrate batch logic |
 
-All new stages become instantly available to `explain` via keywords or passed as instances.
-
----
-
-## 11. Migration strategy
-
-### Phase 1: Core Infrastructure
-1. Create `core/` module with data objects and stage interface
-2. Implement `Pipeline` class and basic mixins
-3. Create `PropertyDataset.from_dataframe()` to wrap existing data
-
-### Phase 2: Wrap Existing Code
-1. **Extractors**: Wrap `generate_differences.py` logic into `OpenAIExtractor`
-2. **Clusterers**: Wrap `clustering/hierarchical_clustering.py` into stage classes
-3. **Post-processors**: Wrap `post_processing.py` logic into `LLMJsonParser`
-4. **Loaders**: Wrap `data_loader.py` into loader modules
-
-### Phase 3: Public API
-1. Implement `explain()` function using pipeline
-2. Add CLI interface with YAML config support
-3. Create basic visualization app
-
-### Phase 4: Polish & Packaging
-1. Add comprehensive tests
-2. Create documentation and examples
-3. Publish to PyPI
-4. Add advanced features (caching, distributed processing, etc.)
+All new stages become instantly available to `explain` via factory functions or passed as instances.
 
 ---
 
-## 12. Validation & Testing
+## 13. Migration status & TODO
+
+### ✅ Already implemented in the new package
+
+* Core data objects (`ConversationRecord`, `Property`, `Cluster`, `ModelStats`, `PropertyDataset`)
+* `PipelineStage` interface & `Pipeline` / `PipelineBuilder`
+* Mixin stack (Logging, Timing, ErrorHandling, Wandb, Cache) using the new *mixin-first* pattern
+* Working stages
+  * `OpenAIExtractor` (rewritten from `generate_differences.py`)
+  * `LLMJsonParser` (from `post_processing.py`)
+  * `PropertyValidator`
+  * `HDBSCANClusterer` (from `clustering/hierarchical_clustering.py`)
+  * `SideBySideMetrics` (computes model behavior scores for each cluster)
+  * `SingleModelMetrics` (for individual model analysis)
+* End-to-end `explain()` public API with wandb logging
+* Factory functions for automatic stage selection
+* Auto-detection of system prompts based on data format
+* Comprehensive output file generation
+* Tests: extraction → parsing → clustering → metrics integration
+* **Interactive Streamlit viewer** (`lmmvibes.viz.interactive_app`)
+* Caching support for expensive operations
+* Custom pipeline support
+* Metrics-only computation mode
+* Convenience functions for common use cases
+
+### 🔜 Still to integrate from the original notebooks / scripts
+
+| Component | Source file | Target module |
+|-----------|-------------|---------------|
+| Native / hierarchical clustering | `clustering/hierarchical_clustering.py` | `lmmvibes.clusterers.hdbscan_native_hierarchical` |
+| Batch & vLLM extractors | `generate_differences.py` / `vllm` | `lmmvibes.extractors.batch`, `vllm` |
+| Data-loader helpers | `data_loader.py` | `lmmvibes.datasets.*` (arena, webdev, etc.) |
+| CLI + YAML runner | n/a | `lmmvibes.cli` |
+| Comprehensive test suite | n/a | `tests/` |
+
+Nice-to-have polish after migration:
+
+* Outlier reassignment & hierarchical summaries
+* Documentation examples & badges
+* PyPI packaging scripts
+
+Feel free to tick items off this list as they land. 🎉 
+
+---
+
+## 14. Validation & Testing
 
 Each pipeline stage has dedicated tests to verify its behavior in isolation and as part of the full pipeline:
 
@@ -620,10 +618,6 @@ def test_hdbscan_clusterer_basic():
     # Save results for inspection
     result.save("tests/outputs/hdbscan_clustered_results.parquet", format="parquet")
 
-    # Create detailed CSV for manual review
-    df = result.to_dataframe(type="clusters")
-    df.to_csv("tests/outputs/property_with_clusters.csv", index=False)
-
 def test_explain():
     """Test the full pipeline with clustering."""
     df = pd.DataFrame({
@@ -656,15 +650,13 @@ The test suite:
 3. Saves intermediate outputs for manual inspection
 4. Uses pytest fixtures to manage test data and dependencies
 
-The Streamlit viewer has now been implemented and moved to the ✅ list above.
-
 ---
 
-## 13. Road-map
+## 15. Road-map
 
-1. **Phase 1-2**: Refactor existing scripts into stage subclasses (~2-3 weeks)
-2. **Phase 3**: Implement public API and CLI (~1 week)  
-3. **Phase 4**: Polish, test, and publish (~1 week)
+1. **Phase 1-2**: Refactor existing scripts into stage subclasses (~2-3 weeks) ✅
+2. **Phase 3**: Implement public API and CLI (~1 week) ✅  
+3. **Phase 4**: Polish, test, and publish (~1 week) 🔜
 4. **Future**: Advanced features (distributed processing, more clusterers, richer metrics)
 
 With this README you have both:  
@@ -673,54 +665,18 @@ With this README you have both:
 
 ---
 
-## 14. Migration status & TODO
-
-### ✅ Already implemented in the new package
-
-* Core data objects (`ConversationRecord`, `Property`, `PropertyDataset`, `ModelStats`)
-* `PipelineStage` interface & `Pipeline` / `PipelineBuilder`
-* Mixin stack (Logging, Timing, ErrorHandling, Wandb, Cache) using the new *mixin-first* pattern
-* Working stages
-  * `OpenAIExtractor` (rewritten from `generate_differences.py`)
-  * `LLMJsonParser` (from `post_processing.py`)
-  * `PropertyValidator`
-  * `HDBSCANClusterer` (from `clustering/hierarchical_clustering.py`)
-  * `SideBySideMetrics` (computes model behavior scores for each cluster)
-* End-to-end `explain()` public API with wandb logging
-* Tests: extraction → parsing → clustering → metrics integration
-* **Interactive Streamlit viewer** (`lmmvibes.viz.interactive_app`)
-
-### 🔜 Still to integrate from the original notebooks / scripts
-
-| Component | Source file | Target module |
-|-----------|-------------|---------------|
-| Native / hierarchical clustering | `clustering/hierarchical_clustering.py` | `lmmvibes.clusterers.hdbscan_native_hierarchical` |
-| Single model metrics | ad-hoc in notebooks | `lmmvibes.metrics.single_model` |
-| Batch & vLLM extractors | `generate_differences.py` / `vllm` | `lmmvibes.extractors.batch`, `vllm` |
-| Data-loader helpers | `data_loader.py` | `lmmvibes.datasets.*` (arena, webdev, etc.) |
-| CLI + YAML runner | n/a | `lmmvibes.cli` |
-| Comprehensive test suite | n/a | `tests/` |
-
-Nice-to-have polish after migration:
-
-* Outlier reassignment & hierarchical summaries
-* Documentation examples & badges
-* PyPI packaging scripts
-
-Feel free to tick items off this list as they land. 🎉 
-
----
-
-## 15. Automatic output files
+## 16. Automatic output files
 
 When you pass `output_dir="some/path"` to `explain()` the library automatically writes a tidy bundle of artefacts:
 
 | File | What it contains |
 |------|------------------|
-| `clustered_results.parquet` | Full DataFrame with conversations, extracted properties and cluster columns. |
+| `clustered_results.json` | Full DataFrame with conversations, extracted properties and cluster columns (JSON format). |
+| `clustered_results.parquet` | Same DataFrame in efficient columnar parquet format. |
 | `full_dataset.json` | Complete `PropertyDataset` serialised as JSON. |
 | `full_dataset.parquet` | Same dataset in efficient columnar parquet format. |
 | `model_stats.json` | Per-model statistics (fine & coarse clusters, scores, examples). |
+| `parsing_failures.json` | Detailed parsing failure information for debugging. |
 | `summary.txt` | Human-readable summary with dataset counts and a leaderboard. |
 
 These filenames are **stable** so downstream notebooks and dashboards can rely on them without additional configuration. 
