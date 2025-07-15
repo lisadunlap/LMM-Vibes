@@ -3,7 +3,7 @@
 # LMM-Vibes
 ### *Extract, cluster, and analyze behavioral properties from Large Language Models*
 
-*Potential name options: VibeCheck, Axiom, Tesseract, Quill, MindPalace, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
+*Potential name options: VibeCheck, ReAgent, MindPalace, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
 
 ---
 
