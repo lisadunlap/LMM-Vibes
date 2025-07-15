@@ -1,6 +1,6 @@
 <div align="center">
 
-# LMM-Vibes
+# Whatever this is
 ### *Extract, cluster, and analyze behavioral properties from Large Language Models*
 
 *Potential name options: VibeCheck, ReAgent, MindPalace, Autopilot, TempCheck, explAIner, Marcel (i just like that name, no relation to anything this does)*
