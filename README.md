@@ -35,11 +35,11 @@ from lmmvibes import explain
 
 # Your data with model responses (can contain multiple models)
 df = pd.DataFrame({
-    "question_id": ["q1", "q2", "q3"],
+    "question_id": ["q1", "q2", "q3"], # unique id that specifies a uniqeu conversation (useful if there are duplicate prompts or many models)
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model": ["gpt-4", "gpt-4", "gpt-4"],
-    "model": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
+    "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
+    "score": [{"accuracy": 1}, {"accuracy": 0}, {"accuracy": 1}]
 })
 
 # Extract and cluster behavioral properties
