@@ -73,7 +73,7 @@ clustered_df, model_stats = explain(
 ### Viewing Results in Streamlit
 ```bash
 # View clusters, examples, and metrics
-streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/
+streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/test
 ```
 
 ## Outputs
