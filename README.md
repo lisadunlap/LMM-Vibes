@@ -131,7 +131,7 @@ df = pd.DataFrame({
 })
 ```
 
-### ⚔️ Side-by-Side Comparisons
+### Side-by-Side Comparisons
 Compare two models head-to-head (Arena-style battles).
 
 **Required Columns:**
@@ -148,8 +148,6 @@ Compare two models head-to-head (Arena-style battles).
 | Column | Description | Example |
 |--------|-------------|---------|
 | `score` | Dictionary with winner and metrics | `{"winner": "model_a", "rating": 4.5}` |
-| `category` | Question category/topic | `"math"`, `"coding"`, `"creative"` |
-| `difficulty` | Question difficulty level | `"easy"`, `"medium"`, `"hard"` |
 
 **Example DataFrame:**
 ```python
