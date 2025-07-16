@@ -1,0 +1,9 @@
+{
+  "name": "koala",
+  "description": "Koala eval dataset",
+  "tags": [
+    "instructions"
+  ],
+  "output_path": "benchmark_output/scenarios/koala",
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/koala_scenario.py"
+}

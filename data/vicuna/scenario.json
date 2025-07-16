@@ -1,0 +1,9 @@
+{
+  "name": "vicuna",
+  "description": "Vicuna eval questions",
+  "tags": [
+    "instructions"
+  ],
+  "output_path": "benchmark_output/scenarios/vicuna",
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/vicuna_scenario.py"
+}

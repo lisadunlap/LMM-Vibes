@@ -1,0 +1,7 @@
+{
+  "name": "grammar",
+  "description": "Scenarios based on a grammar",
+  "tags": [],
+  "output_path": "benchmark_output/scenarios/grammar",
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/grammar_scenario.py"
+}

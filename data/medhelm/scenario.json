@@ -1,0 +1,9 @@
+{
+  "name": "aci_bench",
+  "description": "A dataset of patient-doctor conversations paired with structured clinical notes [(Yim et al., 2024)](https://www.nature.com/articles/s41597-023-02487-3).",
+  "tags": [
+    "summarization",
+    "medicine"
+  ],
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/aci_bench_scenario.py"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "open_assistant",
+  "description": "The conversation dataset released by LAION's Open Assistant project.",
+  "tags": [
+    "instructions"
+  ],
+  "output_path": "benchmark_output/scenarios/open_assistant",
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/open_assistant_scenario.py"
+}

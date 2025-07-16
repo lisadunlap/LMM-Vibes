@@ -1,0 +1,9 @@
+{
+  "name": "self-instruct",
+  "description": "Self-instruct eval dataset",
+  "tags": [
+    "instructions"
+  ],
+  "output_path": "benchmark_output/scenarios/self-instruct",
+  "definition_path": "https://github.com/stanford-crfm/helm/blob/main/src/helm/benchmark/scenarios/self_instruct_scenario.py"
+}
