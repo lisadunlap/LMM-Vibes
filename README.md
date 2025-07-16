@@ -162,14 +162,6 @@ df = pd.DataFrame({
 })
 ```
 
-### Column Name Variations
-LMM-Vibes accepts alternative column names for flexibility:
-
-- `prompt` ↔ `user_prompt`
-- `model_response` ↔ `response`
-- `model_a_response` ↔ `response_a`
-- `model_b_response` ↔ `response_b`
-
 ## Pipeline Components
 
 LMM-Vibes follows a 4-stage pipeline architecture:
