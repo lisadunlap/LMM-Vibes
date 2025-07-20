@@ -178,12 +178,17 @@ def prepare_embeddings(unique_values: List[Any], config: ClusterConfig) -> np.nd
     if not config.disable_dim_reduction:
         n_points, n_dims = embeddings.shape
         
-        # Determine method (simplified logic)
+        # Determine method (improved adaptive logic)
         if config.dim_reduction_method == "adaptive":
-            # Simple adaptive logic
-            if n_points > 5000 or n_dims > 200:
-                method = "umap" if n_points > 10000 else "umap"
+            # More conservative adaptive logic that considers dataset size
+            if n_points < 100:
+                # For very small datasets, skip dimension reduction entirely
+                method = "none"
+            elif n_points > 5000 or n_dims > 200:
+                # For large datasets, use UMAP
+                method = "umap"
             else:
+                # For medium datasets, skip dimension reduction
                 method = "none"
         else:
             method = config.dim_reduction_method
@@ -192,22 +197,29 @@ def prepare_embeddings(unique_values: List[Any], config: ClusterConfig) -> np.nd
             if config.verbose:
                 print(f"Applying UMAP dimensionality reduction...")
             
-            # Adaptive parameters
+            # Adaptive parameters with better safeguards
             n_components = min(config.umap_n_components, n_dims - 1)
-            n_neighbors = min(config.umap_n_neighbors, n_points - 1)
+            # Ensure n_neighbors is much smaller than n_points to avoid spectral embedding issues
+            n_neighbors = min(config.umap_n_neighbors, max(5, n_points // 3))
             
-            reducer = umap.UMAP(
-                n_components=n_components,
-                n_neighbors=n_neighbors,
-                min_dist=config.umap_min_dist,
-                metric=config.umap_metric,
-                random_state=42,
-                verbose=config.verbose
-            )
-            embeddings = reducer.fit_transform(embeddings)
-            
-            if config.verbose:
-                print(f"Reduced to shape: {embeddings.shape}")
+            # Additional safety check
+            if n_neighbors >= n_points:
+                if config.verbose:
+                    print(f"Dataset too small for UMAP (n_points={n_points}, n_neighbors={n_neighbors}), skipping dimension reduction")
+                method = "none"
+            else:
+                reducer = umap.UMAP(
+                    n_components=n_components,
+                    n_neighbors=n_neighbors,
+                    min_dist=config.umap_min_dist,
+                    metric=config.umap_metric,
+                    random_state=42,
+                    verbose=config.verbose
+                )
+                embeddings = reducer.fit_transform(embeddings)
+                
+                if config.verbose:
+                    print(f"Reduced to shape: {embeddings.shape}")
                 
         elif method == "pca":
             if config.verbose:

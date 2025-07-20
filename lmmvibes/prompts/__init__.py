@@ -72,5 +72,6 @@ __all__ = [
     "taubench_system_prompt",
     "agentic_swe_system_prompt",
     "agentic_tool_focused_prompt",
-    "agentic_reasoning_focused_prompt"
+    "agentic_reasoning_focused_prompt",
+    "agentic_reward_hacking_focused_prompt",
 ] 

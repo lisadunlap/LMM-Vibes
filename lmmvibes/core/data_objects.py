@@ -170,7 +170,7 @@ class PropertyDataset:
             
         return cls(conversations=conversations, all_models=all_models)
     
-    def to_dataframe(self, type: str = "all") -> pd.DataFrame:
+    def to_dataframe(self, type: str = "all", method: str = "side_by_side") -> pd.DataFrame:
         """
         Convert PropertyDataset back to DataFrame format.
         
@@ -222,16 +222,22 @@ class PropertyDataset:
             # create property df
             prop_df = pd.DataFrame([p.to_dict() for p in self.properties])
             print("len of base df ", len(df))
-            df = df.merge(prop_df, on="question_id", how="left").drop_duplicates(subset="id")
+            if "model_a" in df.columns and "model_b" in df.columns:
+                df = df.merge(prop_df, on=["question_id"], how="right").drop_duplicates(subset="id")
+            else:
+                df = df.merge(prop_df, on=["question_id", "model"], how="left").drop_duplicates(subset="id") 
             print("len of df after merge with properties ", len(df))
 
             # ------------------------------------------------------------------
             # Ensure `model` column is present (avoid _x / _y duplicates)
             # ------------------------------------------------------------------
             if "model" not in df.columns:
+                print(f"df.model_y.value_counts(): {df.model_y.value_counts()}")
+                print(f"df.model_x.value_counts(): {df.model_x.value_counts()}")
                 if "model_x" in df.columns or "model_y" in df.columns:
-                    df["model"] = df.get("model_x").combine_first(df.get("model_y"))
+                    df["model"] = df.get("model_y").combine_first(df.get("model_x"))
                     df.drop(columns=[c for c in ["model_x", "model_y"] if c in df.columns], inplace=True)
+        print(f"df.model.value_counts() NEW: {df.model.value_counts()}")
 
         if self.clusters and type in ["all", "clusters"]:
             # If cluster columns already exist (e.g. after reload from parquet)

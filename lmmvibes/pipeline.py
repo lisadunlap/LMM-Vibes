@@ -79,6 +79,22 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
         self.log(f"Starting pipeline '{self.name}' with {len(self.stages)} stages")
         self.start_timer()
         
+        # Count initial models
+        initial_models = set()
+        for conv in data.conversations:
+            if isinstance(conv.model, list):
+                initial_models.update(conv.model)
+            else:
+                initial_models.add(conv.model)
+        
+        print(f"\n🚀 Starting pipeline '{self.name}'")
+        print(f"   • Input conversations: {len(data.conversations)}")
+        print(f"   • Input models: {len(initial_models)}")
+        if len(initial_models) <= 20:
+            model_list = sorted(list(initial_models))
+            print(f"   • Model names: {', '.join(model_list)}")
+        print()
+        
         current_data = data
         
         for i, stage in enumerate(self.stages):
@@ -106,6 +122,25 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
         total_time = self.end_timer()
         self.log(f"Pipeline '{self.name}' completed in {total_time:.2f}s")
         
+        # Print final summary
+        final_models = set()
+        for conv in current_data.conversations:
+            if isinstance(conv.model, list):
+                final_models.update(conv.model)
+            else:
+                final_models.add(conv.model)
+        
+        print(f"\n🎉 Pipeline '{self.name}' completed!")
+        print(f"   • Total execution time: {total_time:.2f}s")
+        print(f"   • Final conversations: {len(current_data.conversations)}")
+        print(f"   • Final properties: {len(current_data.properties)}")
+        print(f"   • Final models: {len(final_models)}")
+        if current_data.clusters:
+            print(f"   • Final clusters: {len(current_data.clusters)}")
+        if current_data.model_stats:
+            print(f"   • Models with final stats: {len(current_data.model_stats)}")
+        print()
+        
         return current_data
     
     def _log_stage_metrics(self, stage: PipelineStage, data: PropertyDataset) -> None:
@@ -117,7 +152,37 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
             'models_in_stats': len(data.model_stats)
         }
         
+        # Count unique models from conversations
+        unique_models = set()
+        for conv in data.conversations:
+            if isinstance(conv.model, list):
+                unique_models.update(conv.model)
+            else:
+                unique_models.add(conv.model)
+        
+        total_models = len(unique_models)
+        
+        # Add model count to metrics
+        metrics['total_models'] = total_models
+        
         self.log(f"Stage {stage.name} metrics: {metrics}")
+        
+        # Print specific model count information
+        print(f"\n📊 Stage '{stage.name}' completed:")
+        print(f"   • Total conversations: {len(data.conversations)}")
+        print(f"   • Total properties: {len(data.properties)}")
+        print(f"   • Total models: {total_models}")
+        if data.clusters:
+            print(f"   • Total clusters: {len(data.clusters)}")
+        if data.model_stats:
+            print(f"   • Models with stats: {len(data.model_stats)}")
+        
+        # Show model names if verbose
+        if hasattr(self, 'verbose') and self.verbose and total_models <= 20:
+            model_list = sorted(list(unique_models))
+            print(f"   • Models: {', '.join(model_list)}")
+        
+        print()  # Add spacing
         
         # Log to wandb as summary metrics (not regular metrics)
         if hasattr(self, 'log_wandb'):

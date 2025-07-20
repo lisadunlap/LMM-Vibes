@@ -75,6 +75,33 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
             self.log("No cluster info found; skipping metrics stage.")
             return data
 
+        # Store the full DataFrame for use in normalization
+        self.full_df = df.copy()
+
+        # Print diagnostic information about models
+        print(f"\n🔍 Metrics stage diagnostic:")
+        print(f"   • Input dataset has {len(data.all_models)} models: {sorted(data.all_models)}")
+        print(f"   • DataFrame has {len(df)} rows")
+        if 'model' in df.columns:
+            df_models = df['model'].unique()
+            print(f"   • DataFrame has {len(df_models)} unique models: {sorted(df_models)}")
+            
+            # Check for models that are missing from the DataFrame
+            missing_models = set(data.all_models) - set(df_models)
+            if missing_models:
+                print(f"   • ⚠️  Missing models from DataFrame: {sorted(missing_models)}")
+                print(f"   • This suggests these models had no valid properties after extraction/validation")
+                
+                # Raise ValueError if entire models are missing - this indicates a serious pipeline issue
+                raise ValueError(
+                    f"\n" + "="*60 + "\n"
+                    f"ERROR: Entire models missing from metrics computation!\n"
+                    f"="*60 + "\n"
+                    f"The following models were completely filtered out before reaching the metrics stage:\n"
+                    f"  {sorted(missing_models)}\n\n"
+                    f"="*60
+                )
+
         # Required columns check
         req = {
             "model",
@@ -116,8 +143,18 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
             # Filter out properties with invalid model names
             df = df[df["model"].apply(lambda x: isinstance(x, str))]
             self.log(f"Filtered out {len(invalid_models)} properties with invalid model names")
+            
+            # Print diagnostic about the filtering
+            print(f"   • After filtering invalid model names: {len(df)} rows")
+            if 'model' in df.columns:
+                remaining_models = df['model'].unique()
+                print(f"   • Remaining models: {sorted(remaining_models)}")
 
         self.log(f"Models used for metrics: {df['model'].unique()}")
+        
+        # Final diagnostic summary
+        print(f"   • Final models for metrics computation: {sorted(df['model'].unique())}")
+        print()
 
         # ------------------------------------------------------------------
         # Calculate denominator: unique questions answered per model
@@ -162,6 +199,35 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
         print("Average scores per model (all keys):")
         print(self.avg_score_per_model)
 
+        # Compute global min/max values for each score key (for normalization)
+        self.global_score_stats = {}
+        for key in all_score_keys:
+            # Use vectorized operations instead of iterrows()
+            scores_series = df["score"].apply(
+                lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+            )
+            
+            # Filter out zeros (which might be missing values)
+            valid_scores = scores_series[scores_series != 0]
+            
+            if len(valid_scores) > 0:
+                global_min = valid_scores.min()
+                global_max = valid_scores.max()
+                # Apply the hack: if min > 0, set min = 0
+                if global_min > 0:
+                    global_min = 0
+                self.global_score_stats[key] = {
+                    "min": global_min,
+                    "max": global_max,
+                    "range": global_max - global_min
+                }
+            else:
+                self.global_score_stats[key] = {
+                    "min": 0,
+                    "max": 1,
+                    "range": 1
+                }
+
         stats: Dict[str, Dict[str, List[ModelStats]]] = defaultdict(lambda: {"fine": [], "coarse": []})
 
         # ---------------- Fine clusters ----------------
@@ -182,10 +248,19 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
             for lvl in ("fine", "coarse"):
                 stats[m][lvl].sort(key=lambda s: s.score, reverse=True)
 
+        # Compute global stats for each model (this is now optimized)
+        global_stats = self._compute_global_stats(df)
+        
+        # Add global stats to each model's stats
+        for model in stats:
+            stats[model]["stats"] = global_stats.get(model, {})
+
         data.model_stats = stats  # type: ignore[assignment]
 
-        if self.output_dir:
-            self._dump(stats)
+        # Note: Individual JSONL files are no longer saved here
+        # The model_stats.json file is saved by the pipeline in public.py
+        # if self.output_dir:
+        #     self._dump(stats)
 
         self.log(f"✅ Metrics computed for {len(stats)} models")
         return data
@@ -229,6 +304,114 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
             result[key] = model_ratios
         return result
 
+    def _compute_normalized_quality_score(self, group: pd.DataFrame) -> dict:
+        """
+        Compute normalized quality scores that are centered around zero.
+        
+        **Normalization Method:**
+        For each score key, we compute:
+        1. Cluster average: avg(score for all examples in this cluster)
+        2. Global average for each model: avg(score for that model across all data)
+        3. Normalized score: (cluster_avg - model_global_avg) / global_range
+        
+        **Interpretation:**
+        - Values > 0: Model performs better in this cluster than its global average
+        - Values < 0: Model performs worse in this cluster than its global average
+        - Values = 0: Model performs exactly at its global average in this cluster
+        
+        **Benefits:**
+        - Zero-centered scale makes it easy to see relative performance
+        - Positive values indicate above-average performance in this cluster
+        - Negative values indicate below-average performance in this cluster
+        - Normalization by global range keeps scores comparable across metrics
+        
+        Returns a dictionary where keys are score keys and values are normalized scores.
+        """
+        # Get all score keys from the first non-empty score dict
+        score_keys = []
+        for s in group["score"]:
+            if isinstance(s, dict) and s:
+                score_keys = list(s.keys())
+                break
+        if not score_keys:
+            return {}
+
+        result = {}
+        for key in score_keys:
+            # Use vectorized operations instead of iterrows()
+            scores_series = group["score"].apply(
+                lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+            )
+            
+            # Calculate cluster average using vectorized operations
+            cluster_avg = scores_series.mean()
+            
+            # Calculate model-specific global averages for models in this cluster
+            models_in_cluster = group["model"].unique()
+            model_global_avgs = []
+            
+            for model in models_in_cluster:
+                try:
+                    model_global_avg = self.avg_score_per_model.loc[model, key]
+                    model_global_avgs.append(model_global_avg)
+                except Exception:
+                    # If model not found, skip
+                    continue
+            
+            # Use the average of model global averages as the baseline
+            if model_global_avgs:
+                baseline_avg = np.mean(model_global_avgs)
+            else:
+                baseline_avg = 0
+            
+            # Use pre-computed global stats for normalization
+            if key in self.global_score_stats:
+                global_range = self.global_score_stats[key]["range"]
+                
+                # Normalize using the new formula
+                if global_range > 0:
+                    normalized_score = (cluster_avg - baseline_avg) / global_range
+                else:
+                    normalized_score = 0  # If all values are the same, no difference
+            else:
+                normalized_score = 0  # Fallback if key not found
+            
+            result[key] = normalized_score
+        
+        return result
+
+    def _compute_global_stats(self, df: pd.DataFrame) -> dict:
+        """
+        Compute global statistics for each model across all examples.
+        Returns a dictionary with model names as keys and average scores for each metric as values.
+        """
+        global_stats = {}
+        
+        # Get all score keys
+        all_score_keys = set()
+        for s in df["score"]:
+            if isinstance(s, dict):
+                all_score_keys.update(s.keys())
+        all_score_keys = sorted(all_score_keys)
+        
+        # Use vectorized operations instead of iterrows()
+        for key in all_score_keys:
+            # Extract scores for this key using vectorized operations
+            scores_series = df["score"].apply(
+                lambda x: x.get(key, 0) if isinstance(x, dict) else 0
+            )
+            
+            # Group by model and compute mean
+            model_means = scores_series.groupby(df["model"]).mean()
+            
+            # Store results
+            for model in model_means.index:
+                if model not in global_stats:
+                    global_stats[model] = {}
+                global_stats[model][key] = model_means[model]
+        
+        return global_stats
+
     # ------------------------------------------------------------------
     def _compute(
         self,
@@ -255,7 +438,7 @@ class SingleModelMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
         for model, prop in props.items():
             score = prop / median_prop if median_prop else 0.0
-            quality_score = self._compute_quality_score(group)
+            quality_score = self._compute_normalized_quality_score(group)
             ms = ModelStats(
                 property_description=str(label),
                 model_name=str(model),

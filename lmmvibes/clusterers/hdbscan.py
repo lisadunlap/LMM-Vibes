@@ -29,6 +29,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         use_wandb: bool = False,
         wandb_project: str = None,
         max_coarse_clusters: int = 25,
+        output_dir: str = None,
         **kwargs
     ):
         """
@@ -42,6 +43,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             include_embeddings: Whether to include embeddings in output
             use_wandb: Whether to use wandb for logging
             wandb_project: wandb project name
+            output_dir: Directory to save clustering results (optional)
             **kwargs: Additional configuration
         """
         super().__init__(use_wandb=use_wandb, wandb_project=wandb_project, **kwargs)
@@ -51,6 +53,17 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         self.assign_outliers = assign_outliers
         self.include_embeddings = include_embeddings
         self.max_coarse_clusters = max_coarse_clusters
+        self.output_dir = output_dir
+        # Store config for save_clustered_results
+        self.config = type('Config', (), {
+            'min_cluster_size': min_cluster_size,
+            'embedding_model': embedding_model,
+            'hierarchical': hierarchical,
+            'assign_outliers': assign_outliers,
+            'use_wandb': use_wandb,
+            'wandb_project': wandb_project,
+            'max_coarse_clusters': max_coarse_clusters
+        })()
                 
     def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
         """
@@ -102,6 +115,8 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             config=cfg
         )
 
+        print(f"Clusters per model: {clustered_df.model.value_counts()}")
+
         # ------------------------------------------------------------------
         # Convert clustering result into a simple summary dict
         # ------------------------------------------------------------------
@@ -111,8 +126,6 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         coarse_id_col    = f'{column_name}_coarse_cluster_id'
 
         clusters: List[Cluster] = []
-
-        clustered_df.to_csv("clustered_df.csv")
 
         # ------------------------------------------------------------------
         # Convert clustering result into a simple summary dict
@@ -142,6 +155,37 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             if p.property_description in desc_to_fine_id:
                 setattr(p, 'fine_cluster_id', int(desc_to_fine_id[p.property_description]))
                 setattr(p, 'fine_cluster_label', desc_to_fine_label[p.property_description])
+
+        # ------------------------------------------------------------------
+        # Auto-save clustering results if output_dir is provided
+        # ------------------------------------------------------------------
+        if self.output_dir:
+            try:
+                from .clustering_utils import save_clustered_results
+                import os
+                
+                # Create output directory if it doesn't exist
+                os.makedirs(self.output_dir, exist_ok=True)
+                
+                # Generate base filename from output directory
+                base_filename = os.path.basename(self.output_dir.rstrip('/'))
+                
+                # Save clustered results using the enhanced function
+                save_results = save_clustered_results(
+                    df=clustered_df,
+                    base_filename=base_filename,
+                    include_embeddings=self.include_embeddings,
+                    config=self.config,
+                    output_dir=self.output_dir
+                )
+                
+                self.log(f"✅ Auto-saved clustering results to: {self.output_dir}")
+                for key, path in save_results.items():
+                    if path:
+                        self.log(f"  • {key}: {path}")
+                        
+            except Exception as e:
+                self.log(f"⚠️ Failed to auto-save clustering results: {e}", level="warning")
 
         # --- Wandb logging ---
         if self.use_wandb:

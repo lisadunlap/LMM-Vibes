@@ -39,7 +39,7 @@ df = pd.DataFrame({
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model": ["gpt-4", "gpt-4", "gpt-4"],
     "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "score": [{"accuracy": 1}, {"accuracy": 0}, {"accuracy": 1}]
+    "score": [{"accuracy": 1, "helpfulness": 4.2}, {"accuracy": 0, "helpfulness": 3.8}, {"accuracy": 1, "helpfulness": 4.5}]
 })
 
 # Extract and cluster behavioral properties
@@ -58,7 +58,7 @@ df = pd.DataFrame({
     "model_b": ["claude-3", "claude-3", "claude-3"],
     "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
     "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
+    "score": [{"winner": "gpt-4", "helpfulness": 4.2}, {"winner": "gpt-4", "helpfulness": 3.8}, {"winner": "claude-3", "helpfulness": 4.5}]
 })
 
 # Extract and cluster behavioral properties
@@ -95,6 +95,8 @@ A dictionary or DataFrame with per-model behavioral analysis, including:
 - Which behaviors each model exhibits most or least frequently.
 - Relative scores for each model on different behavioral clusters.
 - Example responses from each model for each behavior cluster.
+- **Quality scores**: How well each model performs within specific behavioral clusters compared to their overall performance.
+- **Normalized quality scores**: Consistent 0-1 scale metrics across different evaluation criteria.
 
 This allows you to see not just which model "won" overall, but *why*—by surfacing the behavioral patterns and strengths/weaknesses of each model.
 
@@ -116,7 +118,7 @@ Analyze behavioral patterns from individual model responses.
 **Optional Columns:**
 | Column | Description | Example |
 |--------|-------------|---------|
-| `score` | Dictionary of evaluation metrics | `{"rating": 4.2, "accuracy": 0.85}` |
+| `score` | Dictionary of evaluation metrics | `{"accuracy": 0.85, "helpfulness": 4.2, "harmlessness": 4.8}` |
 | `category` | Question category/topic | `"math"`, `"coding"`, `"creative"` |
 | `difficulty` | Question difficulty level | `"easy"`, `"medium"`, `"hard"` |
 
@@ -127,7 +129,7 @@ df = pd.DataFrame({
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model": ["gpt-4", "gpt-4", "gpt-4"],
     "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "score": [{"rating": 4.5}, {"rating": 3.8}, {"rating": 4.2}]
+    "score": [{"accuracy": 1, "helpfulness": 4.5}, {"accuracy": 0, "helpfulness": 3.8}, {"accuracy": 1, "helpfulness": 4.2}]
 })
 ```
 
@@ -147,7 +149,7 @@ Compare two models head-to-head (Arena-style battles).
 **Optional Columns:**
 | Column | Description | Example |
 |--------|-------------|---------|
-| `score` | Dictionary with winner and metrics | `{"winner": "model_a", "rating": 4.5}` |
+| `score` | Dictionary with winner and metrics | `{"winner": "model_a", "helpfulness": 4.5, "accuracy": 1}` |
 
 **Example DataFrame:**
 ```python
@@ -158,7 +160,7 @@ df = pd.DataFrame({
     "model_b": ["claude-3", "claude-3", "claude-3"],
     "model_a_response": ["ML is a subset of AI...", "Quantum computing uses...", "In circuits of light..."],
     "model_b_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
-    "score": [{"winner": "gpt-4"}, {"winner": "gpt-4"}, {"winner": "claude-3"}]
+    "score": [{"winner": "gpt-4", "helpfulness": 4.2}, {"winner": "gpt-4", "helpfulness": 3.8}, {"winner": "claude-3", "helpfulness": 4.5}]
 })
 ```
 
@@ -221,10 +223,42 @@ Computes which models excel at which behavioral patterns:
 - Relative strengths/weaknesses between models  
 - Statistical significance of differences
 - Example responses for each cluster
+- **Quality scores**: How well each model performs within specific behavioral clusters compared to their overall performance
+- **Normalized quality scores**: Consistent 0-1 scale metrics across different evaluation criteria
+- **Multi-dimensional scoring**: Support for multiple evaluation metrics (accuracy, helpfulness, harmlessness, etc.)
 
 **Available metrics:**
-- `SideBySideMetrics` - For model comparison data
-- `SingleModelMetrics` - For individual model analysis
+- `SideBySideMetrics` - For model comparison data with winner determination
+- `SingleModelMetrics` - For individual model analysis with performance metrics
+
+**Metric Definitions:**
+
+For a given model *m* and cluster *c*:
+
+**Representation Score:**
+```
+prop(m, c)   =   #questions where m shows c   /   #questions answered by m
+score(m, c)  =   prop(m, c) / median_{m'} prop(m', c)
+```
+
+**Quality Score:**
+For each score key *k* in the multi-dimensional score dictionary:
+```
+quality_score(k, c) = avg_{m in c} (avg_score(m, c, k) / avg_score(m, global, k))
+```
+
+**Normalized Quality Score:**
+```
+normalized_score(k, c) = (cluster_avg(k, c) - global_min(k)) / (global_max(k) - global_min(k))
+```
+
+**Interpretation:**
+- `score > 1`: Model is **over-represented** in that cluster
+- `score < 1`: Model is **under-represented** in that cluster  
+- `quality_score > 1`: Models in this cluster perform better than their global average
+- `quality_score < 1`: Models in this cluster perform worse than their global average
+- `normalized_score` close to 1.0: Cluster performs near the best observed performance
+- `normalized_score` close to 0.0: Cluster performs near the worst observed performance
 
 </details>
 
@@ -235,7 +269,7 @@ clustered_df, model_stats = explain(
     df,
     method="side_by_side",              # or "single_model"
     system_prompt=None # custom extraction prompt (you can also omit this and we will use our default)
-    min_cluster_size=30,                # minimum cluster size
+    min_cluster_size=30,                # minimum cluster size for a property 
     embedding_model="openai",           # or any sentence-transformer model
     hierarchical=True,                  # create coarse clusters
     output_dir="results/",              # save outputs here
@@ -252,7 +286,7 @@ When you specify `output_dir`, LMM-Vibes automatically saves:
 |------|-------------|
 | `clustered_results.parquet` | Full dataset with properties and clusters |
 | `full_dataset.json` | Complete dataset in JSON format |
-| `model_stats.json` | Per-model behavioral statistics |
+| `model_stats.json` | Per-model behavioral statistics with quality scores |
 | `summary.txt` | Human-readable analysis summary |
 
 ## Examples
@@ -270,19 +304,35 @@ for model, model_stats in stats.items():
     print(f"\n{model} excels at:")
     for behavior in model_stats["fine"][:3]:  # top 3 behaviors
         print(f"  • {behavior.property_description} (score: {behavior.score:.2f})")
+        if hasattr(behavior, 'quality_scores'):
+            print(f"    Quality scores: {behavior.quality_scores}")
 ```
 
-### Understanding Model Capabilities
+### Understanding Model Capabilities with Multi-dimensional Scoring
 ```python
-# Single model analysis
+# Single model analysis with multiple evaluation criteria
 df = pd.DataFrame({
     "question_id": range(100),
     "prompt": ["Explain quantum physics"] * 100,
     "model": ["gpt-4"] * 100,
-    "response": responses  # your model responses
+    "response": responses,  # your model responses
+    "score": [
+        {"accuracy": 1, "helpfulness": 4.2, "harmlessness": 4.8},
+        {"accuracy": 0, "helpfulness": 3.5, "harmlessness": 4.9},
+        # ... more scores
+    ]
 })
 
 clustered_df, stats = explain(df, method="single_model")
+
+# Analyze quality scores across different metrics
+for model, model_stats in stats.items():
+    print(f"\n{model} performance by behavioral cluster:")
+    for behavior in model_stats["fine"][:3]:
+        print(f"  • {behavior.property_description}")
+        if hasattr(behavior, 'normalized_quality_scores'):
+            for metric, score in behavior.normalized_quality_scores.items():
+                print(f"    {metric}: {score:.3f}")
 ```
 
 ## Advanced: Running Pipeline Components
@@ -295,7 +345,7 @@ from lmmvibes.core import PropertyDataset
 from lmmvibes.extractors import OpenAIExtractor
 from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
 from lmmvibes.clusterers import HDBSCANClusterer
-from lmmvibes.metrics import SideBySideMetrics
+from lmmvibes.metrics import SideBySideMetrics, SingleModelMetrics
 
 # 1. Load your data
 dataset = PropertyDataset.from_dataframe(df, method="side_by_side")
@@ -324,7 +374,7 @@ clusterer = HDBSCANClusterer(
 dataset = clusterer(dataset)
 
 # 5. Compute metrics
-metrics = SideBySideMetrics()
+metrics = SideBySideMetrics()  # or SingleModelMetrics()
 dataset = metrics(dataset)
 
 # 6. Save results
@@ -340,6 +390,13 @@ So uh, I'm still building this out a lot so maybe contribute when i have somethi
 If you want to know more about the nitty gritty abstractions and code structure, check out the [design doc](README_ABSTRACTION.md).
 
 ---
+
+## TODO
+- Add auto conversation conversion (both from input -> string and string -> unified OAI format for website vis)
+- Change so model response is whatever, then we save `converted_response` and use model response for vis purposes
+- Add image support (should be somewhat easy)
+- Change quality score to certer around either 0 or 1 (maybe we just take the difference between cluster score and avg score)
+- Add functionality for MAST/providing your own taxonomy
 
 <div align="center">
 

@@ -43,14 +43,6 @@ def get_clusterer(
             include_embeddings=include_embeddings,
             **kwargs
         )
-    elif method == "hdbscan_native":
-        from .hdbscan import HDBSCANNativeClusterer
-        return HDBSCANNativeClusterer(
-            min_cluster_size=min_cluster_size,
-            embedding_model=embedding_model,
-            include_embeddings=include_embeddings,
-            **kwargs
-        )
     elif method == "hierarchical":
         from .hierarchical import HierarchicalClusterer
         return HierarchicalClusterer(
@@ -63,6 +55,12 @@ def get_clusterer(
         raise ValueError(f"Unknown clustering method: {method}")
 
 
+# Import clusterer classes for direct access
+from .hdbscan import HDBSCANClusterer
+from .hierarchical import HierarchicalClusterer
+
 __all__ = [
-    "get_clusterer"
+    "get_clusterer",
+    "HDBSCANClusterer", 
+    "HierarchicalClusterer"
 ] 

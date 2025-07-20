@@ -128,7 +128,21 @@ def explain(
         system_prompt = get_default_system_prompt(method, contains_score)
         if verbose:
             print(f"Auto-selected system prompt for method '{method}' (contains_score={contains_score})")
-
+    else:
+        # If prompt is less than 50 characters, assume it's a prompt name and resolve it
+        if len(system_prompt) < 50:
+            try:
+                from . import prompts
+                system_prompt = getattr(prompts, system_prompt)
+            except AttributeError:
+                # Get available prompts for error message
+                available_prompts = [
+                    name for name in dir(prompts) 
+                    if name.endswith('_system_prompt') or name.endswith('_prompt')
+                ]
+                raise ValueError(f"Unknown prompt name: {system_prompt}'. Available prompts: {available_prompts}")
+        # If prompt is 50+ characters, assume it's actual prompt content and use directly
+    
     # Print the system prompt for verification
     if verbose:
         print("\n" + "="*80)
@@ -136,9 +150,20 @@ def explain(
         print("="*80)
         print(system_prompt)
         print("="*80 + "\n")
+    if len(system_prompt) < 50:
+        raise ValueError("System prompt is too short. Please provide a longer system prompt.")
     
     # Create PropertyDataset from input DataFrame
     dataset = PropertyDataset.from_dataframe(df, method=method)
+    
+    # Print initial dataset information
+    if verbose:
+        print(f"\n📋 Initial dataset summary:")
+        print(f"   • Conversations: {len(dataset.conversations)}")
+        print(f"   • Models: {len(dataset.all_models)}")
+        if len(dataset.all_models) <= 20:
+            print(f"   • Model names: {', '.join(sorted(dataset.all_models))}")
+        print()
     
     # 2️⃣  Initialize wandb if enabled
     wandb_run_name = f"explain_{method}_{int(time.time())}"
@@ -199,6 +224,7 @@ def explain(
             extraction_cache_dir=extraction_cache_dir,
             clustering_cache_dir=clustering_cache_dir,
             metrics_cache_dir=metrics_cache_dir,
+            output_dir=output_dir,
             **kwargs
         )
     
@@ -227,7 +253,7 @@ def explain(
         )
     
     # Convert back to DataFrame format
-    clustered_df = result_dataset.to_dataframe()
+    clustered_df = result_dataset.to_dataframe(type="all", method=method)
     model_stats = result_dataset.model_stats
     
     # 5️⃣  Save results if output_dir is provided
@@ -296,6 +322,7 @@ def _build_default_pipeline(
     extraction_cache_dir: Optional[str] = None,
     clustering_cache_dir: Optional[str] = None,
     metrics_cache_dir: Optional[str] = None,
+    output_dir: Optional[str] = None,
     **kwargs
 ) -> Pipeline:
     """
@@ -362,6 +389,10 @@ def _build_default_pipeline(
     # Add cache directory for clustering if provided
     if clustering_cache_dir:
         clusterer_kwargs['cache_dir'] = clustering_cache_dir
+    
+    # Add output directory for auto-saving clustering results
+    if output_dir:
+        clusterer_kwargs['output_dir'] = output_dir
     
     if isinstance(clusterer, str):
         clusterer_stage = get_clusterer(clusterer, **clusterer_kwargs)
@@ -548,80 +579,16 @@ def _save_results_to_dir(
     if verbose:
         print(f"Saving results to: {output_path}")
     
-    # 1. Save clustered DataFrame as JSON (primary format - preserves data structures)
-    clustered_json_path = output_path / "clustered_results.json"
+    # Note: Clustered results and embeddings are already auto-saved by clustering stages
+    # We only save pipeline-specific results here
     
-    try:
-        # Save as JSON with proper handling of nested structures
-        clustered_df.to_json(clustered_json_path, orient='records', lines=True, force_ascii=False)
-        if verbose:
-            print(f"  ✓ Saved clustered DataFrame (JSON): {clustered_json_path}")
-    except Exception as e:
-        if verbose:
-            print(f"  ⚠️ Failed to save JSON: {e}")
-    
-    # 2. Save clustered DataFrame as parquet (secondary format - for efficiency)
-    clustered_parquet_path = output_path / "clustered_results.parquet"
-    
-    # For parquet, exclude columns with complex nested data that can't be reliably serialized
-    df_for_parquet = clustered_df.copy()
-    
-    # Identify problematic columns (those with nested dicts/lists)
-    problematic_cols = []
-    for col in df_for_parquet.columns:
-        if df_for_parquet[col].dtype == 'object':
-            # Check if column contains nested structures
-            sample_non_null = df_for_parquet[col].dropna()
-            if len(sample_non_null) > 0:
-                sample_val = sample_non_null.iloc[0]
-                if isinstance(sample_val, (dict, list)):
-                    problematic_cols.append(col)
-                    continue
-                # Also check if it's a string representation of nested data
-                if isinstance(sample_val, str) and (sample_val.startswith('{') or sample_val.startswith('[')):
-                    try:
-                        import ast
-                        ast.literal_eval(sample_val)  # If this works, it's probably nested data as string
-                        problematic_cols.append(col)
-                        continue
-                    except:
-                        pass  # Not nested data, keep the column
-    
-    # Remove problematic columns and save a note about what was excluded
-    if problematic_cols:
-        df_for_parquet = df_for_parquet.drop(columns=problematic_cols)
-        if verbose:
-            print(f"  ⚠️  Excluding columns with nested data from parquet: {problematic_cols}")
-            print(f"  💡 Use clustered_results.json for complete data with nested structures")
-    
-    try:
-        df_for_parquet.to_parquet(clustered_parquet_path, index=False, engine='pyarrow')
-        if verbose:
-            print(f"  ✓ Saved clustered DataFrame (parquet): {clustered_parquet_path}")
-            if problematic_cols:
-                print(f"    Note: {len(problematic_cols)} columns with nested data excluded")
-    except Exception as e:
-        if verbose:
-            print(f"  ⚠️ Failed to save parquet: {e}")
-            print(f"  📄 Saving as CSV instead...")
-        # Fallback to CSV if parquet still fails
-        csv_path = output_path / "clustered_results.csv"
-        try:
-            df_for_parquet.to_csv(csv_path, index=False)
-            if verbose:
-                print(f"  ✓ Saved clustered DataFrame (CSV): {csv_path}")
-        except Exception as csv_e:
-            if verbose:
-                print(f"  ❌ Failed to save CSV: {csv_e}")
-                print(f"  💡 Data available in JSON format: {clustered_json_path}")
-    
-    # 3. Save complete PropertyDataset as JSON
+    # 1. Save complete PropertyDataset as JSON (keep for compatibility)
     dataset_json_path = output_path / "full_dataset.json"
     result_dataset.save(str(dataset_json_path), format="json")
     if verbose:
         print(f"  ✓ Saved full PropertyDataset (JSON): {dataset_json_path}")
     
-    # 5. Save model statistics as JSON
+    # 2. Save model statistics as JSON
     stats_path = output_path / "model_stats.json"
     
     # Convert ModelStats objects to dictionaries for JSON serialization
@@ -632,13 +599,16 @@ def _save_results_to_dir(
         }
         if "coarse" in stats:
             stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
+        # Add global stats if they exist
+        if "stats" in stats:
+            stats_for_json[str(model_name)]["stats"] = stats["stats"]
     
     with open(stats_path, 'w') as f:
         json.dump(stats_for_json, f, indent=2)
     if verbose:
         print(f"  ✓ Saved model statistics (JSON): {stats_path}")
     
-    # 6. Save parsing failures if pipeline is provided
+    # 3. Save parsing failures if pipeline is provided
     if pipeline:
         # Find the LLMJsonParser stage
         from .postprocess import LLMJsonParser
@@ -694,7 +664,7 @@ def _save_results_to_dir(
                         for error_type, count in error_types.items():
                             print(f"      - {error_type}: {count}")
     
-    # 7. Save summary statistics
+    # 4. Save summary statistics
     summary_path = output_path / "summary.txt"
     with open(summary_path, 'w') as f:
         f.write("LMM-Vibes Results Summary\n")
@@ -715,8 +685,12 @@ def _save_results_to_dir(
         f.write(f"\nFiles saved:\n")
         f.write(f"  - clustered_results.json: Complete DataFrame with clusters (JSON)\n")
         f.write(f"  - clustered_results.parquet: Complete DataFrame with clusters (parquet)\n")
+        f.write(f"  - embeddings.parquet: Embeddings data (parquet)\n")
+        f.write(f"  - embeddings.json: Embeddings data (JSON)\n")
+        f.write(f"  - clustered_results_lightweight.parquet: Lightweight results (parquet)\n")
+        f.write(f"  - clustered_results_lightweight.csv: Lightweight results (CSV)\n")
+        f.write(f"  - summary_table.json: Clustering summary table\n")
         f.write(f"  - full_dataset.json: Complete PropertyDataset object (JSON format)\n")
-        f.write(f"  - full_dataset.parquet: Complete PropertyDataset object (parquet format)\n")
         f.write(f"  - model_stats.json: Model statistics and rankings\n")
         f.write(f"  - parsing_failures.json: Detailed parsing failure information\n")
         f.write(f"  - summary.txt: This summary file\n")
@@ -735,8 +709,8 @@ def _save_results_to_dir(
     if verbose:
         print(f"  ✓ Saved summary: {summary_path}")
         print(f"🎉 All results saved to: {output_path}")
-        print(f"    • DataFrame: clustered_results.json + clustered_results.parquet")
-        print(f"    • PropertyDataset: full_dataset.json + full_dataset.parquet")
+        print(f"    • Clustered data: Auto-saved by clustering stage")
+        print(f"    • PropertyDataset: full_dataset.json")
         print(f"    • Model stats: model_stats.json")
         print(f"    • Parsing failures: parsing_failures.json")
         print(f"    • Summary: summary.txt")
@@ -797,7 +771,7 @@ def explain_with_custom_pipeline(
     Returns:
         Tuple of (clustered_df, model_stats)
     """
-    dataset = PropertyDataset.from_dataframe(df, method=method)
+    dataset = PropertyDataset.from_dataframe(df)
     result_dataset = pipeline.run(dataset)
     return result_dataset.to_dataframe(), result_dataset.model_stats
 
@@ -895,6 +869,20 @@ def compute_metrics_only(
         print(f"  - {len(dataset.properties)} properties")
         print(f"  - {len(dataset.clusters)} clusters")
         print(f"  - Models: {dataset.all_models}")
+        
+        # Count unique models from conversations for verification
+        unique_models = set()
+        for conv in dataset.conversations:
+            if isinstance(conv.model, list):
+                unique_models.update(conv.model)
+            else:
+                unique_models.add(conv.model)
+        
+        print(f"  - Total unique models: {len(unique_models)}")
+        if len(unique_models) <= 20:
+            model_list = sorted(list(unique_models))
+            print(f"  - Model names: {', '.join(model_list)}")
+        print()
     
     # Create metrics stage
     metrics_config = {
@@ -932,34 +920,15 @@ def compute_metrics_only(
         if verbose:
             print(f"\nSaving results to: {output_dir}")
         
-        # 1. Save clustered DataFrame as parquet
-        clustered_parquet_path = output_path / "metrics_results.parquet"
-        clustered_df.to_parquet(clustered_parquet_path, index=False)
-        if verbose:
-            print(f"  ✓ Saved metrics DataFrame (parquet): {clustered_parquet_path}")
-        
-        # 2. Save complete PropertyDataset as JSON
-        dataset_json_path = output_path / "metrics_dataset.json"
-        result_dataset.save(str(dataset_json_path), format="json")
-        if verbose:
-            print(f"  ✓ Saved metrics PropertyDataset (JSON): {dataset_json_path}")
-        
-        # 3. Save model statistics as JSON
-        stats_path = output_path / "metrics_stats.json"
-        
-        # Convert ModelStats objects to dictionaries for JSON serialization
-        stats_for_json = {}
-        for model_name, stats in model_stats.items():
-            stats_for_json[str(model_name)] = {
-                "fine": [stat.to_dict() for stat in stats["fine"]]
-            }
-            if "coarse" in stats:
-                stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
-        
-        with open(stats_path, 'w') as f:
-            json.dump(stats_for_json, f, indent=2)
-        if verbose:
-            print(f"  ✓ Saved model statistics (JSON): {stats_path}")
+        # Use the same saving mechanism as the full pipeline
+        _save_results_to_dir(
+            result_dataset=result_dataset,
+            clustered_df=clustered_df,
+            model_stats=model_stats,
+            output_dir=output_dir,
+            verbose=verbose,
+            pipeline=pipeline
+        )
         
         # Print summary
         if verbose:

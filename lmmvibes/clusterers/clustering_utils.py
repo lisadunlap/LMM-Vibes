@@ -286,7 +286,7 @@ Focus on creating properties that are:
     request_data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": coarse_clustering_systems_prompt},
+            {"role": "system", "content": coarse_clustering_systems_prompt.format(max_properties=max_coarse_clusters)},
             {"role": "user", "content": user_prompt},
         ],
         "max_completion_tokens": 1000,
@@ -294,6 +294,7 @@ Focus on creating properties that are:
 
     # Check cache first
     cached_response = _cache.get_completion(request_data)
+    cached_response = None
     if cached_response is not None:
         content = cached_response["choices"][0]["message"]["content"]
         if verbose:
@@ -514,56 +515,111 @@ def load_clustered_results(parquet_path):
     return df
 
 
-def save_clustered_results(df, base_filename, include_embeddings=True, config=None):
-    """Save clustered results in multiple formats and optionally log to wandb."""
-
-    os.makedirs(f"cluster_results/{base_filename}", exist_ok=True)
+def save_clustered_results(df, base_filename, include_embeddings=True, config=None, output_dir=None):
+    """Save clustered results in multiple formats and optionally log to wandb.
     
-    # Convert problematic columns to strings
+    Args:
+        df: DataFrame with clustered results
+        base_filename: Base name for output files
+        include_embeddings: Whether to include embeddings in output
+        config: ClusterConfig object for wandb logging
+        output_dir: Output directory (if None, uses cluster_results/{base_filename})
+    """
+
+    # Determine output directory
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        save_dir = output_dir
+    else:
+        os.makedirs(f"cluster_results/{base_filename}", exist_ok=True)
+        save_dir = f"cluster_results/{base_filename}"
+    
+    # Convert problematic columns to strings for JSON serialization
     df = df.copy()
     for col in df.columns:
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str)
     
-    # Save full results with embeddings
-    if include_embeddings:
-        full_path = f"cluster_results/{base_filename}/{base_filename}_with_embeddings.parquet"
-        df.to_parquet(full_path, compression='snappy')
-        logger.info(f"Saved full results to: {full_path}")
+    # 1. Save clustered results as JSON (preserves all data structures)
+    clustered_json_path = os.path.join(save_dir, "clustered_results.json")
+    try:
+        df.to_json(clustered_json_path, orient='records', lines=True, force_ascii=False)
+        logger.info(f"Saved clustered results (JSON): {clustered_json_path}")
+    except Exception as e:
+        logger.error(f"Failed to save JSON: {e}")
     
-    # Save lightweight version without embeddings
+    # 2. Save embeddings separately if they exist
     embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
+    if embedding_cols and include_embeddings:
+        # Create embeddings-only DataFrame
+        embedding_df = df[embedding_cols].copy()
+        
+        # Add key columns for reference
+        key_cols = ['property_description', 'question_id', 'model', 'property_description_fine_cluster_label']
+        for col in key_cols:
+            if col in df.columns:
+                embedding_df[col] = df[col]
+        
+        # Save embeddings as parquet (more efficient for large arrays)
+        embeddings_path = os.path.join(save_dir, "embeddings.parquet")
+        try:
+            embedding_df.to_parquet(embeddings_path, compression='snappy')
+            logger.info(f"Saved embeddings: {embeddings_path}")
+            
+            # Also save as JSON for compatibility
+            embeddings_json_path = os.path.join(save_dir, "embeddings.json")
+            embedding_df.to_json(embeddings_json_path, orient='records', lines=True, force_ascii=False)
+            logger.info(f"Saved embeddings (JSON): {embeddings_json_path}")
+        except Exception as e:
+            logger.error(f"Failed to save embeddings: {e}")
+    
+    # 3. Save lightweight version without embeddings
     df_light = df.drop(columns=embedding_cols) if embedding_cols else df
     
-    light_parquet = f"cluster_results/{base_filename}/{base_filename}_lightweight.parquet"
-    light_csv_gz = f"cluster_results/{base_filename}/{base_filename}.csv.gz"
-    light_jsonl = f"cluster_results/{base_filename}/{base_filename}.jsonl"
-    summary_table = f"cluster_results/{base_filename}/{base_filename}_summary_table.jsonl"
+    # Save lightweight as json
+    light_json_path = os.path.join(save_dir, "clustered_results_lightweight.json")
+    try:
+        df_light.to_json(light_json_path, orient='records', lines=True, force_ascii=False)
+        logger.info(f"Saved lightweight results (JSON): {light_json_path}")
+    except Exception as e:
+        logger.error(f"Failed to save lightweight parquet: {e}")
     
-    df_light.to_parquet(light_parquet, compression='snappy')
-    df_light.to_csv(light_csv_gz, index=False, compression='gzip')
-    df_light.to_json(light_jsonl, lines=True, orient="records")
+    # 4. Create and save summary table
+    try:
+        summary_table = create_summary_table(df_light, config)
+        summary_table_path = os.path.join(save_dir, "summary_table.json")
+        summary_table.to_json(summary_table_path, orient='records', lines=True)
+        logger.info(f"Saved summary table: {summary_table_path}")
+    except Exception as e:
+        logger.error(f"Failed to save summary table: {e}")
+    
+    # 5. Print file sizes
+    try:
+        if os.path.exists(clustered_json_path):
+            json_size = os.path.getsize(clustered_json_path) / (1024**2)
+            logger.info(f"  Clustered results (JSON): {json_size:.1f} MB")
+        
+        if embedding_cols and include_embeddings and os.path.exists(embeddings_path):
+            emb_size = os.path.getsize(embeddings_path) / (1024**2)
+            logger.info(f"  Embeddings (parquet): {emb_size:.1f} MB")
+    except Exception as e:
+        logger.warning(f"Could not calculate file sizes: {e}")
 
-    summary_table = create_summary_table(df_light, config)
-    summary_table.to_json(summary_table, lines=True, orient="records")
-    
-    logger.info(f"Saved lightweight results to: {light_parquet}, {light_csv_gz}, {light_jsonl}")
-    
-    # Print file sizes
-    if include_embeddings:
-        full_size = os.path.getsize(full_path) / (1024**2)
-        logger.info(f"  Full dataset: {full_size:.1f} MB")
-    
-    light_size = os.path.getsize(light_parquet) / (1024**2)
-    csv_gz_size = os.path.getsize(light_csv_gz) / (1024**2)
-    logger.info(f"  Lightweight: {light_size:.1f} MB (parquet), {csv_gz_size:.1f} MB (csv.gz)")
-
-    # Log to wandb if enabled
+    # 6. Log to wandb if enabled
     if config and config.use_wandb:
-        log_results_to_wandb(df_light, light_csv_gz, base_filename, config)
+        try:
+            log_results_to_wandb(df_light, light_json_path, base_filename, config)
+        except Exception as e:
+            logger.error(f"Failed to log to wandb: {e}")
+    
+    return {
+        'clustered_json': clustered_json_path,
+        'embeddings_parquet': embeddings_path if embedding_cols and include_embeddings else None,
+        'summary_table': summary_table_path
+    }
 
 
-def log_results_to_wandb(df_light, csv_path, base_filename, config):
+def log_results_to_wandb(df_light, light_json_path, base_filename, config):
     """Log clustering results to wandb."""
     
     if not wandb.run:
@@ -579,7 +635,7 @@ def log_results_to_wandb(df_light, csv_path, base_filename, config):
             type="clustered_dataset",
             description=f"Clustered dataset without embeddings - {base_filename}"
         )
-        artifact.add_file(csv_path)
+        artifact.add_file(light_json_path)
         wandb.log_artifact(artifact)
         
         # Log the actual clustering results as a table
