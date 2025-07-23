@@ -7,7 +7,7 @@ Run with:
     streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir path/to/results/
 
 Where results_dir contains:
-    - clustered_results.json
+    - clustered_results.jsonl
     - model_stats.json  
     - full_dataset.json (optional)
 """
@@ -26,6 +26,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+# Import vector search functionality
+from lmmvibes.viz.vector_search import PropertyVectorSearch, SearchResult
 
 # ---------------------------------------------------------------------------
 # CLI args (Streamlit forwards everything after "--")
@@ -59,11 +62,10 @@ def load_pipeline_results(results_dir: str):
         model_stats = json.load(f)
     
     # Load clustered results but only keep essential columns for overview
-    clustered_path = results_path / "clustered_results.json"
-    csv_path = results_path / "clustered_results.csv"
+    clustered_path = results_path / "clustered_results.jsonl"
     
-    if not clustered_path.exists() and not csv_path.exists():
-        st.error(f"Neither clustered_results.json nor clustered_results.csv found in {results_dir}")
+    if not clustered_path.exists():
+        st.error(f"clustered_results.jsonl not found in {results_dir}")
         st.stop()
     
     # Try to load json first, then CSV as fallback
@@ -98,7 +100,7 @@ def load_property_examples(results_path: Path, property_ids: List[str]):
         return pd.DataFrame()
         
     # Load full dataset to get prompt/response details
-    clustered_path = results_path / "clustered_results.json"
+    clustered_path = results_path / "clustered_results.jsonl"
     
     full_df = None
     
@@ -184,6 +186,68 @@ def extract_quality_score(quality_score) -> float:
             return float(quality_score)
         except (ValueError, TypeError):
             return 0.0
+
+
+def format_confidence_interval(score_ci: dict, confidence_level: float = 0.95) -> str:
+    """
+    Format confidence interval for display.
+    
+    Args:
+        score_ci: Dict with "lower" and "upper" keys, or None
+        confidence_level: Confidence level (e.g., 0.95 for 95%)
+        
+    Returns:
+        str: Formatted confidence interval string
+    """
+    if not score_ci or not isinstance(score_ci, dict):
+        return "N/A"
+    
+    lower = score_ci.get("lower")
+    upper = score_ci.get("upper")
+    
+    if lower is None or upper is None:
+        return "N/A"
+    
+    ci_percent = int(confidence_level * 100)
+    return f"[{lower:.3f}, {upper:.3f}] ({ci_percent}% CI)"
+
+
+def has_confidence_intervals(cluster_stat: dict) -> bool:
+    """
+    Check if a cluster statistic has confidence intervals.
+    
+    Args:
+        cluster_stat: Cluster statistic dictionary
+        
+    Returns:
+        bool: True if confidence intervals are available
+    """
+    score_ci = cluster_stat.get('score_ci')
+    return (isinstance(score_ci, dict) and 
+            score_ci.get('lower') is not None and 
+            score_ci.get('upper') is not None)
+
+
+def get_confidence_interval_width(score_ci: dict) -> float:
+    """
+    Calculate the width of a confidence interval.
+    
+    Args:
+        score_ci: Dict with "lower" and "upper" keys
+        
+    Returns:
+        float: Width of the interval
+    """
+    if not score_ci or not isinstance(score_ci, dict):
+        return 0.0
+    
+    lower = score_ci.get("lower")
+    upper = score_ci.get("upper")
+    
+    if lower is None or upper is None:
+        return 0.0
+        
+    return upper - lower
 
 
 # Test the helper function
@@ -490,7 +554,7 @@ def main():
         
         # Check if the base directory itself contains results
         base_path = Path(results_dir)
-        has_direct_results = (base_path / "model_stats.json").exists() or (base_path / "clustered_results.json").exists()
+        has_direct_results = (base_path / "model_stats.json").exists() or (base_path / "clustered_results.jsonl").exists()
         
         if len(valid_subfolders) > 1 or (len(valid_subfolders) == 1 and valid_subfolders[0] != "."):
             # Multiple options available, show selection
@@ -538,7 +602,7 @@ def main():
             # No results found anywhere
             st.error(f"No pipeline results found in {results_dir}")
             st.info("Please ensure the directory contains either:")
-            st.info("• model_stats.json and clustered_results.json files")
+            st.info("• model_stats.json and clustered_results.jsonl files")
             st.info("• Subfolders containing these files")
             st.stop()
         
@@ -595,15 +659,45 @@ def main():
             value=True,
             help="Allow viewing actual model responses (loads more data)"
         )
+        
+        # Confidence interval options
+        st.subheader("Confidence Intervals")
+        
+        # Check if any confidence intervals are available
+        has_any_ci = False
+        for model_name, model_data in model_stats.items():
+            clusters = model_data.get(cluster_level, [])
+            for cluster in clusters:
+                if has_confidence_intervals(cluster):
+                    has_any_ci = True
+                    break
+            if has_any_ci:
+                break
+        
+        if has_any_ci:
+            st.success("✅ Confidence intervals available")
+            show_confidence_intervals = st.checkbox(
+                "Show confidence intervals",
+                value=True,
+                help="Display confidence intervals in charts and tables"
+            )
+        else:
+            st.info("ℹ️ No confidence intervals found")
+            st.info("To enable confidence intervals, run the metrics stage with:")
+            st.code("metrics = SingleModelMetrics(compute_confidence_intervals=True)")
+            show_confidence_intervals = False
     
     # Main content area
     model_rankings = compute_model_rankings(model_stats)
     
     # Tabs for different views
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Overview", 
         "🔍 View Examples", 
-        "📋 View Clusters"
+        "📋 View Clusters",
+        "📈 Cluster Frequencies",
+        "📊 Confidence Intervals",
+        "🔎 Vector Search"
     ])
     
     with tab1:
@@ -676,6 +770,15 @@ def main():
                                 # Calculate distinctiveness (using score as proxy)
                                 distinctiveness = cluster.get('score', 1.0)
                                 
+                                # Get confidence intervals
+                                score_ci = cluster.get('score_ci')
+                                has_ci = has_confidence_intervals(cluster)
+                                
+                                # Format confidence interval for display
+                                ci_display = ""
+                                if has_ci and show_confidence_intervals:
+                                    ci_display = f"<br><span style='font-size: 12px; color: #666;'>CI: {format_confidence_interval(score_ci)}</span>"
+                                
                                 st.markdown(f"""
                                 <div style="margin: 8px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
                                     <div style="font-weight: 600; font-size: 16px; margin-bottom: 5px;">
@@ -685,7 +788,7 @@ def main():
                                         <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {cluster_size_global} total across all models)
                                     </div>
                                     <div style="font-size: 13px; color: #3182ce;">
-                                        {distinctiveness:.1f}x more distinctive than other models
+                                        {distinctiveness:.1f}x more distinctive than other models{ci_display}
                                     </div>
                                     <div style="position: absolute; bottom: 8px; right: 10px; font-size: 14px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
                                         Quality: {quality_score:.3f}
@@ -713,32 +816,56 @@ def main():
                 
                 cluster_df_data = []
                 for cluster in clusters[:top_n_clusters]:
-                    cluster_df_data.append({
+                    # Get confidence intervals
+                    score_ci = cluster.get('score_ci')
+                    has_ci = has_confidence_intervals(cluster)
+                    
+                    # Format confidence interval for display
+                    ci_display = format_confidence_interval(score_ci) if has_ci else "N/A"
+                    
+                    cluster_data = {
                         'Cluster': cluster['property_description'],  # Show full text, no truncation
                         'Score': f"{cluster['score']:.3f}",
                         'Size': cluster['size'],
                         'Proportion': f"{cluster['proportion']:.3f}",
                         'Quality': f"{extract_quality_score(cluster.get('quality_score')):.3f}"
-                    })
+                    }
+                    
+                    # Add CI column only if user wants to see it and CIs are available
+                    if show_confidence_intervals and has_any_ci:
+                        cluster_data['CI'] = ci_display
+                    
+                    cluster_df_data.append(cluster_data)
                 
                 cluster_df = pd.DataFrame(cluster_df_data)
+                
+                # Configure column display
+                column_config = {
+                    'Cluster': st.column_config.TextColumn(
+                        'Cluster Description',
+                        width='large',
+                        help="Full behavioral cluster description"
+                    ),
+                    'Score': st.column_config.NumberColumn('Score', width='small'),
+                    'Size': st.column_config.NumberColumn('Size', width='small'),
+                    'Proportion': st.column_config.NumberColumn('Proportion', width='small'),
+                    'Quality': st.column_config.NumberColumn('Quality', width='small')
+                }
+                
+                # Add CI column config if showing CIs
+                if show_confidence_intervals and has_any_ci:
+                    column_config['CI'] = st.column_config.TextColumn(
+                        'Confidence Interval', 
+                        width='medium',
+                        help="95% confidence interval for the distinctiveness score"
+                    )
                 
                 # Display the cluster table with text wrapping
                 st.dataframe(
                     cluster_df, 
                     use_container_width=True, 
                     hide_index=True,
-                    column_config={
-                        'Cluster': st.column_config.TextColumn(
-                            'Cluster Description',
-                            width='large',
-                            help="Full behavioral cluster description"
-                        ),
-                        'Score': st.column_config.NumberColumn('Score', width='small'),
-                        'Size': st.column_config.NumberColumn('Size', width='small'),
-                        'Proportion': st.column_config.NumberColumn('Proportion', width='small'),
-                        'Quality': st.column_config.NumberColumn('Quality', width='small')
-                    }
+                    column_config=column_config
                 )
                 
                 # Add example viewing section if enabled
@@ -752,174 +879,1109 @@ def main():
                                             results_path, cluster_level)
     
     with tab3:
-        st.header("View Clusters")
-        st.write("Explore behavioral clusters sorted by quality or maximum distinctiveness across models")
+        st.header("Cluster Viewer")
+        st.write("Explore hierarchical behavioral clusters with detailed property information")
         
-        # Collect all clusters across all models
+        # Build hierarchical structure from clustered_df
+        coarse_clusters = []
+        fine_clusters_by_parent = {}
+        
+        # Get cluster information from clustered_df
+        if ('property_description_fine_cluster_id' in clustered_df.columns and 
+            'property_description_coarse_cluster_id' in clustered_df.columns):
+            
+            # Group by fine and coarse cluster IDs to build hierarchy
+            cluster_groups = clustered_df.groupby([
+                'property_description_fine_cluster_id', 
+                'property_description_fine_cluster_label', 
+                'property_description_coarse_cluster_id', 
+                'property_description_coarse_cluster_label'
+            ]).agg({
+                'property_description': 'count',
+                'id': 'count'  # Count of properties in this cluster
+            }).reset_index()
+            
+            # Build coarse clusters
+            coarse_cluster_data = {}
+            for _, row in cluster_groups.iterrows():
+                coarse_id = row['property_description_coarse_cluster_id']
+                coarse_label = row['property_description_coarse_cluster_label']
+                
+                if coarse_id not in coarse_cluster_data:
+                    coarse_cluster_data[coarse_id] = {
+                        'id': coarse_id,
+                        'label': coarse_label,
+                        'size': 0,
+                        'fine_clusters': []
+                    }
+                
+                # Add fine cluster info
+                fine_cluster = {
+                    'id': row['property_description_fine_cluster_id'],
+                    'label': row['property_description_fine_cluster_label'],
+                    'size': row['property_description'],
+                    'parent_id': coarse_id,
+                    'parent_label': coarse_label,
+                    'property_descriptions': []
+                }
+                
+                coarse_cluster_data[coarse_id]['fine_clusters'].append(fine_cluster)
+                coarse_cluster_data[coarse_id]['size'] += 1
+            
+            # Convert to lists and sort
+            coarse_clusters = list(coarse_cluster_data.values())
+            coarse_clusters.sort(key=lambda x: x['size'], reverse=True)
+            
+            # Build fine clusters by parent
+            for coarse_cluster in coarse_clusters:
+                fine_clusters_by_parent[coarse_cluster['id']] = coarse_cluster['fine_clusters']
+                
+                # Get property descriptions for each fine cluster
+                for fine_cluster in coarse_cluster['fine_clusters']:
+                    fine_cluster_data = clustered_df[
+                        (clustered_df['property_description_fine_cluster_id'] == fine_cluster['id']) & 
+                        (clustered_df['property_description_fine_cluster_label'] == fine_cluster['label'])
+                    ]
+                    fine_cluster['property_descriptions'] = fine_cluster_data['property_description'].unique().tolist()
+        
+        # Create two-column layout
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("Cluster Viewer")
+            
+            # Track selected cluster
+            if 'selected_cluster' not in st.session_state:
+                st.session_state.selected_cluster = None
+            
+            # Get all fine clusters directly from clustered_df
+            if 'property_description_fine_cluster_id' in clustered_df.columns:
+                # Get unique fine clusters with their sizes
+                fine_clusters_data = clustered_df.groupby([
+                    'property_description_fine_cluster_id', 
+                    'property_description_fine_cluster_label'
+                ]).agg({
+                    'property_description': 'count',
+                    'id': 'count'
+                }).reset_index()
+                
+                # Sort by size (largest first)
+                fine_clusters_data = fine_clusters_data.sort_values('property_description', ascending=False)
+                
+                # Display fine clusters
+                for _, row in fine_clusters_data.iterrows():
+                    cluster_id = row['property_description_fine_cluster_id']
+                    cluster_label = row['property_description_fine_cluster_label']
+                    cluster_size = row['property_description']
+                    
+                    # Check if this cluster is selected
+                    is_selected = (st.session_state.selected_cluster and 
+                                 st.session_state.selected_cluster['id'] == cluster_id)
+                    
+                    # Create clickable button using the cluster name with size
+                    button_text = f"{cluster_label} (Size: {cluster_size})"
+                    
+                    if st.button(
+                        button_text,
+                        key=f"fine_{cluster_id}",
+                        help="Click to view details",
+                        use_container_width=True
+                    ):
+                        # Get property descriptions for this cluster
+                        cluster_data = clustered_df[
+                            clustered_df['property_description_fine_cluster_id'] == cluster_id
+                        ]
+                        property_descriptions = cluster_data['property_description'].unique().tolist()
+                        
+                        # Create cluster object for selection
+                        selected_cluster = {
+                            'id': cluster_id,
+                            'label': cluster_label,
+                            'size': cluster_size,
+                            'property_descriptions': property_descriptions
+                        }
+                        st.session_state.selected_cluster = selected_cluster
+                
+            else:
+                st.error("No fine cluster data found. Please ensure the pipeline generated clustering results.")
+        
+        with col2:
+            st.subheader("Cluster Details")
+            
+            # Add close button (X) in the header
+            if st.button("✕", key="close_details", help="Close details"):
+                st.session_state.selected_cluster = None
+            
+            if st.session_state.selected_cluster:
+                cluster = st.session_state.selected_cluster
+                
+                # Main description with better styling
+                st.markdown(f"""
+                <div style="
+                    padding: 12px;
+                    margin: 8px 0;
+                    background-color: #f8f9fa;
+                    border-radius: 6px;
+                    border-left: 4px solid #3182ce;
+                ">
+                    <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px;">
+                        {cluster['label']}
+                    </div>
+                    <div style="font-size: 14px; color: #666;">
+                        <strong>Size:</strong> {cluster['size']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Parent information
+                if cluster.get('parent_label'):
+                    st.markdown(f"""
+                    <div style="
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                        background-color: #f0f8ff;
+                        border-radius: 4px;
+                        font-size: 14px;
+                    ">
+                        <strong>Parent:</strong> {cluster['parent_label']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Property descriptions section
+                st.subheader(f"Property Descriptions ({len(cluster['property_descriptions'])})")
+                
+                for i, desc in enumerate(cluster['property_descriptions']):
+                    st.markdown(f"""
+                    <div style="
+                        padding: 10px 12px;
+                        margin: 6px 0;
+                        background-color: #f8f9fa;
+                        border-radius: 6px;
+                        border-left: 3px solid #3182ce;
+                        font-size: 14px;
+                        line-height: 1.4;
+                    ">
+                        {desc}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Show examples if available
+                if show_examples and cluster['property_descriptions']:
+                    st.subheader("Examples")
+                    st.info("Example viewing is enabled. Click on property descriptions above to see actual model responses.")
+                else:
+                    st.info("Select a cluster from the left panel to view details")
+                
+                # Show some statistics with better styling
+                st.subheader("Cluster Statistics")
+                
+                total_clusters = len(clustered_df['property_description_fine_cluster_id'].unique()) if 'property_description_fine_cluster_id' in clustered_df.columns else 0
+                total_properties = len(clustered_df)
+                
+                # Calculate min and max properties per cluster
+                if 'property_description_fine_cluster_id' in clustered_df.columns:
+                    cluster_sizes = clustered_df.groupby('property_description_fine_cluster_id').size()
+                    min_properties = cluster_sizes.min() if not cluster_sizes.empty else 0
+                    max_properties = cluster_sizes.max() if not cluster_sizes.empty else 0
+                    global_cluster_count = cluster_sizes.sum() if not cluster_sizes.empty else 0
+                else:
+                    min_properties = 0
+                    max_properties = 0
+                    global_cluster_count = 0
+                
+                col1_stat, col2_stat, col3_stat = st.columns(3)
+                with col1_stat:
+                    st.metric("Total Fine Clusters", total_clusters)
+                    st.metric("Total Properties", total_properties)
+                with col2_stat:
+                    st.metric("Min Properties/Cluster", min_properties)
+                    st.metric("Max Properties/Cluster", max_properties)
+                with col3_stat:
+                    st.metric("Global Cluster Count", global_cluster_count)
+                
+                # Show largest clusters
+                st.subheader("Largest Clusters")
+                if 'property_description_fine_cluster_id' in clustered_df.columns:
+                    largest_clusters = clustered_df.groupby(['property_description_fine_cluster_id', 'property_description_fine_cluster_label']).size().nlargest(5)
+                    for (cluster_id, cluster_label), size in largest_clusters.items():
+                        st.markdown(f"""
+                        <div style="
+                            padding: 8px 12px;
+                            margin: 4px 0;
+                            background-color: #f8f9fa;
+                            border-radius: 4px;
+                            font-size: 14px;
+                        ">
+                            <strong>{cluster_label}</strong> (Size: {size})
+                        </div>
+                        """, unsafe_allow_html=True)
+
+    with tab4:
+        st.header("Cluster Frequencies by Model")
+        st.write("Compare how frequently each model exhibits behaviors in different clusters")
+        
+        # Collect all clusters across all models for the chart
         all_clusters_data = []
         for model_name, model_data in model_stats.items():
             clusters = model_data.get(cluster_level, [])
             for cluster in clusters:
+                # Get confidence intervals for quality scores if available
+                quality_score_ci = cluster.get('quality_score_ci', {})
+                has_quality_ci = bool(quality_score_ci)
+                
                 all_clusters_data.append({
                     'property_description': cluster['property_description'],
                     'model': model_name,
-                    'score': cluster.get('score', 0),
-                    'quality_score': extract_quality_score(cluster.get('quality_score', 0)),
+                    'frequency': cluster.get('proportion', 0) * 100,  # Convert to percentage
                     'size': cluster.get('size', 0),
                     'cluster_size_global': cluster.get('cluster_size_global', 0),
-                    'proportion': cluster.get('proportion', 0)
+                    'has_ci': has_confidence_intervals(cluster),
+                    'ci_lower': cluster.get('score_ci_lower'),
+                    'ci_upper': cluster.get('score_ci_upper'),
+                    'has_quality_ci': has_quality_ci
                 })
         
         if all_clusters_data:
             clusters_df = pd.DataFrame(all_clusters_data)
             
-            # Group by cluster to get max scores and average quality
-            cluster_summary = clusters_df.groupby('property_description').agg({
-                'score': 'max',  # Max distinctiveness across models
-                'quality_score': 'mean',  # Average quality score
-                'cluster_size_global': 'first',  # Should be same for all models
-                'size': 'sum'  # Total size across all models (should equal cluster_size_global)
-            }).reset_index()
+            # Get all unique clusters for the chart
+            all_unique_clusters = clusters_df['property_description'].unique()
+            total_clusters = len(all_unique_clusters)
             
-            # Sort options
-            sort_option = st.selectbox(
-                "Sort clusters by:",
-                ["Max Distinctiveness", "Average Quality Score", "Cluster Size"],
-                help="Max Distinctiveness: clusters that maximally separate models\nAverage Quality Score: clusters with high correlation to accuracy"
+            # Show summary statistics
+            st.subheader("📊 Cluster Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Clusters", total_clusters)
+            with col2:
+                avg_freq = clusters_df['frequency'].mean()
+                st.metric("Avg Frequency", f"{avg_freq:.1f}%")
+            with col3:
+                max_freq = clusters_df['frequency'].max()
+                st.metric("Max Frequency", f"{max_freq:.1f}%")
+            with col4:
+                total_models = clusters_df['model'].nunique()
+                st.metric("Models", total_models)
+            
+            st.divider()
+            
+            # Show all clusters by default
+            top_n_for_chart = total_clusters
+            st.info(f"Showing all {total_clusters} clusters")
+            
+            # Calculate total frequency per cluster and get top clusters
+            cluster_totals = clusters_df.groupby('property_description')['frequency'].sum().sort_values(ascending=False)
+            top_clusters = cluster_totals.head(top_n_for_chart).index.tolist()
+            
+            # Get quality scores for the same clusters to sort by quality
+            quality_data_for_sorting = []
+            for model_name, model_data in model_stats.items():
+                clusters = model_data.get(cluster_level, [])
+                for cluster in clusters:
+                    if cluster['property_description'] in top_clusters:
+                        quality_data_for_sorting.append({
+                            'property_description': cluster['property_description'],
+                            'quality_score': extract_quality_score(cluster.get('quality_score', 0))
+                        })
+            
+            # Calculate average quality score per cluster and sort
+            if quality_data_for_sorting:
+                quality_df_for_sorting = pd.DataFrame(quality_data_for_sorting)
+                avg_quality_per_cluster = quality_df_for_sorting.groupby('property_description')['quality_score'].mean().sort_values(ascending=True)  # Low to high
+                top_clusters = avg_quality_per_cluster.index.tolist()
+                # Reverse the order so low quality appears at top of chart
+                top_clusters = top_clusters[::-1]
+            
+            # Filter data to only include top clusters
+            chart_data = clusters_df[clusters_df['property_description'].isin(top_clusters)]
+            
+            if not chart_data.empty:
+                # Create side-by-side layout
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Create horizontal bar chart for frequencies
+                    fig = go.Figure()
+                    
+                    # Get unique models for colors
+                    models = chart_data['model'].unique()
+                    # Use a color palette that avoids yellow - using Set1 which has better contrast
+                    colors = px.colors.qualitative.Set1[:len(models)]
+                    
+                    # Function to wrap text for hover
+                    def wrap_text(text, width=60):
+                        """Wrap text to specified width using HTML line breaks"""
+                        if len(text) <= width:
+                            return text
+                        words = text.split()
+                        lines = []
+                        current_line = ""
+                        for word in words:
+                            if len(current_line + " " + word) <= width:
+                                current_line += (" " + word if current_line else word)
+                            else:
+                                if current_line:
+                                    lines.append(current_line)
+                                current_line = word
+                        if current_line:
+                            lines.append(current_line)
+                        return "<br>".join(lines)
+                    
+                    # Add a bar for each model
+                    for i, model in enumerate(models):
+                        model_data = chart_data[chart_data['model'] == model]
+                        
+                        # Sort by cluster order (same as top_clusters)
+                        model_data = model_data.set_index('property_description').reindex(top_clusters).reset_index()
+                        
+                        # Get confidence intervals for error bars
+                        ci_lower = []
+                        ci_upper = []
+                        for _, row in model_data.iterrows():
+                            if row.get('has_ci', False) and row.get('ci_lower') is not None and row.get('ci_upper') is not None:
+                                # IMPORTANT: These are distinctiveness score CIs, not frequency CIs
+                                # The distinctiveness score measures how much more/less frequently 
+                                # a model exhibits this behavior compared to the median model
+                                # We can use this to estimate uncertainty in the frequency measurement
+                                distinctiveness_ci_width = row['ci_upper'] - row['ci_lower']
+                                
+                                # Convert to frequency uncertainty (approximate)
+                                # A wider distinctiveness CI suggests more uncertainty in the frequency
+                                freq_uncertainty = distinctiveness_ci_width * row['frequency'] * 0.1
+                                ci_lower.append(max(0, row['frequency'] - freq_uncertainty))
+                                ci_upper.append(row['frequency'] + freq_uncertainty)
+                            else:
+                                ci_lower.append(None)
+                                ci_upper.append(None)
+                        
+                        fig.add_trace(go.Bar(
+                            y=model_data['property_description'],
+                            x=model_data['frequency'],
+                            name=model,
+                            orientation='h',
+                            marker_color=colors[i],
+                            error_x=dict(
+                                type='data',
+                                array=[u - l if u is not None and l is not None else None for l, u in zip(ci_lower, ci_upper)],
+                                arrayminus=[f - l if f is not None and l is not None else None for f, l in zip(model_data['frequency'], ci_lower)],
+                                visible=show_confidence_intervals and has_any_ci,
+                                thickness=1,
+                                width=3,
+                                color='rgba(0,0,0,0.3)'
+                            ),
+                            hovertemplate='<b>%{y}</b><br>' +
+                                        f'Model: {model}<br>' +
+                                        'Frequency: %{x:.1f}%<br>' +
+                                        'CI: %{customdata[0]}<extra></extra>',
+                            customdata=[[
+                                format_confidence_interval({
+                                    'lower': l, 
+                                    'upper': u
+                                }) if l is not None and u is not None else "N/A"
+                                for l, u in zip(ci_lower, ci_upper)
+                            ]]
+                        ))
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title=f"Model Frequencies in Top {len(top_clusters)} Clusters",
+                        xaxis_title="Frequency (%)",
+                        yaxis_title="Cluster Description",
+                        barmode='group',  # Group bars side by side
+                        height=max(600, len(top_clusters) * 25),  # Adjust height based on number of clusters
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
+                    )
+                    
+                    # Update y-axis to show full cluster names
+                    fig.update_yaxes(
+                        tickmode='array',
+                        ticktext=[desc[:80] + "..." if len(desc) > 80 else desc for desc in top_clusters],
+                        tickvals=top_clusters
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add note about error bars if confidence intervals are shown
+                    if show_confidence_intervals and has_any_ci:
+                        st.info("📊 **Error bars** show confidence intervals for frequency measurements. Wider bars indicate higher uncertainty in the frequency estimates.")
+                        st.info("""
+                        **Understanding the Confidence Intervals:**
+                        
+                        • **Frequency Chart Error Bars**: Based on distinctiveness score CIs, showing uncertainty in how much more/less frequently a model exhibits this behavior compared to the median model
+                        
+                        • **Quality Chart Error Bars**: Based on quality score CIs, showing uncertainty in how well the model performs in this cluster compared to its global average
+                        
+                        • **Different Metrics**: Frequency measures "how often" while quality measures "how well" - these are separate measurements with different confidence intervals
+                        """)
+                
+                with col2:
+                    # Create quality score chart
+                    # Get quality scores for the same clusters
+                    quality_data = []
+                    for model_name, model_data in model_stats.items():
+                        clusters = model_data.get(cluster_level, [])
+                        for cluster in clusters:
+                            if cluster['property_description'] in top_clusters:
+                                quality_data.append({
+                                    'property_description': cluster['property_description'],
+                                    'model': model_name,
+                                    'quality_score': extract_quality_score(cluster.get('quality_score', 0))
+                                })
+                    
+                    if quality_data:
+                        quality_df = pd.DataFrame(quality_data)
+                        
+                        # Create quality score chart
+                        fig_quality = go.Figure()
+                        
+                        # Add a bar for each model
+                        for i, model in enumerate(models):
+                            model_quality_data = quality_df[quality_df['model'] == model]
+                            
+                            # Sort by cluster order (same as top_clusters)
+                            model_quality_data = model_quality_data.set_index('property_description').reindex(top_clusters).reset_index()
+                            
+                            # Get confidence intervals for quality scores
+                            quality_ci_lower = []
+                            quality_ci_upper = []
+                            for _, row in model_quality_data.iterrows():
+                                # Find corresponding cluster data to get quality score CIs
+                                cluster_data = chart_data[
+                                    (chart_data['model'] == model) & 
+                                    (chart_data['property_description'] == row['property_description'])
+                                ]
+                                if not cluster_data.empty:
+                                    row = cluster_data.iloc[0]
+                                    if row.get('has_quality_ci', False):
+                                        # Extract quality score CI from model_stats
+                                        for model_name, model_data in model_stats.items():
+                                            if model_name == model:
+                                                clusters = model_data.get(cluster_level, [])
+                                                for cluster_stat in clusters:
+                                                    if cluster_stat['property_description'] == row['property_description']:
+                                                        quality_ci = cluster_stat.get('quality_score_ci', {})
+                                                        if quality_ci:
+                                                            # Get the first quality score CI available
+                                                            for key, ci_bounds in quality_ci.items():
+                                                                # Extract lower and upper bounds for error bars
+                                                                if isinstance(ci_bounds, dict) and 'lower' in ci_bounds and 'upper' in ci_bounds:
+                                                                    quality_ci_lower.append(ci_bounds['lower'])
+                                                                    quality_ci_upper.append(ci_bounds['upper'])
+                                                                else:
+                                                                    quality_ci_lower.append(None)
+                                                                    quality_ci_upper.append(None)
+                                                                break
+                                                            else:
+                                                                quality_ci_lower.append(None)
+                                                                quality_ci_upper.append(None)
+                                                            break
+                                                else:
+                                                    quality_ci_lower.append(None)
+                                                    quality_ci_upper.append(None)
+                                                break
+                                    else:
+                                        quality_ci_lower.append(None)
+                                        quality_ci_upper.append(None)
+                                else:
+                                    quality_ci_lower.append(None)
+                                    quality_ci_upper.append(None)
+                            
+                            fig_quality.add_trace(go.Bar(
+                                y=model_quality_data['property_description'],
+                                x=model_quality_data['quality_score'],
+                                name=model,
+                                orientation='h',
+                                marker_color=colors[i],
+                                showlegend=False,  # Hide legend since it's shown in the main chart
+                                error_x=dict(
+                                    type='data',
+                                    array=[u - l if u is not None and l is not None else None for l, u in zip(quality_ci_lower, quality_ci_upper)],
+                                    arrayminus=[q - l if q is not None and l is not None else None for q, l in zip(model_quality_data['quality_score'], quality_ci_lower)],
+                                    visible=show_confidence_intervals and has_any_ci,
+                                    thickness=1,
+                                    width=3,
+                                    color='rgba(0,0,0,0.3)'
+                                ),
+                                hovertemplate='<b>%{y}</b><br>' +
+                                            f'Model: {model}<br>' +
+                                            'Quality Score: %{x:.3f}<br>' +
+                                            'CI: %{customdata[0]}<extra></extra>',
+                                customdata=[[
+                                    format_confidence_interval(l, u) if l is not None and u is not None else "N/A"
+                                    for l, u in zip(quality_ci_lower, quality_ci_upper)
+                                ]]
+                            ))
+                        
+                        # Update layout
+                        fig_quality.update_layout(
+                            title=f"Quality Scores",
+                            xaxis_title="Quality Score",
+                            yaxis_title="",  # No y-axis title to save space
+                            barmode='group',
+                            height=max(600, len(top_clusters) * 25),  # Same height as main chart
+                            showlegend=False,
+                            yaxis=dict(showticklabels=False)  # Hide y-axis labels to save space
+                        )
+                        
+                        st.plotly_chart(fig_quality, use_container_width=True)
+                        
+                        # Add note about error bars if confidence intervals are shown
+                        if show_confidence_intervals and has_any_ci:
+                            st.info("📊 **Error bars** show confidence intervals for quality scores. Wider bars indicate higher uncertainty in the quality measurements.")
+                            st.info("""
+                            **Quality Score Confidence Intervals:**
+                            
+                            These error bars show uncertainty in how well each model performs in this cluster compared to its global average performance. A wider error bar means we're less certain about the model's relative performance in this specific behavioral cluster.
+                            """)
+                        
+                    else:
+                        st.info("No quality score data available")
+                
+                # Add some statistics
+                st.subheader("Summary Statistics")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    avg_freq = chart_data['frequency'].mean()
+                    st.metric("Average Frequency", f"{avg_freq:.1f}%")
+                
+                with col2:
+                    max_freq = chart_data['frequency'].max()
+                    st.metric("Highest Frequency", f"{max_freq:.1f}%")
+                
+                with col3:
+                    total_clusters_shown = len(top_clusters)
+                    st.metric("Clusters Shown", total_clusters_shown)
+                
+                # Add confidence interval statistics
+                if 'has_ci' in chart_data.columns and show_confidence_intervals and has_any_ci:
+                    ci_stats = chart_data['has_ci'].value_counts()
+                    total_measurements = len(chart_data)
+                    measurements_with_ci = ci_stats.get(True, 0)
+                    ci_coverage = (measurements_with_ci / total_measurements) * 100 if total_measurements > 0 else 0
+                    
+                    st.subheader("Confidence Interval Coverage")
+                    col1_ci, col2_ci, col3_ci = st.columns(3)
+                    
+                    with col1_ci:
+                        st.metric("Measurements with CI", f"{measurements_with_ci}")
+                    
+                    with col2_ci:
+                        st.metric("Total Measurements", f"{total_measurements}")
+                    
+                    with col3_ci:
+                        st.metric("CI Coverage", f"{ci_coverage:.1f}%")
+                    
+                    if ci_coverage < 100:
+                        st.info(f"⚠️ Only {ci_coverage:.1f}% of measurements have confidence intervals. To get full coverage, run the metrics stage with `compute_confidence_intervals=True`.")
+                
+                # Show detailed table
+                st.subheader("Detailed Data")
+                
+                # Create combined table with both frequency and quality scores
+                if quality_data:
+                    # Create frequency pivot table
+                    freq_df = chart_data.pivot(index='property_description', columns='model', values='frequency').fillna(0)
+                    freq_df = freq_df.round(1)
+                    
+                    # Create quality score pivot table
+                    quality_df_table = pd.DataFrame(quality_data)
+                    quality_pivot = quality_df_table.pivot(index='property_description', columns='model', values='quality_score').fillna(0)
+                    quality_pivot = quality_pivot.round(3)
+                    
+                    # Create confidence interval tables if available
+                    ci_freq_data = []
+                    ci_quality_data = []
+                    
+                    if show_confidence_intervals and has_any_ci:
+                        for cluster in top_clusters:
+                            ci_freq_row = {'Cluster Description': cluster}
+                            ci_quality_row = {'Cluster Description': cluster}
+                            
+                            for model in models:
+                                # Get CI data for this model and cluster
+                                cluster_data = chart_data[
+                                    (chart_data['model'] == model) & 
+                                    (chart_data['property_description'] == cluster)
+                                ]
+                                
+                                if not cluster_data.empty:
+                                    row = cluster_data.iloc[0]
+                                    if row.get('has_ci', False):
+                                        ci_lower = row.get('ci_lower')
+                                        ci_upper = row.get('ci_upper')
+                                        if ci_lower is not None and ci_upper is not None:
+                                            ci_freq_row[f'{model} (Freq CI)'] = format_confidence_interval({
+                                                'lower': ci_lower, 
+                                                'upper': ci_upper
+                                            })
+                                        else:
+                                            ci_freq_row[f'{model} (Freq CI)'] = "N/A"
+                                    else:
+                                        ci_freq_row[f'{model} (Freq CI)'] = "N/A"
+                                    
+                                    if row.get('has_quality_ci', False):
+                                        # Extract quality CI from model_stats
+                                        for model_name, model_data in model_stats.items():
+                                            if model_name == model:
+                                                clusters = model_data.get(cluster_level, [])
+                                                for cluster_stat in clusters:
+                                                    if cluster_stat['property_description'] == cluster:
+                                                        quality_ci = cluster_stat.get('quality_score_ci', {})
+                                                        if quality_ci:
+                                                            # Get the first quality score CI available
+                                                            for key, ci_bounds in quality_ci.items():
+                                                                # Extract lower and upper bounds for error bars
+                                                                if isinstance(ci_bounds, dict) and 'lower' in ci_bounds and 'upper' in ci_bounds:
+                                                                    quality_ci_lower.append(ci_bounds['lower'])
+                                                                    quality_ci_upper.append(ci_bounds['upper'])
+                                                                else:
+                                                                    quality_ci_lower.append(None)
+                                                                    quality_ci_upper.append(None)
+                                                                break
+                                                            else:
+                                                                quality_ci_lower.append(None)
+                                                                quality_ci_upper.append(None)
+                                                            break
+                                                else:
+                                                    quality_ci_lower.append(None)
+                                                    quality_ci_upper.append(None)
+                                                break
+                                    else:
+                                        quality_ci_lower.append(None)
+                                        quality_ci_upper.append(None)
+                                else:
+                                    ci_freq_row[f'{model} (Freq CI)'] = "N/A"
+                                    ci_quality_row[f'{model} (Quality CI)'] = "N/A"
+                            
+                            ci_freq_data.append(ci_freq_row)
+                            ci_quality_data.append(ci_quality_row)
+                    
+                    # Combine the tables with descriptive column names
+                    combined_data = []
+                    for cluster in top_clusters:
+                        row_data = {'Cluster Description': cluster}
+                        
+                        # Add frequency data
+                        for model in models:
+                            freq_value = freq_df.loc[cluster, model] if cluster in freq_df.index else 0
+                            row_data[f'{model} (Freq %)'] = freq_value
+                        
+                        # Add quality score data
+                        for model in models:
+                            quality_value = quality_pivot.loc[cluster, model] if cluster in quality_pivot.index else 0
+                            row_data[f'{model} (Quality)'] = quality_value
+                        
+                        # Add confidence interval data if available
+                        if show_confidence_intervals and has_any_ci:
+                            for model in models:
+                                # Find CI data for this model and cluster
+                                ci_freq_row = next((row for row in ci_freq_data if row['Cluster Description'] == cluster), {})
+                                ci_quality_row = next((row for row in ci_quality_data if row['Cluster Description'] == cluster), {})
+                                
+                                row_data[f'{model} (Freq CI)'] = ci_freq_row.get(f'{model} (Freq CI)', 'N/A')
+                                row_data[f'{model} (Quality CI)'] = ci_quality_row.get(f'{model} (Quality CI)', 'N/A')
+                        
+                        combined_data.append(row_data)
+                    
+                    combined_df = pd.DataFrame(combined_data)
+                    
+                    st.dataframe(
+                        combined_df,
+                        use_container_width=True,
+                        column_config={
+                            'Cluster Description': st.column_config.TextColumn(
+                                'Cluster Description',
+                                width='large',
+                                help="Full behavioral cluster description"
+                            )
+                        }
+                    )
+                else:
+                    # Fallback to just frequency data if no quality data
+                    display_df = chart_data.pivot(index='property_description', columns='model', values='frequency').fillna(0)
+                    display_df = display_df.round(1)
+                    
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        column_config={
+                            'property_description': st.column_config.TextColumn(
+                                'Cluster Description',
+                                width='large',
+                                help="Full behavioral cluster description"
+                            )
+                        }
+                    )
+                
+            else:
+                st.warning("No data available for the selected clusters")
+        else:
+            st.warning("No cluster frequency data available")
+
+    with tab5:
+        st.header("📊 Confidence Intervals")
+        st.write("Analyze the uncertainty in distinctiveness scores across models and clusters.")
+        
+        # Check if confidence intervals are available
+        has_any_ci = False
+        for model_name, model_data in model_stats.items():
+            clusters = model_data.get(cluster_level, [])
+            for cluster in clusters:
+                if has_confidence_intervals(cluster):
+                    has_any_ci = True
+                    break
+            if has_any_ci:
+                break
+        
+        if not has_any_ci:
+            st.info("No confidence intervals found in the data. Confidence intervals are computed when the metrics stage is run with `compute_confidence_intervals=True`.")
+            st.stop()
+        
+        # Collect all distinctiveness scores with confidence intervals
+        all_distinctiveness_scores = []
+        for model_name, model_data in model_stats.items():
+            clusters = model_data.get(cluster_level, [])
+            for cluster in clusters:
+                if has_confidence_intervals(cluster):
+                    score_ci = cluster.get('score_ci', {})
+                    all_distinctiveness_scores.append({
+                        'model': model_name,
+                        'cluster': cluster['property_description'],
+                        'distinctiveness': cluster.get('score', 0),
+                        'ci_lower': score_ci.get('lower'),
+                        'ci_upper': score_ci.get('upper'),
+                        'ci_width': get_confidence_interval_width(score_ci)
+                    })
+        
+        if all_distinctiveness_scores:
+            df_distinctiveness = pd.DataFrame(all_distinctiveness_scores)
+            
+            # Create two-column layout
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Create a scatter plot of distinctiveness scores with confidence intervals
+                fig_ci_scatter = go.Figure()
+                
+                # Add scatter points for each model
+                for model_name in df_distinctiveness['model'].unique():
+                    model_data = df_distinctiveness[df_distinctiveness['model'] == model_name]
+                    
+                    fig_ci_scatter.add_trace(go.Scatter(
+                        x=model_data['distinctiveness'],
+                        y=model_data['ci_width'],
+                        mode='markers',
+                        name=model_name,
+                        text=model_data['cluster'],
+                        hovertemplate='<b>%{text}</b><br>' +
+                                    f'Model: {model_name}<br>' +
+                                    'Distinctiveness: %{x:.3f}<br>' +
+                                    'CI Width: %{y:.3f}<extra></extra>',
+                        marker=dict(size=8)
+                    ))
+                
+                fig_ci_scatter.update_layout(
+                    title="Distinctiveness Scores vs Confidence Interval Width",
+                    xaxis_title="Distinctiveness Score",
+                    yaxis_title="Confidence Interval Width",
+                    height=500,
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig_ci_scatter, use_container_width=True)
+            
+            with col2:
+                # Summary statistics
+                st.subheader("Summary Statistics")
+                
+                avg_ci_width = df_distinctiveness['ci_width'].mean()
+                max_ci_width = df_distinctiveness['ci_width'].max()
+                min_ci_width = df_distinctiveness['ci_width'].min()
+                
+                st.metric("Average CI Width", f"{avg_ci_width:.3f}")
+                st.metric("Max CI Width", f"{max_ci_width:.3f}")
+                st.metric("Min CI Width", f"{min_ci_width:.3f}")
+                
+                # Model-specific statistics
+                st.subheader("By Model")
+                model_stats_ci = df_distinctiveness.groupby('model').agg({
+                    'ci_width': ['mean', 'std', 'count']
+                }).round(3)
+                model_stats_ci.columns = ['Avg CI Width', 'Std CI Width', 'Count']
+                st.dataframe(model_stats_ci, use_container_width=True)
+            
+            # Distribution plots
+            st.subheader("Confidence Interval Distributions")
+            
+            col1_dist, col2_dist = st.columns(2)
+            
+            with col1_dist:
+                # Histogram of CI widths
+                fig_ci_hist = px.histogram(
+                    df_distinctiveness,
+                    x='ci_width',
+                    nbins=20,
+                    title="Distribution of Confidence Interval Widths",
+                    labels={'ci_width': 'CI Width', 'y': 'Count'}
+                )
+                st.plotly_chart(fig_ci_hist, use_container_width=True)
+            
+            with col2_dist:
+                # Box plot of CI widths by model
+                fig_ci_box = px.box(
+                    df_distinctiveness,
+                    x='model',
+                    y='ci_width',
+                    title="CI Width Distribution by Model",
+                    labels={'ci_width': 'CI Width', 'model': 'Model'}
+                )
+                st.plotly_chart(fig_ci_box, use_container_width=True)
+            
+            # Detailed table
+            st.subheader("Detailed Confidence Interval Data")
+            
+            # Format the data for display
+            display_df = df_distinctiveness.copy()
+            display_df['CI Range'] = display_df.apply(
+                lambda row: format_confidence_interval({
+                    'lower': row['ci_lower'], 
+                    'upper': row['ci_upper']
+                }) if row['ci_lower'] is not None and row['ci_upper'] is not None else "N/A", 
+                axis=1
             )
             
-            if sort_option == "Max Distinctiveness":
-                cluster_summary = cluster_summary.sort_values('score', ascending=False)
-            elif sort_option == "Average Quality Score":
-                cluster_summary = cluster_summary.sort_values('quality_score', ascending=False)
-            else:  # Cluster Size
-                cluster_summary = cluster_summary.sort_values('cluster_size_global', ascending=False)
-            
-            # Display clusters
-            st.subheader(f"Clusters sorted by {sort_option}")
-            
-            # Format for display
-            display_df = cluster_summary.copy()
-            display_df['Cluster Description'] = display_df['property_description']  # Show full text, no truncation
-            display_df['Max Score'] = display_df['score'].apply(lambda x: f"{x:.3f}")
-            display_df['Avg Quality'] = display_df['quality_score'].apply(
-                lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else "0.000"
-            )
-            display_df['Size'] = display_df['cluster_size_global']
+            # Select columns for display
+            display_columns = ['model', 'cluster', 'distinctiveness', 'CI Range', 'ci_width']
+            display_df = display_df[display_columns].rename(columns={
+                'model': 'Model',
+                'cluster': 'Cluster',
+                'distinctiveness': 'Distinctiveness',
+                'ci_width': 'CI Width'
+            })
             
             st.dataframe(
-                display_df[['Cluster Description', 'Max Score', 'Avg Quality', 'Size']],
+                display_df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    'Cluster Description': st.column_config.TextColumn(
+                    'Cluster': st.column_config.TextColumn(
                         'Cluster Description',
                         width='large',
                         help="Full behavioral cluster description"
                     ),
-                    'Max Score': st.column_config.NumberColumn('Max Score', width='small'),
-                    'Avg Quality': st.column_config.NumberColumn('Avg Quality', width='small'), 
-                    'Size': st.column_config.NumberColumn('Size', width='small')
+                    'CI Range': st.column_config.TextColumn(
+                        'Confidence Interval',
+                        width='medium',
+                        help="95% confidence interval for distinctiveness score"
+                    )
                 }
             )
             
-            # Show detailed view for selected cluster
-            st.subheader("Cluster Details")
-            selected_cluster_desc = st.selectbox(
-                "Select cluster for detailed view:",
-                cluster_summary['property_description'].tolist()
-            )
-            
-            if selected_cluster_desc:
-                cluster_details = clusters_df[clusters_df['property_description'] == selected_cluster_desc]
+            # Interpretation guide
+            with st.expander("📖 How to Interpret Confidence Intervals", expanded=False):
+                st.markdown("""
+                **Understanding Confidence Intervals:**
                 
-                st.write(f"**Cluster:** {selected_cluster_desc}")
-                st.write(f"**Total Size:** {cluster_details['cluster_size_global'].iloc[0]}")
+                - **Narrow CI (small width)**: High confidence in the distinctiveness measurement
+                - **Wide CI (large width)**: High uncertainty in the distinctiveness measurement
+                - **CI includes 1.0**: The model may not be significantly different from the median
+                - **CI entirely above 1.0**: Confident that the model is over-represented
+                - **CI entirely below 1.0**: Confident that the model is under-represented
                 
-                # Show model breakdown
-                st.write("**Model Breakdown:**")
-                model_breakdown = cluster_details[['model', 'score', 'size', 'proportion']].sort_values('score', ascending=False)
-                model_breakdown['Score'] = model_breakdown['score'].apply(lambda x: f"{x:.3f}")
-                model_breakdown['Frequency'] = model_breakdown['proportion'].apply(lambda x: f"{x*100:.1f}%")
-                model_breakdown = model_breakdown.rename(columns={'model': 'Model', 'size': 'Size'})
+                **Factors affecting CI width:**
+                - **Sample size**: Larger clusters typically have narrower CIs
+                - **Variability**: More variable data leads to wider CIs
+                - **Model differences**: Similar models may have overlapping CIs
                 
-                st.dataframe(
-                    model_breakdown[['Model', 'Score', 'Size', 'Frequency']],
-                    use_container_width=True,
-                    hide_index=True
-                )
-                
-                # Show examples from this cluster
-                st.write("**Examples:**")
-                
-                # Get example property IDs from the model_stats for this cluster
-                example_property_ids = []
-                for model_name, model_data in model_stats.items():
-                    clusters = model_data.get(cluster_level, [])
-                    for cluster in clusters:
-                        if cluster['property_description'] == selected_cluster_desc:
-                            example_property_ids.extend(cluster.get('examples', []))
-                
-                # Remove duplicates and limit to first 5 examples
-                example_property_ids = list(set(example_property_ids))[:5]
-                
-                if example_property_ids:
-                    # Load the example data
-                    examples_df = load_property_examples(results_path, example_property_ids)
-                    
-                    if not examples_df.empty:
-                        st.caption(f"Showing {len(examples_df)} example(s) from this cluster")
-                        
-                        for i, (_, row) in enumerate(examples_df.iterrows(), 1):
-                            with st.expander(f"Example {i}: {row.get('model', 'Unknown model')} - {row.get('id', 'Unknown')[:12]}..."):
-                                # Get the prompt and response
-                                prompt = row.get('prompt', row.get('user_prompt', 'N/A'))
-                                
-                                # Get the model response and split it if it contains metadata
-                                response = (row.get('model_response') or 
-                                          row.get('model_a_response') or 
-                                          row.get('model_b_response') or 
-                                          row.get('responses', 'N/A'))
-                                
-                                # Debug: Print the full response to terminal to see its format
-                                print(f"\n{'='*80}")
-                                print(f"DEBUG: Full response for cluster example {i}")
-                                print(f"{'='*80}")
-                                print(response)
-                                print(f"{'='*80}\n")
-                                
-                                metadata, conversation = split_conversation_at_user(response)
-                                
-                                st.write("**Prompt:**")
-                                st.text(prompt)
-                                
-                                # Display metadata if it exists
-                                if metadata:
-                                    st.markdown("**📋 Metadata & Context:**")
-                                    st.markdown(metadata)
-                                    st.divider()
-                                
-                                # Display the conversation
-                                st.markdown("**💬 Conversation:**")
-                                st.markdown(conversation)
-                                
-                                st.write("**Metadata:**")
-                                st.json({
-                                    'model': row.get('model', 'N/A'),
-                                    'question_id': row.get('question_id', 'N/A'),
-                                    'property_id': row.get('id', 'N/A'),
-                                    'cluster_id': row.get('fine_cluster_id', 'N/A')
-                                })
-                                
-                                st.write("**Extracted Property:**")
-                                property_desc = row.get('property_description', 'N/A')
-                                st.info(property_desc)
-                    else:
-                        st.warning("Could not load example data for this cluster")
-                else:
-                    st.warning("No examples available for this cluster")
+                **Statistical significance:**
+                - If the CI doesn't include 1.0, the model's behavior is significantly different from the median
+                - If the CI includes 1.0, the model's behavior may not be significantly different
+                """)
         else:
-            st.warning("No cluster data available")
+            st.warning("No confidence interval data available for analysis.")
+
+    with tab6:
+        st.header("🔎 Vector Search (does not work)")
+        st.write("Search for behavioral properties using semantic similarity with vector embeddings.")
+        
+        # Initialize vector search engine
+        @st.cache_resource
+        def get_vector_search(results_path):
+            try:
+                return PropertyVectorSearch(results_path)
+            except Exception as e:
+                st.error(f"Failed to initialize vector search: {e}")
+                return None
+        
+        vector_search = get_vector_search(results_path)
+        
+        if vector_search is None:
+            st.error("Vector search is not available. Please ensure clustered_results.json exists.")
+            st.stop()
+        
+        # Show search statistics
+        stats = vector_search.get_statistics()
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Properties", stats['total_properties'])
+        with col2:
+            st.metric("Total Conversations", stats['total_conversations'])
+        with col3:
+            st.metric("Unique Models", stats['unique_models'])
+        with col4:
+            st.metric("Unique Clusters", stats['unique_clusters'])
+        
+        st.divider()
+        
+        # Search interface
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            search_query = st.text_input(
+                "Search for behavioral properties",
+                placeholder="e.g., 'step by step reasoning', 'creative responses', 'formal tone'...",
+                help="Enter a description of the behavioral property you're looking for"
+            )
+        
+        with col2:
+            top_k = st.number_input("Max results", min_value=5, max_value=50, value=10)
+            min_similarity = st.slider("Min similarity", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
+        
+        # Model filter
+        model_filter = st.multiselect(
+            "Filter by models (optional)",
+            all_models,
+            help="Leave empty to search across all models"
+        )
+        
+        # Search button
+        search_button = st.button("🔍 Search", type="primary")
+        
+        if search_button and search_query:
+            with st.spinner("Searching..."):
+                try:
+                    if model_filter:
+                        # Search within specific models
+                        results = vector_search.search_by_model(
+                            search_query, model_filter, top_k=top_k, min_similarity=min_similarity
+                        )
+                    else:
+                        # Search across all models
+                        results = vector_search.search(
+                            search_query, top_k=top_k, min_similarity=min_similarity
+                        )
+                    
+                    if results:
+                        st.success(f"Found {len(results)} relevant properties")
+                        
+                        # Display results
+                        for i, result in enumerate(results, 1):
+                            with st.expander(f"Result {i}: {result.property_description[:80]}...", expanded=i<=3):
+                                col1, col2 = st.columns([2, 1])
+                                
+                                with col1:
+                                    st.markdown(f"**Property:** {result.property_description}")
+                                    st.markdown(f"**Model:** {result.model}")
+                                    st.markdown(f"**Cluster:** {result.cluster_label}")
+                                    st.markdown(f"**Similarity:** {result.similarity_score:.3f}")
+                                    
+                                    if result.category:
+                                        st.markdown(f"**Category:** {result.category}")
+                                    if result.impact:
+                                        st.markdown(f"**Impact:** {result.impact}")
+                                    if result.type:
+                                        st.markdown(f"**Type:** {result.type}")
+                                
+                                with col2:
+                                    if result.evidence:
+                                        st.markdown("**Evidence:**")
+                                        st.text(result.evidence[:200] + "..." if len(result.evidence) > 200 else result.evidence)
+                                
+                                # Show examples directly if available
+                                examples = vector_search.get_property_examples(result.property_description, max_examples=2)
+                                if examples:
+                                    st.markdown("**Example Conversations:**")
+                                    for j, example in enumerate(examples, 1):
+                                        with st.expander(f"Example {j}", expanded=False):
+                                            st.markdown(f"**Question ID:** {example['question_id']}")
+                                            st.markdown(f"**Model:** {example['model']}")
+                                            st.markdown(f"**Score:** {example['score']}")
+                                            
+                                            if example['prompt']:
+                                                st.markdown("**Prompt:**")
+                                                st.text(example['prompt'][:300] + "..." if len(example['prompt']) > 300 else example['prompt'])
+                                            
+                                            if example['response']:
+                                                st.markdown("**Response:**")
+                                                st.text(example['response'][:300] + "..." if len(example['response']) > 300 else example['response'])
+                                            
+                                            if example['evidence']:
+                                                st.markdown("**Evidence:**")
+                                                st.text(example['evidence'])
+                                else:
+                                    st.info("No examples available for this property.")
+                        
+                        # Show summary statistics
+                        st.subheader("Search Summary")
+                        similarity_scores = [r.similarity_score for r in results]
+                        avg_similarity = np.mean(similarity_scores)
+                        max_similarity = max(similarity_scores)
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Average Similarity", f"{avg_similarity:.3f}")
+                        with col2:
+                            st.metric("Max Similarity", f"{max_similarity:.3f}")
+                        with col3:
+                            st.metric("Results Found", len(results))
+                        
+                        # Similarity distribution
+                        fig = px.histogram(
+                            x=similarity_scores,
+                            nbins=10,
+                            title="Similarity Score Distribution",
+                            labels={'x': 'Similarity Score', 'y': 'Count'}
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                    else:
+                        st.warning(f"No properties found matching '{search_query}' with similarity >= {min_similarity}")
+                        st.info("Try:")
+                        st.info("• Using different keywords")
+                        st.info("• Lowering the similarity threshold")
+                        st.info("• Checking spelling")
+                
+                except Exception as e:
+                    st.error(f"Search failed: {e}")
+                    st.info("This might be due to missing embeddings. The system will compute them on first use.")
+        
+        elif search_query and not search_button:
+            st.info("Click 'Search' to find relevant properties")
+        
+        # Show search tips
+        with st.expander("💡 Search Tips", expanded=False):
+            st.markdown("""
+            **Effective search strategies:**
+            
+            • **Be specific:** Instead of "good responses", try "step-by-step explanations" or "creative problem solving"
+            • **Use behavioral terms:** "formal tone", "technical accuracy", "user-friendly explanations"
+            • **Combine concepts:** "detailed reasoning with examples", "concise but accurate responses"
+            • **Try synonyms:** "thorough" instead of "detailed", "helpful" instead of "useful"
+            
+            **Understanding similarity scores:**
+            • **0.9+**: Very similar properties
+            • **0.7-0.9**: Related properties  
+            • **0.5-0.7**: Somewhat related properties
+            • **<0.5**: Weakly related (filtered out by default)
+            """)
 
 if __name__ == "__main__":
     main()

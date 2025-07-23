@@ -31,6 +31,18 @@ try:
 except ImportError:
     from clustering_utils import _get_llm_cluster_summary, llm_coarse_cluster_with_centers, _get_embeddings, _setup_embeddings, save_clustered_results, initialize_wandb, load_precomputed_embeddings
 
+# Import the new modular functions
+try:
+    from .clustering_utils import generate_coarse_labels, assign_fine_to_coarse
+except ImportError:
+    from clustering_utils import generate_coarse_labels, assign_fine_to_coarse
+
+# Prompts for LLM clustering
+try:
+    from .clustering_prompts import coarse_clustering_systems_prompt, deduplication_clustering_systems_prompt, outlier_clustering_systems_prompt
+except ImportError:
+    from clustering_prompts import coarse_clustering_systems_prompt, deduplication_clustering_systems_prompt, outlier_clustering_systems_prompt
+
 # Optional imports (will be checked when needed)
 from sentence_transformers import SentenceTransformer
 import hdbscan
@@ -412,19 +424,178 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         cluster_values[cluster_id].append(value)
 
     cluster_label_map = generate_cluster_summaries(cluster_values, config, column_name)
-    print(cluster_label_map)
+
+    # -------------------------------------------------------------
+    # Step 4a: Cluster outliers using LLM
+    # -------------------------------------------------------------
+    if config.verbose:
+        print("Clustering outliers using LLM...")
+
+    # Get outlier items
+    outlier_items = [unique_values[i] for i, label in enumerate(cluster_labels) if label == -1]
+    
+    if len(outlier_items) > 0:
+        # Generate outlier cluster summaries
+        outlier_cluster_names = generate_coarse_labels(
+            outlier_items,
+            max_coarse_clusters=len(outlier_items) // config.min_cluster_size,
+            systems_prompt=outlier_clustering_systems_prompt,
+            model=config.summary_model,
+            verbose=config.verbose,
+        )
+        
+        # Assign outlier items to outlier clusters
+        outlier_assignments = assign_fine_to_coarse(
+            outlier_items,
+            outlier_cluster_names,
+            model=config.cluster_assignment_model,
+            strategy="llm",
+            verbose=config.verbose,
+        )
+        
+        if config.verbose:
+            print(f"Created {len(outlier_cluster_names)} outlier clusters")
+            print("Outlier cluster names:", outlier_cluster_names)
+        
+        # -------------------------------------------------------------
+        # Merge outlier clusters with fine clusters
+        # -------------------------------------------------------------
+        
+        # Get the next available cluster ID (after existing fine clusters)
+        next_cluster_id = max(cluster_values.keys()) + 1 if cluster_values else 0
+        
+        # Create mapping from outlier cluster names to new cluster IDs
+        outlier_name_to_id = {}
+        for i, name in enumerate(outlier_cluster_names):
+            if name != "Outliers":  # Skip if LLM returned "Outliers" as a cluster name
+                outlier_name_to_id[name] = next_cluster_id + i
+        
+        # Update cluster_labels to assign outlier items to their new clusters
+        new_cluster_labels = cluster_labels.copy()
+        for i, label in enumerate(cluster_labels):
+            if label == -1:  # This was an outlier
+                item = unique_values[i]
+                assigned_cluster = outlier_assignments.get(item, "Outliers")
+                if assigned_cluster in outlier_name_to_id:
+                    new_cluster_labels[i] = outlier_name_to_id[assigned_cluster]
+                # If assigned_cluster is "Outliers" or not found, keep as -1
+        
+        cluster_labels = new_cluster_labels
+        
+        # Rebuild cluster_values and cluster_label_map to include outlier clusters
+        cluster_values = defaultdict(list)
+        for value, cluster_id in zip(unique_values, cluster_labels):
+            cluster_values[cluster_id].append(value)
+        
+        # Update cluster_label_map to include outlier clusters
+        for name, cluster_id in outlier_name_to_id.items():
+            cluster_label_map[cluster_id] = name
+        
+        if config.verbose:
+            n_outlier_clusters = len(outlier_name_to_id)
+            n_remaining_outliers = list(cluster_labels).count(-1)
+            print(f"Assigned outliers to {n_outlier_clusters} clusters, {n_remaining_outliers} remain as outliers")
+    else:
+        if config.verbose:
+            print("No outliers to cluster")
+
+    # -------------------------------------------------------------
+    # Step 4b: Deduplicate fine-cluster labels via LLM            
+    # -------------------------------------------------------------
+    if config.verbose:
+        print("Deduplicating fine-cluster labels…")
+
+    fine_cluster_names = [cluster_label_map[cid] for cid in cluster_values.keys() if cid != -1]
+
+    # Generate deduplicated labels
+    deduped_names = generate_coarse_labels(
+        fine_cluster_names,
+        max_coarse_clusters=None,
+        systems_prompt=deduplication_clustering_systems_prompt,
+        model=config.summary_model,
+        verbose=config.verbose,
+    )
+
+    # Assign fine labels to deduplicated labels
+    fine_to_dedupe = assign_fine_to_coarse(
+        fine_cluster_names,
+        deduped_names,
+        model=config.cluster_assignment_model,
+        strategy="llm",
+        verbose=config.verbose,
+    )
+
+    # -------------------------------------------------------------
+    # Merge fine clusters that were deduplicated
+    # -------------------------------------------------------------
+
+    # 1. Update the label map so every original cluster id points to its deduped label
+    for cid in cluster_values.keys():
+        if cid == -1:
+            continue
+        original_label = cluster_label_map[cid]
+        # Handle case where fine label maps to 'Outliers' in deduplication
+        if original_label in fine_to_dedupe:
+            deduped_label = fine_to_dedupe[original_label]
+        else:
+            deduped_label = original_label
+        cluster_label_map[cid] = deduped_label
+
+    # 2. Build mapping from deduped label → new sequential id
+    unique_dedup_labels = [lbl for lbl in sorted(set(cluster_label_map.values())) if lbl != "Outliers"]
+    label_to_new_id = {lbl: idx for idx, lbl in enumerate(unique_dedup_labels)}
+
+    # 3. Re-assign cluster_labels array so duplicates share the same id
+    new_cluster_labels = []
+    for original_cid in cluster_labels:
+        if original_cid == -1:
+            new_cluster_labels.append(-1)
+        else:
+            deduped = cluster_label_map[original_cid]
+            if deduped == "Outliers":
+                new_cluster_labels.append(-1)
+            else:
+                new_cluster_labels.append(label_to_new_id[deduped])
+
+    cluster_labels = np.array(new_cluster_labels)
+
+    # 4. Rebuild cluster_values & cluster_label_map using new ids
+    cluster_values = defaultdict(list)
+    for val, cid in zip(unique_values, cluster_labels):
+        cluster_values[cid].append(val)
+
+    cluster_label_map = {new_id: lbl for lbl, new_id in label_to_new_id.items()}
+    cluster_label_map[-1] = "Outliers"  # Ensure outliers are properly mapped
 
     # Step 5: Handle hierarchical clustering if requested
     coarse_cluster_data = None
     if config.hierarchical:
-        print("Generating hierarchical clusters...")
+        if config.verbose:
+            print("Generating hierarchical coarse clusters…")
+
         fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1]
-        max_coarse_clusters = min(config.max_coarse_clusters, len(fine_cluster_names) // 2)
-        coarse_assignments, coarse_names = llm_coarse_cluster_with_centers(
-            fine_cluster_names, max_coarse_clusters, config.verbose, config.summary_model, config.cluster_assignment_model
+        max_coarse_clusters = min(config.max_coarse_clusters, max(1, len(fine_cluster_names) // 2))
+
+        # Generate coarse cluster labels
+        coarse_names = generate_coarse_labels(
+            fine_cluster_names,
+            max_coarse_clusters,
+            systems_prompt=coarse_clustering_systems_prompt,
+            model=config.summary_model,
+            verbose=config.verbose,
         )
-        print("coarse_assignments", coarse_assignments)
-        print("coarse_names", coarse_names)
+
+        # Assign fine labels to coarse labels
+        coarse_assignments = assign_fine_to_coarse(
+            fine_cluster_names,
+            coarse_names,
+            model=config.cluster_assignment_model,
+            strategy="llm",
+            verbose=config.verbose,
+        )
+        if config.verbose:
+            print("coarse_assignments", coarse_assignments)
+            print("coarse_names", coarse_names)
         # Map back to original values
         coarse_labels = []
         coarse_label_map = {}
@@ -464,183 +635,6 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         print(f"Found {n_clusters} clusters and {n_noise} outliers in {total_time:.1f} seconds")
 
     return df_result
-
-
-def hdbscan_native_hierarchical_cluster(df, column_name, config=None, **kwargs):
-    """
-    Hierarchical clustering using HDBSCAN's native hierarchy.
-    
-    This method runs HDBSCAN once and then extracts multiple levels of clusters
-    by traversing the algorithm's internal condensed tree.
-    
-    Best for: Efficiently exploring the natural, multi-level structure of data.
-    
-    Args:
-        df: DataFrame containing the data
-        column_name: Name of the column to cluster on
-        config: ClusterConfig object with all parameters (preferred)
-        **kwargs: Individual parameters for backward compatibility
-    """
-    # Handle backward compatibility by creating config from kwargs
-    if config is None:
-        config_kwargs = {}
-        for k, v in kwargs.items():
-            if hasattr(ClusterConfig, k):
-                config_kwargs[k] = v
-        config = ClusterConfig(**config_kwargs)
-
-    start_time = time.time()
-    unique_values = df[column_name].unique()
-    unique_strings = [str(value) for value in unique_values]
-    
-    if config.verbose:
-        print(f"Native HDBSCAN hierarchical clustering for {len(unique_values)} unique values...")
-
-    # Step 1: Prepare embeddings (including dimension reduction)
-    embeddings, original_embeddings = prepare_embeddings(unique_values, config)
-
-    # Step 2: Run HDBSCAN once
-    if config.verbose:
-        print("Starting HDBSCAN clustering...")
-
-    if config.min_samples is None:
-        config.min_samples = config.min_cluster_size
-
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=config.min_cluster_size,
-        min_samples=config.min_samples,
-        metric='euclidean',
-        cluster_selection_method='eom',
-        algorithm='best',
-        core_dist_n_jobs=-1,
-        prediction_data=True,  # Required for all_points_membership_vectors
-        cluster_selection_epsilon=config.cluster_selection_epsilon
-    )
-    clusterer.fit(embeddings)
-    if config.verbose:
-        n_flat_clusters = len(set(clusterer.labels_)) - (1 if -1 in clusterer.labels_ else 0)
-        print(f"HDBSCAN fit completed. Found {n_flat_clusters} flat clusters.")
-
-    # Step 3: Extract hierarchy from the condensed tree
-    if config.verbose:
-        print("Extracting native hierarchy from condensed tree...")
-    
-    try:
-        membership_vectors = hdbscan.all_points_membership_vectors(clusterer)
-    except Exception as e:
-        print(f"Error getting membership vectors: {e}")
-        print("This may be due to an older hdbscan version. Please upgrade: pip install --upgrade hdbscan")
-        # As a fallback, we could just use clusterer.labels_ as one level. For now, we raise.
-        raise
-
-    tree = clusterer.condensed_tree_.to_pandas()
-    
-    # Create child-to-parent mapping for tree traversal
-    child_to_parent = dict(zip(tree['child'], tree['parent']))
-    
-    # Determine the most specific (leaf) cluster for each point from the hierarchy
-    point_to_cluster = {}
-
-    # The output of all_points_membership_vectors can be sparse or dense depending on the library version.
-    is_sparse = not isinstance(membership_vectors, np.ndarray)
-
-    for point_idx, point_memberships in enumerate(membership_vectors):
-        if is_sparse:
-            # Handle sparse matrix row object, which has .indices and .data attributes
-            if len(point_memberships.data) > 0:
-                # Find the cluster with the highest membership strength
-                cluster_id = point_memberships.indices[np.argmax(point_memberships.data)]
-                point_to_cluster[point_idx] = cluster_id
-            else:
-                point_to_cluster[point_idx] = -1  # Outlier
-        else:
-            # Handle dense numpy array row
-            if np.sum(point_memberships) > 0:
-                cluster_id = np.argmax(point_memberships)
-                point_to_cluster[point_idx] = cluster_id
-            else:
-                point_to_cluster[point_idx] = -1 # Outlier
-    
-    # Step 4: Generate all levels of the hierarchy
-    hierarchy_levels = {}
-    level_0_map = {unique_values[i]: cid for i, cid in point_to_cluster.items()}
-    hierarchy_levels[0] = level_0_map
-
-    max_levels = 10  # Safety break
-    for i in range(1, max_levels):
-        prev_level_map = hierarchy_levels[i-1]
-        
-        # Check if we have reached the root or only outliers
-        prev_level_clusters = set(prev_level_map.values())
-        if all(cid == -1 or cid not in child_to_parent or child_to_parent[cid] == cid for cid in prev_level_clusters):
-            if config.verbose:
-                print(f"Reached top of hierarchy at level {i-1}. Stopping.")
-            break
-            
-        next_level_map = {}
-        for value, cluster_id in prev_level_map.items():
-            if cluster_id != -1 and cluster_id in child_to_parent:
-                parent_id = child_to_parent[cluster_id]
-                # Avoid self-loops at the root
-                next_level_map[value] = parent_id if parent_id != cluster_id else -1
-            else:
-                next_level_map[value] = -1
-        
-        # Stop if the new level is identical to the previous one
-        if next_level_map == prev_level_map:
-            break
-            
-        hierarchy_levels[i] = next_level_map
-    
-    if config.verbose:
-        print(f"Generated {len(hierarchy_levels)} levels of clusters.")
-
-    # Step 5: Generate labels and create output DataFrame
-    df_copy = df.copy()
-    level_names = {0: 'fine', 1: 'coarse'}
-
-    for level_idx, value_to_id_map in hierarchy_levels.items():
-        level_name = level_names.get(level_idx, f'coarse_{level_idx}')
-        if config.verbose:
-            num_clusters = len(set(value_to_id_map.values())) - (1 if -1 in set(value_to_id_map.values()) else 0)
-            print(f"\nProcessing Level {level_idx} ('{level_name}') with {num_clusters} clusters...")
-
-        # Generate LLM summaries if requested
-        print(f"  Generating LLM summaries for level '{level_name}'...")
-            
-        cluster_values = defaultdict(list)
-        for value, cluster_id in value_to_id_map.items():
-            cluster_values[cluster_id].append(value)
-        
-        id_to_label_map = {}
-        for cluster_id, values in cluster_values.items():
-            if cluster_id == -1:
-                id_to_label_map[cluster_id] = "Outliers"
-                continue
-            
-            # Use a slightly different prompt context for different levels
-            cluster_type = "specific" if level_idx == 0 else "broad"
-            summary = _get_llm_cluster_summary(values, config.summary_model, column_name, cluster_type, 50)
-            id_to_label_map[cluster_id] = summary
-            
-            if config.verbose and (cluster_id % 5 == 0 or num_clusters < 10):
-                print(f"    Cluster {cluster_id}: {summary} ({len(values)} items)")
-
-        value_to_label_map = {v: id_to_label_map[cid] for v, cid in value_to_id_map.items()}
-       
-        df_copy[f'{column_name}_{level_name}_cluster_id'] = df_copy[column_name].map(value_to_id_map)
-        df_copy[f'{column_name}_{level_name}_cluster_label'] = df_copy[column_name].map(value_to_label_map)
-
-    if config.include_embeddings:
-        value_to_embedding = dict(zip(unique_values, original_embeddings.tolist()))
-        df_copy[f'{column_name}_embedding'] = df_copy[column_name].map(value_to_embedding)
-
-    if config.verbose:
-        total_time = time.time() - start_time
-        print(f"\nNative HDBSCAN clustering completed in {total_time:.1f} seconds")
-
-    return df_copy
-
 
 def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
     """
@@ -859,12 +853,7 @@ def main():
         print(f"Running HDBSCAN clustering...")
         df_clustered = hdbscan_cluster_categories(df, args.column, config=config)
         method_name = "hdbscan"
-        
-    elif args.method == 'hdbscan_native':
-        print(f"Running Native HDBSCAN hierarchical clustering...")
-        df_clustered = hdbscan_native_hierarchical_cluster(df, args.column, config=config)
-        method_name = "hdbscan_native"
-    
+
     elif args.method == 'hierarchical':
         print(f"Running traditional hierarchical clustering...")
         df_clustered = hierarchical_cluster_categories(df, args.column, config=config)

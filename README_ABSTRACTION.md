@@ -133,7 +133,7 @@ dataset.save("results.json")  # or .parquet, .pickle
 dataset = PropertyDataset.load("results.json")
 
 # Convert to DataFrame with different views
-df = dataset.to_dataframe(type="all")  # or "base", "properties", "clusters"
+df = dataset.to_dataframe(type="all", method="side_by_side")  # or "base", "properties", "clusters"
 ```
 
 ---

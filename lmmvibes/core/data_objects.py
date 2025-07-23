@@ -99,6 +99,10 @@ class ModelStats:
     examples: List[str] # example property id's in the cluster
     metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
 
+    # Confidence intervals for uncertainty quantification
+    score_ci: Optional[Dict[str, float]] = None  # 95% CI for distinctiveness score: {"lower": x, "upper": y}
+    quality_score_ci: Optional[Dict[str, Dict[str, float]]] = None  # CI bounds for each quality score key: {"key": {"lower": x, "upper": y}}
+
     def to_dict(self):
         return asdict(self)
 

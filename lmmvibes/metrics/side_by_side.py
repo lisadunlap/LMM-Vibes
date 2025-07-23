@@ -35,9 +35,11 @@ from ..core.data_objects import PropertyDataset, ModelStats
 class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
     """Metrics stage for side-by-side data."""
 
-    def __init__(self, output_dir: str | Path | None = None, **kwargs):
+    def __init__(self, output_dir: str | Path | None = None, compute_confidence_intervals: bool = False, bootstrap_samples: int = 1000, **kwargs):
         super().__init__(**kwargs)
         self.output_dir = Path(output_dir) if output_dir else None
+        self.compute_confidence_intervals = compute_confidence_intervals
+        self.bootstrap_samples = bootstrap_samples
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -132,10 +134,6 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # ------------------------------------------------------------------
         # Calculate denominator: unique questions answered per model
         # ------------------------------------------------------------------
-        # Using DataFrame.value_counts on a single column returns a MultiIndex
-        # whose keys are *tuples* like ("gpt-4o",).  That propagates through
-        # the downstream metrics and we end up with dict keys that look like
-        # ('gpt-4o',) instead of plain strings.
 
         total_q_series = (
             df[["model", "question_id"]]
@@ -147,8 +145,6 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
         # Calculate the average score per model
         # If score is a dict with multiple keys, compute the average for each key per model
-        import collections
-
         # First, get all possible keys in the score dicts
         all_score_keys = set()
         for s in df["score"]:
@@ -213,15 +209,21 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         stats: Dict[str, Dict[str, List[ModelStats]]] = defaultdict(lambda: {"fine": [], "coarse": []})
 
         # ---------------- Fine clusters ----------------
-        for cid, group in df.groupby("fine_cluster_id"):
+        fine_clusters = list(df.groupby("fine_cluster_id"))
+        self.log(f"Computing metrics for {len(fine_clusters)} fine clusters...")
+        
+        for i, (cid, group) in enumerate(fine_clusters):
+            self.log(f"  Processing fine cluster {i+1}/{len(fine_clusters)}: {cid}")
             lbl = group["fine_cluster_label"].iloc[0]
             self._compute(group, cid, lbl, "fine", total_q, stats)
 
         # ---------------- Coarse clusters --------------
         if (df["coarse_cluster_id"] != -1).any():
-            for cid, group in df.groupby("coarse_cluster_id"):
-                if cid == -1:
-                    continue
+            coarse_clusters = [(cid, group) for cid, group in df.groupby("coarse_cluster_id") if cid != -1]
+            self.log(f"Computing metrics for {len(coarse_clusters)} coarse clusters...")
+            
+            for i, (cid, group) in enumerate(coarse_clusters):
+                self.log(f"  Processing coarse cluster {i+1}/{len(coarse_clusters)}: {cid}")
                 lbl = group["coarse_cluster_label"].iloc[0]
                 self._compute(group, cid, lbl, "coarse", total_q, stats)
 
@@ -239,12 +241,18 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
         data.model_stats = stats  # type: ignore[assignment]
 
-        # Note: Individual JSONL files are no longer saved here
-        # The model_stats.json file is saved by the pipeline in public.py
-        # if self.output_dir:
-        #     self._dump(stats)
+        # Save metrics results if output_dir is provided
+        if self.output_dir:
+            self._dump(stats)
 
         self.log(f"✅ Metrics computed for {len(stats)} models")
+        
+        if self.compute_confidence_intervals:
+            self.log(f"📊 Confidence intervals computed using {self.bootstrap_samples} bootstrap samples")
+        
+        # Print top clusters for each model
+        self._print_top_clusters(stats)
+        
         return data
     
     def extract_winner_score(self, row: pd.Series) -> float:
@@ -420,6 +428,210 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         
         return global_stats
 
+    def _bootstrap_confidence_interval(
+        self, 
+        data: np.ndarray, 
+        statistic_func: callable, 
+        confidence_level: float = 0.95,
+        n_bootstrap: int = None
+    ) -> tuple[float, float]:
+        """
+        Compute bootstrap confidence interval for a given statistic.
+        
+        Args:
+            data: Array of data points to resample from
+            statistic_func: Function to compute the statistic of interest
+            confidence_level: Confidence level (default: 0.95 for 95% CI)
+            n_bootstrap: Number of bootstrap samples (defaults to self.bootstrap_samples)
+            
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        if len(data) == 0:
+            return (0.0, 0.0)
+        
+        if n_bootstrap is None:
+            n_bootstrap = self.bootstrap_samples
+        
+        # Generate bootstrap samples with progress bar
+        bootstrap_stats = []
+        try:
+            from tqdm import tqdm
+            progress_bar = tqdm(total=n_bootstrap, desc="Bootstrap samples", unit="samples")
+        except ImportError:
+            # Fallback if tqdm is not available
+            progress_bar = None
+            self.log(f"Computing {n_bootstrap} bootstrap samples...")
+        
+        for i in range(n_bootstrap):
+            # Sample with replacement from the data
+            bootstrap_sample = np.random.choice(data, size=len(data), replace=True)
+            bootstrap_stat = statistic_func(bootstrap_sample)
+            bootstrap_stats.append(bootstrap_stat)
+            
+            # Update progress bar
+            if progress_bar:
+                progress_bar.update(1)
+            elif i % 100 == 0:  # Log progress every 100 samples if no progress bar
+                self.log(f"Bootstrap progress: {i}/{n_bootstrap} samples ({i/n_bootstrap*100:.1f}%)")
+        
+        if progress_bar:
+            progress_bar.close()
+        
+        # Compute confidence interval
+        alpha = 1 - confidence_level
+        lower_percentile = (alpha / 2) * 100
+        upper_percentile = (1 - alpha / 2) * 100
+        
+        lower_bound = np.percentile(bootstrap_stats, lower_percentile)
+        upper_bound = np.percentile(bootstrap_stats, upper_percentile)
+        
+        return float(lower_bound), float(upper_bound)
+
+    def _compute_confidence_intervals(
+        self, 
+        group: pd.DataFrame, 
+        total_q: Dict[str, int],
+        confidence_level: float = 0.95
+    ) -> tuple[Dict[str, tuple[float, float]], Dict[str, Dict[str, tuple[float, float]]]]:
+        """
+        Compute both distinctiveness and quality score confidence intervals.
+        
+        Args:
+            group: DataFrame containing cluster data
+            total_q: Dictionary of total questions per model
+            confidence_level: Confidence level for intervals
+            
+        Returns:
+            Tuple of (distinctiveness_cis, quality_score_cis)
+        """
+        # 1. Distinctiveness Score CIs
+        distinctiveness_cis = {}
+        cluster_questions = group['question_id'].unique()
+        
+        if len(cluster_questions) > 0:
+            # Add progress tracking for distinctiveness CIs
+            total_models = len(total_q.keys())
+            self.log(f"Computing distinctiveness confidence intervals for {total_models} models...")
+            
+            for i, model in enumerate(total_q.keys()):
+                self.log(f"  Computing distinctiveness CI for model {i+1}/{total_models}: {model}")
+                
+                model_cluster_questions = group[group['model'] == model]['question_id'].unique()
+                
+                if len(model_cluster_questions) == 0:
+                    distinctiveness_cis[model] = (0.0, 0.0)
+                    continue
+                
+                def compute_distinctiveness_score(sampled_questions):
+                    # Count models in this bootstrap sample
+                    model_counts = {}
+                    for question_id in sampled_questions:
+                        question_models = group[group['question_id'] == question_id]['model'].unique()
+                        for question_model in question_models:
+                            model_counts[question_model] = model_counts.get(question_model, 0) + 1
+                    
+                    # Calculate proportions for this bootstrap sample
+                    proportions = {}
+                    for model_name, total_questions in total_q.items():
+                        count = model_counts.get(model_name, 0)
+                        proportions[model_name] = count / total_questions if total_questions > 0 else 0
+                    
+                    # Calculate median proportion (excluding zeros)
+                    non_zero_props = [p for p in proportions.values() if p > 0]
+                    median_prop = np.median(non_zero_props) if non_zero_props else 1e-9
+                    
+                    # Return distinctiveness score for the target model
+                    model_prop = proportions.get(model, 0)
+                    return model_prop / median_prop if median_prop > 0 else 0
+                
+                try:
+                    lower_ci, upper_ci = self._bootstrap_confidence_interval(
+                        cluster_questions, 
+                        compute_distinctiveness_score, 
+                        confidence_level
+                    )
+                    distinctiveness_cis[model] = (lower_ci, upper_ci)
+                except Exception as e:
+                    self.log(f"Warning: Bootstrap failed for model {model}: {e}", level="warning")
+                    distinctiveness_cis[model] = (0.0, 0.0)
+        
+        # 2. Quality Score CIs
+        quality_score_cis = {}
+        
+        # Get all score keys from the first non-empty score dict
+        score_keys = []
+        for s in group["score"]:
+            if isinstance(s, dict) and s:
+                score_keys = list(s.keys())
+                break
+        
+        if score_keys:
+            # Add progress tracking for quality score CIs
+            models_in_cluster = group["model"].unique()
+            total_quality_computations = len(score_keys) * len(models_in_cluster)
+            self.log(f"Computing quality score confidence intervals for {len(score_keys)} score keys × {len(models_in_cluster)} models = {total_quality_computations} computations...")
+            
+            computation_count = 0
+            for key in score_keys:
+                quality_score_cis[key] = {}
+                
+                for model in models_in_cluster:
+                    computation_count += 1
+                    self.log(f"  Computing quality CI {computation_count}/{total_quality_computations}: key='{key}', model='{model}'")
+                    
+                    # Get all score observations for this model and key in this cluster
+                    model_rows = group[group["model"] == model]
+                    model_scores = []
+                    
+                    for _, row in model_rows.iterrows():
+                        if key == "winner":
+                            score_value = self.extract_winner_score(row)
+                        else:
+                            score_dict = row["score"]
+                            if isinstance(score_dict, dict) and key in score_dict:
+                                score_value = score_dict[key]
+                            else:
+                                score_value = 0
+                        
+                        if isinstance(score_value, (int, float)) and score_value != 0:
+                            model_scores.append(float(score_value))
+                    
+                    if len(model_scores) == 0:
+                        quality_score_cis[key][model] = (0.0, 0.0)
+                        continue
+                    
+                    # Get global average for this model and key
+                    try:
+                        model_global_avg = self.avg_score_per_model.loc[model, key]
+                    except (KeyError, AttributeError):
+                        model_global_avg = 0.0
+                    
+                    # Get global range for normalization
+                    global_range = self.global_score_stats.get(key, {}).get('range', 1.0)
+                    if global_range == 0:
+                        global_range = 1.0
+                    
+                    def compute_quality_score(sampled_scores):
+                        if len(sampled_scores) == 0:
+                            return 0.0
+                        cluster_avg = np.mean(sampled_scores)
+                        return (cluster_avg - model_global_avg) / global_range
+                    
+                    try:
+                        model_scores_array = np.array(model_scores)
+                        lower_ci, upper_ci = self._bootstrap_confidence_interval(
+                            model_scores_array, 
+                            compute_quality_score, 
+                            confidence_level
+                        )
+                        quality_score_cis[key][model] = (lower_ci, upper_ci)
+                    except Exception as e:
+                        self.log(f"Warning: Quality bootstrap failed for model {model}, key {key}: {e}", level="warning")
+                        quality_score_cis[key][model] = (0.0, 0.0)
+        
+        return distinctiveness_cis, quality_score_cis
+
     # ------------------------------------------------------------------
     def _compute(
         self,
@@ -444,9 +656,34 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
         props = {m: counts.get(m, 0) / total_q[m] for m in total_q}
         median_prop = np.median([v for v in props.values() if v > 0]) or 1e-9
 
+        # Compute confidence intervals for distinctiveness scores
+        if self.compute_confidence_intervals:
+            distinctiveness_cis, quality_score_cis = self._compute_confidence_intervals(group, total_q)
+        else:
+            distinctiveness_cis, quality_score_cis = {}, {}
+
         for model, prop in props.items():
             score = prop / median_prop if median_prop else 0.0
             quality_score = self._compute_normalized_quality_score(group)
+            
+            # Get confidence intervals for this model
+            score_ci = None
+            quality_score_ci = {}
+            
+            if self.compute_confidence_intervals:
+                distinctiveness_ci = distinctiveness_cis.get(model, (0.0, 0.0))
+                if distinctiveness_ci != (0.0, 0.0):
+                    score_ci = {
+                        "lower": distinctiveness_ci[0],
+                        "upper": distinctiveness_ci[1]
+                    }
+                
+                # Format quality score confidence intervals
+                for key in quality_score_cis:
+                    if model in quality_score_cis[key]:
+                        lower, upper = quality_score_cis[key][model]
+                        quality_score_ci[key] = {"lower": lower, "upper": upper}
+            
             ms = ModelStats(
                 property_description=str(label),
                 model_name=str(model),
@@ -460,6 +697,8 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
                     "cluster_id": cid,
                     "level": level,
                 },
+                score_ci=score_ci,
+                quality_score_ci=quality_score_ci if quality_score_ci else None,
             )
             out[model][level].append(ms)
 
@@ -471,12 +710,60 @@ class SideBySideMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
     def _dump(self, stats: Dict[str, Dict[str, List[ModelStats]]]):
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # # Save individual model files for detailed analysis
+        # for model, by_level in stats.items():
+        #     model_str = model if isinstance(model, str) else str(model)
+        #     model_safe = self._sanitize_name(model_str.strip("()[]"))
+        #     for level, items in by_level.items():
+        #         if level != "stats":  # Skip stats, only save fine/coarse metrics
+        #             path = self.output_dir / f"{model_safe}_{level}_metrics.jsonl"
+        #             pd.DataFrame([i.to_dict() for i in items]).to_json(
+        #                 path, orient="records", lines=True, force_ascii=False
+        #             )
+        #             self.log(f"📄 wrote {path}")
+        
+        # Save a single model_stats.json file for backward compatibility
+        import json
+        
+        # Convert ModelStats objects to dictionaries for JSON serialization
+        stats_for_json = {}
+        for model_name, model_stats in stats.items():
+            stats_for_json[str(model_name)] = {
+                "fine": [stat.to_dict() for stat in model_stats["fine"]]
+            }
+            if "coarse" in model_stats:
+                stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in model_stats["coarse"]]
+            # Add global stats if they exist - handle different data types
+            if "stats" in model_stats:
+                stats_data = model_stats["stats"]
+                # Ensure stats is serializable - convert to dict if needed
+                if hasattr(stats_data, 'to_dict'):
+                    stats_for_json[str(model_name)]["stats"] = stats_data.to_dict()
+                elif isinstance(stats_data, dict):
+                    stats_for_json[str(model_name)]["stats"] = stats_data
+                else:
+                    # For other types, convert to string representation
+                    stats_for_json[str(model_name)]["stats"] = str(stats_data)
+        
+        # Save the combined model_stats.json file
+        model_stats_path = self.output_dir / "model_stats.json"
+        with open(model_stats_path, 'w') as f:
+            json.dump(stats_for_json, f, indent=2)
+        self.log(f"📄 wrote {model_stats_path}")
+
+    def _print_top_clusters(self, stats: Dict[str, Dict[str, List[ModelStats]]]):
+        """Prints the top cluster for each model based on their score."""
+        print("\n🏆 Top clusters for each model:")
         for model, by_level in stats.items():
             model_str = model if isinstance(model, str) else str(model)
             model_safe = self._sanitize_name(model_str.strip("()[]"))
-            for level, items in by_level.items():
-                path = self.output_dir / f"{model_safe}_{level}_metrics.jsonl"
-                pd.DataFrame([i.to_dict() for i in items]).to_json(
-                    path, orient="records", lines=True, force_ascii=False
-                )
-                self.log(f"📄 wrote {path}") 
+            print(f"\n--- {model_safe} ---")
+            
+            # Find the top cluster for each level
+            for level in ("fine", "coarse"):
+                if by_level[level]:
+                    top_cluster = by_level[level][0]
+                    print(f"  Top {level} cluster: {top_cluster.property_description} (Score: {top_cluster.score:.2f})")
+                else:
+                    print(f"  No {level} clusters found for {model_str}") 

@@ -102,7 +102,7 @@ Prioritize properties that are relevant to agent performance, which could includ
 ```json
 [
   {
-    "property_description": "Brief description of the unique agentic property observed (max 2 sentences)",
+    "property_description": "Description of the unique agentic property observed (max 2 sentences)",
     "category": "one of the following: Tool Usage, Reasoning Quality, Task Understanding, Error Recovery, Policy Compliance, or Efficiency. If there is no clear category, use Other. If there is more than one category, use a comma separated list.",
     "evidence": "Direct quote/tool calls/actions from the conversation trajectory or actions taken",
     "type": "General|Context-Specific",

@@ -16,20 +16,39 @@ Output the cluster property description and nothing else."""
 # Your response should be a list with each property on a new line.
 # """
 
-coarse_clustering_systems_prompt = """You are a machine learning expert specializing in evaluation of large language models and their differences in behavior.
-Below is a list of properties that are found in LLM outputs. It is likely that some of these properties are redundant. Your task is to merge the properties that are similar. Think about if a user would gain any new information from seeing both properties. For example, "provides step-by-step guidance on health advice" and "provides setp-by-step guidance on math problems" ARE redundant because they both are the same property just applied to different tasks. However, "provides step-by-step guidance on health advice" and "overexplains simple calculations in math problems" because the later provides an inteesting insight into exactly how the model is solving the problem.
-If two similar properties are found, keep the one that is more informative. 
-Order your final list of properties by how frequently they appear in the data, with the most common properties listed first. Each property should be written as a concise, specific sentence that clearly describes a single, concrete behavior or characteristic of a model response. Focus on properties that are both interesting and informative—meaning they reveal something meaningful or distinctive about model behavior that a user would want to know. 
+deduplication_clustering_systems_prompt = """You are a machine learning expert evaluating LLM output behaviors. Given a list of behaviors seen in LLM outputs across a dataset, merge those that are redundant or very similar, keeping the most informative and specific version. Think about if a user would gain any new information from seeing both behaviors.
 
-For example, "acknowledges limitations and caveats" is a good property because it highlights a specific, potentially important behavior that can vary between models. In contrast, "provides guidance" is too general and uninformative, since nearly all models do this to some extent and it does not help the user understand any unique or surprising behavior.
+Each behavior should be 1-2 clear and concise sentences. Avoid vague, broad, or meta-properties—focus on specific behaviors. Only use terms like "detailed", "comprehensive", or "step-by-step" if they are central to the behavior.
 
-Avoid including broad categories or meta-properties that do not directly describe a model's output. For instance, "user interface implementation choices" is not a property of a response itself, but rather a category under which more specific properties might fall. Instead, include the specific behaviors, such as "ignores user interface choices" or "follows user interface instructions," and do not include the category label itself in your final list.
+If two behaviors in the list are opposites (e.g., "uses X" and "doesn't use X"), keep both. Do not combine many behaviors into one summary. Each behavior should be 1-2 sentences.
 
-Refrain from using terms like "detailed", "comprehensive", and "step-by-step" in your summaries unless the cluster is exclusively and explicitly focused on these aspects. 
-
-Your final list should contain no more than {max_properties} properties. Be careful not to remove any properties that are interesting or surprising, but also avoid keeping properties that are very similar to each other. Aim to preserve specific and distinctive properties that provide unique insights, ensuring that your list remains both concise and informative.
-
-Avoid mentioning many different properties in your summary; only respond with the primary property of the cluster (this should be a short sentence). Your description should be specific enough that a person could easily imagine an example scenario illustrating the property. If your summary is so brief or vague that someone could not think of a concrete example, make your description more detailed and specific.
-
-Present your answer as a plain list, writing each property on its own line without any numbering, bullets, or extra formatting.
+Output a plain list: one behavior per line, no numbering or bullets.
 """
+
+outlier_clustering_systems_prompt = """You are a machine learning expert specializing in the behavior of large language models. 
+
+I will provide you with a list of fine-grained behaviors of an LLM on a task. Your task is to cluster the behaviors into groups that are similar. Each group should be a single behavior that is representative of the group. Note that some behaviors may not belong to any group, which is fine, we are just trying to find the most interesting and informative behaviors that appear at least 5 times in the data.
+
+Instructions:
+1. Analyze all the fine-grained behaviors
+2. Cluster the behaviors into at most {max_coarse_clusters}. Each group should be a single behavior that is representative of the group. Ensure that the behaviors in a cluster are not opposites of each other (e.g., "uses X" and "doesn't use X"), these should be in separate clusters.
+3. Create clear, descriptive names for each cluster. Each cluster name should be 1-2 sentences decribing the behavior. 
+4. Output ONLY the cluster names, one per line. Do not include numbering, bullets, or other formatting - just the plain cluster names
+"""
+
+coarse_clustering_systems_prompt = """You are a machine learning expert specializing in the behavior of large language models. 
+
+I will provide you with a list of fine-grained properties describing model behavior. Your task is to create {max_coarse_clusters} broader property names that capture the high-level themes across these properties.
+
+Instructions:
+1. Analyze all the fine-grained properties
+2. Identify {max_coarse_clusters} major properties
+3. Create clear, descriptive names for each property
+4. Each property should be 1-2 sentences that capture the essence of that property
+5. Output ONLY the property names, one per line
+6. Do NOT include numbering, bullets, or other formatting - just the plain property names
+
+Focus on creating properties that are:
+- Distinct from each other
+- Broad enough to encompass multiple fine-grained properties
+- Descriptive and meaningful for understanding model behavior"""

@@ -256,9 +256,21 @@ def explain(
     clustered_df = result_dataset.to_dataframe(type="all", method=method)
     model_stats = result_dataset.model_stats
     
-    # 5️⃣  Save results if output_dir is provided
+    # Save final summary if output_dir is provided
     if output_dir is not None:
-        _save_results_to_dir(result_dataset, clustered_df, model_stats, output_dir, verbose, pipeline)
+        _save_final_summary(result_dataset, clustered_df, model_stats, output_dir, verbose)
+        
+        # Also save the full dataset for backward compatibility with compute_metrics_only and other tools
+        import pathlib
+        import json
+        
+        output_path = pathlib.Path(output_dir)
+        
+        # Save full dataset as JSON
+        full_dataset_json_path = output_path / "full_dataset.json"
+        result_dataset.save(str(full_dataset_json_path))
+        if verbose:
+            print(f"  ✓ Saved full dataset: {full_dataset_json_path}")
     
     # Log accumulated summary metrics from pipeline stages
     if use_wandb and hasattr(pipeline, 'log_final_summary'):
@@ -322,7 +334,7 @@ def _build_default_pipeline(
     extraction_cache_dir: Optional[str] = None,
     clustering_cache_dir: Optional[str] = None,
     metrics_cache_dir: Optional[str] = None,
-    output_dir: Optional[str] = None,
+    output_dir: Optional[str] = "./results",
     **kwargs
 ) -> Pipeline:
     """
@@ -349,6 +361,16 @@ def _build_default_pipeline(
         'wandb_project': wandb_project or "lmm-vibes"
     }
     
+    # Create stage-specific output directories if output_dir is provided
+    if output_dir:
+        extraction_output = output_dir
+        parsing_output = output_dir
+        validation_output = output_dir
+        clustering_output = output_dir
+        metrics_output = output_dir
+    else:
+        extraction_output = parsing_output = validation_output = clustering_output = metrics_output = None
+    
     # 1. Property extraction stage
     extractor_kwargs = {
         'model_name': model_name,
@@ -358,6 +380,7 @@ def _build_default_pipeline(
         'top_p': top_p,
         'max_tokens': max_tokens,
         'max_workers': max_workers,
+        'output_dir': extraction_output,
         **common_config
     }
     
@@ -369,11 +392,19 @@ def _build_default_pipeline(
     builder.extract_properties(extractor)
     
     # 2. JSON parsing stage
-    parser = LLMJsonParser(**common_config)
+    parser_kwargs = {
+        'output_dir': parsing_output,
+        **common_config
+    }
+    parser = LLMJsonParser(**parser_kwargs)
     builder.parse_properties(parser)
     
     # 3. Property validation stage
-    validator = PropertyValidator(**common_config)
+    validator_kwargs = {
+        'output_dir': validation_output,
+        **common_config
+    }
+    validator = PropertyValidator(**validator_kwargs)
     builder.add_stage(validator)
     
     # 4. Clustering stage
@@ -383,16 +414,13 @@ def _build_default_pipeline(
         'hierarchical': hierarchical,
         'assign_outliers': assign_outliers,
         'include_embeddings': include_embeddings,
+        'output_dir': clustering_output,
         **common_config
     }
     
     # Add cache directory for clustering if provided
     if clustering_cache_dir:
         clusterer_kwargs['cache_dir'] = clustering_cache_dir
-    
-    # Add output directory for auto-saving clustering results
-    if output_dir:
-        clusterer_kwargs['output_dir'] = output_dir
     
     if isinstance(clusterer, str):
         clusterer_stage = get_clusterer(clusterer, **clusterer_kwargs)
@@ -404,6 +432,7 @@ def _build_default_pipeline(
     # 5. Metrics computation stage
     metrics_kwargs = {
         'method': method,
+        'output_dir': metrics_output,
         **(metrics_kwargs or {}),
         **common_config
     }
@@ -560,111 +589,23 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
         traceback.print_exc()
 
 
-def _save_results_to_dir(
+def _save_final_summary(
     result_dataset: PropertyDataset,
     clustered_df: pd.DataFrame,
     model_stats: Dict[str, Any],
     output_dir: str,
-    verbose: bool = True,
-    pipeline: Optional[Pipeline] = None
+    verbose: bool = True
 ):
-    """Save results to the specified output directory."""
+    """Save a final summary of the explain run to a text file."""
     import pathlib
     import json
     
-    # Create output directory if it doesn't exist
     output_path = pathlib.Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
     if verbose:
-        print(f"Saving results to: {output_path}")
+        print(f"\nSaving final summary to: {output_path / 'summary.txt'}")
     
-    # Note: Clustered results and embeddings are already auto-saved by clustering stages
-    # We only save pipeline-specific results here
-    
-    # 1. Save complete PropertyDataset as JSON (keep for compatibility)
-    dataset_json_path = output_path / "full_dataset.json"
-    result_dataset.save(str(dataset_json_path), format="json")
-    if verbose:
-        print(f"  ✓ Saved full PropertyDataset (JSON): {dataset_json_path}")
-    
-    # 2. Save model statistics as JSON
-    stats_path = output_path / "model_stats.json"
-    
-    # Convert ModelStats objects to dictionaries for JSON serialization
-    stats_for_json = {}
-    for model_name, stats in model_stats.items():
-        stats_for_json[str(model_name)] = {
-            "fine": [stat.to_dict() for stat in stats["fine"]]
-        }
-        if "coarse" in stats:
-            stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
-        # Add global stats if they exist
-        if "stats" in stats:
-            stats_for_json[str(model_name)]["stats"] = stats["stats"]
-    
-    with open(stats_path, 'w') as f:
-        json.dump(stats_for_json, f, indent=2)
-    if verbose:
-        print(f"  ✓ Saved model statistics (JSON): {stats_path}")
-    
-    # 3. Save parsing failures if pipeline is provided
-    if pipeline:
-        # Find the LLMJsonParser stage
-        from .postprocess import LLMJsonParser
-        parser_stage = None
-        for stage in pipeline.stages:
-            if isinstance(stage, LLMJsonParser):
-                parser_stage = stage
-                break
-        
-        if parser_stage and hasattr(parser_stage, 'get_parsing_failures'):
-            failures = parser_stage.get_parsing_failures()
-            if failures:
-                # Convert failures to serializable format
-                serializable_failures = []
-                for failure in failures:
-                    # Convert any non-serializable objects to strings
-                    serializable_failure = {
-                        'property_id': failure['property_id'],
-                        'question_id': failure['question_id'],
-                        'model': str(failure['model']),
-                        'raw_response': failure['raw_response'],
-                        'error_type': failure['error_type'],
-                        'error_message': failure['error_message'],
-                        'consecutive_errors': failure['consecutive_errors'],
-                        'index': failure['index']
-                    }
-                    
-                    # Add optional fields if they exist
-                    if 'parsed_json' in failure:
-                        serializable_failure['parsed_json'] = failure['parsed_json']
-                    if 'property_dict' in failure:
-                        serializable_failure['property_dict'] = failure['property_dict']
-                    
-                    serializable_failures.append(serializable_failure)
-                
-                # Save parsing failures
-                failures_path = output_path / "parsing_failures.json"
-                with open(failures_path, 'w') as f:
-                    json.dump(serializable_failures, f, indent=2)
-                
-                if verbose:
-                    print(f"  ✓ Saved parsing failures: {failures_path}")
-                    print(f"    • Total parsing failures: {len(serializable_failures)}")
-                    
-                    # Show summary of error types
-                    error_types = {}
-                    for failure in serializable_failures:
-                        error_type = failure['error_type']
-                        error_types[error_type] = error_types.get(error_type, 0) + 1
-                    
-                    if error_types:
-                        print(f"    • Error types:")
-                        for error_type, count in error_types.items():
-                            print(f"      - {error_type}: {count}")
-    
-    # 4. Save summary statistics
     summary_path = output_path / "summary.txt"
     with open(summary_path, 'w') as f:
         f.write("LMM-Vibes Results Summary\n")
@@ -682,18 +623,22 @@ def _save_results_to_dir(
             n_coarse_clusters = len(clustered_df['property_description_coarse_cluster_id'].unique())
             f.write(f"Coarse clusters: {n_coarse_clusters}\n")
         
-        f.write(f"\nFiles saved:\n")
-        f.write(f"  - clustered_results.json: Complete DataFrame with clusters (JSON)\n")
-        f.write(f"  - clustered_results.parquet: Complete DataFrame with clusters (parquet)\n")
-        f.write(f"  - embeddings.parquet: Embeddings data (parquet)\n")
-        f.write(f"  - embeddings.json: Embeddings data (JSON)\n")
-        f.write(f"  - clustered_results_lightweight.parquet: Lightweight results (parquet)\n")
-        f.write(f"  - clustered_results_lightweight.csv: Lightweight results (CSV)\n")
-        f.write(f"  - summary_table.json: Clustering summary table\n")
-        f.write(f"  - full_dataset.json: Complete PropertyDataset object (JSON format)\n")
-        f.write(f"  - model_stats.json: Model statistics and rankings\n")
-        f.write(f"  - parsing_failures.json: Detailed parsing failure information\n")
-        f.write(f"  - summary.txt: This summary file\n")
+        f.write(f"\nOutput files:\n")
+        f.write(f"  - raw_properties.jsonl: Raw LLM responses\n")
+        f.write(f"  - extraction_stats.json: Extraction statistics\n")
+        f.write(f"  - extraction_samples.jsonl: Sample inputs/outputs\n")
+        f.write(f"  - parsed_properties.jsonl: Parsed property objects\n")
+        f.write(f"  - parsing_stats.json: Parsing statistics\n")
+        f.write(f"  - parsing_failures.jsonl: Failed parsing attempts\n")
+        f.write(f"  - validated_properties.jsonl: Validated properties\n")
+        f.write(f"  - validation_stats.json: Validation statistics\n")
+        f.write(f"  - clustered_results.jsonl: Complete clustered data\n")
+        f.write(f"  - embeddings.parquet: Embeddings data\n")
+        f.write(f"  - clustered_results_lightweight.jsonl: Data without embeddings\n")
+        f.write(f"  - summary_table.jsonl: Clustering summary\n")
+        f.write(f"  - model_stats.json: Combined model statistics and rankings\n")
+        f.write(f"  - full_dataset.json: Complete PropertyDataset (JSON format)\n")
+        f.write(f"  - full_dataset.parquet: Complete PropertyDataset (parquet format, or .jsonl if mixed data types)\n")
         
         # Model rankings
         f.write(f"\nModel Rankings (by average score):\n")
@@ -707,13 +652,7 @@ def _save_results_to_dir(
             f.write(f"  {i+1}. {model_name}: {avg_score:.3f}\n")
     
     if verbose:
-        print(f"  ✓ Saved summary: {summary_path}")
-        print(f"🎉 All results saved to: {output_path}")
-        print(f"    • Clustered data: Auto-saved by clustering stage")
-        print(f"    • PropertyDataset: full_dataset.json")
-        print(f"    • Model stats: model_stats.json")
-        print(f"    • Parsing failures: parsing_failures.json")
-        print(f"    • Summary: summary.txt")
+        print(f"  ✓ Saved final summary: {summary_path}")
 
 
 # Convenience functions for common use cases
@@ -921,13 +860,12 @@ def compute_metrics_only(
             print(f"\nSaving results to: {output_dir}")
         
         # Use the same saving mechanism as the full pipeline
-        _save_results_to_dir(
+        _save_final_summary(
             result_dataset=result_dataset,
             clustered_df=clustered_df,
             model_stats=model_stats,
             output_dir=output_dir,
-            verbose=verbose,
-            pipeline=pipeline
+            verbose=verbose
         )
         
         # Print summary
