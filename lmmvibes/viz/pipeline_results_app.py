@@ -660,43 +660,19 @@ def main():
             help="Allow viewing actual model responses (loads more data)"
         )
         
-        # Confidence interval options
-        st.subheader("Confidence Intervals")
-        
-        # Check if any confidence intervals are available
+        # Confidence intervals are disabled in this version of the app
         has_any_ci = False
-        for model_name, model_data in model_stats.items():
-            clusters = model_data.get(cluster_level, [])
-            for cluster in clusters:
-                if has_confidence_intervals(cluster):
-                    has_any_ci = True
-                    break
-            if has_any_ci:
-                break
-        
-        if has_any_ci:
-            st.success("✅ Confidence intervals available")
-            show_confidence_intervals = st.checkbox(
-                "Show confidence intervals",
-                value=True,
-                help="Display confidence intervals in charts and tables"
-            )
-        else:
-            st.info("ℹ️ No confidence intervals found")
-            st.info("To enable confidence intervals, run the metrics stage with:")
-            st.code("metrics = SingleModelMetrics(compute_confidence_intervals=True)")
-            show_confidence_intervals = False
+        show_confidence_intervals = False
     
     # Main content area
     model_rankings = compute_model_rankings(model_stats)
     
     # Tabs for different views
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Overview", 
         "🔍 View Examples", 
         "📋 View Clusters",
         "📈 Cluster Frequencies",
-        "📊 Confidence Intervals",
         "🔎 Vector Search"
     ])
     
@@ -1627,188 +1603,6 @@ def main():
             st.warning("No cluster frequency data available")
 
     with tab5:
-        st.header("📊 Confidence Intervals")
-        st.write("Analyze the uncertainty in distinctiveness scores across models and clusters.")
-        
-        # Check if confidence intervals are available
-        has_any_ci = False
-        for model_name, model_data in model_stats.items():
-            clusters = model_data.get(cluster_level, [])
-            for cluster in clusters:
-                if has_confidence_intervals(cluster):
-                    has_any_ci = True
-                    break
-            if has_any_ci:
-                break
-        
-        if not has_any_ci:
-            st.info("No confidence intervals found in the data. Confidence intervals are computed when the metrics stage is run with `compute_confidence_intervals=True`.")
-            st.stop()
-        
-        # Collect all distinctiveness scores with confidence intervals
-        all_distinctiveness_scores = []
-        for model_name, model_data in model_stats.items():
-            clusters = model_data.get(cluster_level, [])
-            for cluster in clusters:
-                if has_confidence_intervals(cluster):
-                    score_ci = cluster.get('score_ci', {})
-                    all_distinctiveness_scores.append({
-                        'model': model_name,
-                        'cluster': cluster['property_description'],
-                        'distinctiveness': cluster.get('score', 0),
-                        'ci_lower': score_ci.get('lower'),
-                        'ci_upper': score_ci.get('upper'),
-                        'ci_width': get_confidence_interval_width(score_ci)
-                    })
-        
-        if all_distinctiveness_scores:
-            df_distinctiveness = pd.DataFrame(all_distinctiveness_scores)
-            
-            # Create two-column layout
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Create a scatter plot of distinctiveness scores with confidence intervals
-                fig_ci_scatter = go.Figure()
-                
-                # Add scatter points for each model
-                for model_name in df_distinctiveness['model'].unique():
-                    model_data = df_distinctiveness[df_distinctiveness['model'] == model_name]
-                    
-                    fig_ci_scatter.add_trace(go.Scatter(
-                        x=model_data['distinctiveness'],
-                        y=model_data['ci_width'],
-                        mode='markers',
-                        name=model_name,
-                        text=model_data['cluster'],
-                        hovertemplate='<b>%{text}</b><br>' +
-                                    f'Model: {model_name}<br>' +
-                                    'Distinctiveness: %{x:.3f}<br>' +
-                                    'CI Width: %{y:.3f}<extra></extra>',
-                        marker=dict(size=8)
-                    ))
-                
-                fig_ci_scatter.update_layout(
-                    title="Distinctiveness Scores vs Confidence Interval Width",
-                    xaxis_title="Distinctiveness Score",
-                    yaxis_title="Confidence Interval Width",
-                    height=500,
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig_ci_scatter, use_container_width=True)
-            
-            with col2:
-                # Summary statistics
-                st.subheader("Summary Statistics")
-                
-                avg_ci_width = df_distinctiveness['ci_width'].mean()
-                max_ci_width = df_distinctiveness['ci_width'].max()
-                min_ci_width = df_distinctiveness['ci_width'].min()
-                
-                st.metric("Average CI Width", f"{avg_ci_width:.3f}")
-                st.metric("Max CI Width", f"{max_ci_width:.3f}")
-                st.metric("Min CI Width", f"{min_ci_width:.3f}")
-                
-                # Model-specific statistics
-                st.subheader("By Model")
-                model_stats_ci = df_distinctiveness.groupby('model').agg({
-                    'ci_width': ['mean', 'std', 'count']
-                }).round(3)
-                model_stats_ci.columns = ['Avg CI Width', 'Std CI Width', 'Count']
-                st.dataframe(model_stats_ci, use_container_width=True)
-            
-            # Distribution plots
-            st.subheader("Confidence Interval Distributions")
-            
-            col1_dist, col2_dist = st.columns(2)
-            
-            with col1_dist:
-                # Histogram of CI widths
-                fig_ci_hist = px.histogram(
-                    df_distinctiveness,
-                    x='ci_width',
-                    nbins=20,
-                    title="Distribution of Confidence Interval Widths",
-                    labels={'ci_width': 'CI Width', 'y': 'Count'}
-                )
-                st.plotly_chart(fig_ci_hist, use_container_width=True)
-            
-            with col2_dist:
-                # Box plot of CI widths by model
-                fig_ci_box = px.box(
-                    df_distinctiveness,
-                    x='model',
-                    y='ci_width',
-                    title="CI Width Distribution by Model",
-                    labels={'ci_width': 'CI Width', 'model': 'Model'}
-                )
-                st.plotly_chart(fig_ci_box, use_container_width=True)
-            
-            # Detailed table
-            st.subheader("Detailed Confidence Interval Data")
-            
-            # Format the data for display
-            display_df = df_distinctiveness.copy()
-            display_df['CI Range'] = display_df.apply(
-                lambda row: format_confidence_interval({
-                    'lower': row['ci_lower'], 
-                    'upper': row['ci_upper']
-                }) if row['ci_lower'] is not None and row['ci_upper'] is not None else "N/A", 
-                axis=1
-            )
-            
-            # Select columns for display
-            display_columns = ['model', 'cluster', 'distinctiveness', 'CI Range', 'ci_width']
-            display_df = display_df[display_columns].rename(columns={
-                'model': 'Model',
-                'cluster': 'Cluster',
-                'distinctiveness': 'Distinctiveness',
-                'ci_width': 'CI Width'
-            })
-            
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    'Cluster': st.column_config.TextColumn(
-                        'Cluster Description',
-                        width='large',
-                        help="Full behavioral cluster description"
-                    ),
-                    'CI Range': st.column_config.TextColumn(
-                        'Confidence Interval',
-                        width='medium',
-                        help="95% confidence interval for distinctiveness score"
-                    )
-                }
-            )
-            
-            # Interpretation guide
-            with st.expander("📖 How to Interpret Confidence Intervals", expanded=False):
-                st.markdown("""
-                **Understanding Confidence Intervals:**
-                
-                - **Narrow CI (small width)**: High confidence in the distinctiveness measurement
-                - **Wide CI (large width)**: High uncertainty in the distinctiveness measurement
-                - **CI includes 1.0**: The model may not be significantly different from the median
-                - **CI entirely above 1.0**: Confident that the model is over-represented
-                - **CI entirely below 1.0**: Confident that the model is under-represented
-                
-                **Factors affecting CI width:**
-                - **Sample size**: Larger clusters typically have narrower CIs
-                - **Variability**: More variable data leads to wider CIs
-                - **Model differences**: Similar models may have overlapping CIs
-                
-                **Statistical significance:**
-                - If the CI doesn't include 1.0, the model's behavior is significantly different from the median
-                - If the CI includes 1.0, the model's behavior may not be significantly different
-                """)
-        else:
-            st.warning("No confidence interval data available for analysis.")
-
-    with tab6:
         st.header("🔎 Vector Search (does not work)")
         st.write("Search for behavioral properties using semantic similarity with vector embeddings.")
         

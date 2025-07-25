@@ -51,10 +51,10 @@ class Property:
         if isinstance(self.model, str) and self.model.lower() == "unknown":
             raise ValueError("Property must have a known model; got 'unknown'.")
         # Only validate once fields are parsed / populated
-        if self.type is not None and self.type not in ["Context-Specific", "General"]:
-            raise ValueError(
-                f"Property type must be 'Context-Specific' or 'General', got: {self.type}"
-            )
+        # if self.type is not None and self.type not in ["Context-Specific", "General"]:
+        #     raise ValueError(
+        #         f"Property type must be 'Context-Specific' or 'General', got: {self.type}"
+        #     )
         if self.impact is not None and self.impact not in ["High", "Medium", "Low"]:
             raise ValueError(
                 f"Property impact must be 'High', 'Medium', or 'Low', got: {self.impact}"

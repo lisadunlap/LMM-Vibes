@@ -54,7 +54,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "model": "Model A|Model B",
     "property_description": "Brief description of the unique property observed in this model response (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the specified model",
+    "evidence": "Direct quote(s) or evidence from the specified model, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -120,7 +120,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "model": "Model A|Model B",
     "property_description": "Brief description of the unique property observed in this model response (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the specified model",
+    "evidence": "Direct quote(s) or evidence from the specified model, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -185,7 +185,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "model": "Model A|Model B",
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the specified model",
+    "evidence": "Direct quote(s) or evidence from the specified model, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -249,7 +249,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "model": "Model A|Model B",
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the specified model",
+    "evidence": "Direct quote(s) or evidence from the specified model, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -380,7 +380,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "model": "Model A|Model B",
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the specified model",
+    "evidence": "Direct quote(s) or evidence from the specified model, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -441,7 +441,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the model response",
+    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -505,7 +505,7 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the model response",
+    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -568,8 +568,70 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote or evidence from the model response",
+    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
     "type": "General|Context-Specific",
+    "reason": "Brief justification for why this property is notable (max 2 sentences)",
+    "impact": "Low|Medium|High",
+    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "contains_errors": "True|False",
+    "unexpected_behavior": "True|False"
+  }
+]
+```"""
+
+
+
+
+
+single_model_system_prompt_new = """You are an expert model behavior analyst. Your task is to meticulously analyze a single model response to a given user prompt and identify unique qualitative properties, failure modes, and interesting behaviors. Focus on properties that would be meaningful to users when evaluating model quality and capabilities.
+
+**Prioritize conciseness and clarity in all your descriptions and explanations.** Aim for the most impactful information in the fewest words.
+
+You will be provided with:
+1.  **User Prompt:** The original prompt given to the model.
+2.  **Model Name:** The identifier for the model.
+3.  **Model Response:** The response from the model.
+4.  **Score:** The score given to the model by the user or benchmark. This can be a good indicator of the model's performance, but it is not the only factor.
+
+**Your Goal:**
+Produce a JSON list of objects. Each object will represent a single distinct property observed in the model's response. Focus on identifying key areas of interest including capabilities, style, errors, and user experience factors. We specifically care about properties that may influence whether a user would prefer this model over others or how well the model understands and executes the task.
+
+**Focus on Meaningful Properties:**
+Prioritize properties that would actually influence a user's model choice or could impact the model's performance. This could include but is not limited to:
+* **Capabilities:** Accuracy, completeness, technical correctness, reasoning quality, domain expertise
+* **Style:** Tone, approach, presentation style, personality, engagement, and other subjective properties that someone may care about for their own use
+* **Error patterns:** Hallucinations, factual errors, logical inconsistencies, safety issues
+* **User experience:** Clarity, helpfulness, accessibility, practical utility, response to feedback
+* **Safety/alignment:** Bias, harmful content, inappropriate responses, and other safety-related properties
+* **Tool use:** Use of tools to complete tasks and how appropriate the tool use is for the task
+* **Thought Process:** Chain of reasoning, backtracking, interpretation of the prompt, self-reflection, etc.
+
+**Avoid trivial observations** like minor length variations, basic formatting, or properties that don't meaningfully impact model quality or user experience.
+
+**Definitions:**
+*   **Impact:** How much does this property impact the user's experience?
+    *   *Think:* Is this property a major factor in the user's experience? Would the average user care to know that this property exists?
+    *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
+    *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
+    *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
+*   **User Preference Direction:** Which type of user might prefer this property?
+    *   *Think:* Does this property appeal to specific user types or use cases?
+    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
+    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
+    *   **Neutral:** Property doesn't clearly favor one user type over another
+    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Contains Errors:** Does the model response contain errors?
+    *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
+*   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
+    *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
+
+**JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
+```json
+[
+  {
+    "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
+    "category": "1-4 word category",
+    "evidence": "Direct quote(s) or evidence from the model response. Format as a list of quotes, comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",

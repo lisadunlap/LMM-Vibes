@@ -130,13 +130,15 @@ def load_arena_data_single(args) -> Tuple[pd.DataFrame, Callable, str]:
 
     df_a = df.copy()
     df_a["model"] = df['model_a']
+    df_a["model_a_conversation"] = df['conversation_a']
     df_a["model_response"] = df['model_a_response']
     df_b = df.copy()
     df_b["model"] = df['model_b']
+    df_b["model_b_conversation"] = df['conversation_b']
     df_b["model_response"] = df['model_b_response']
     df = pd.concat([df_a, df_b])
-    df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score"])
-    df = df.dropna(subset=["model", "model_response"])
+    df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score", "conversation_a", "conversation_b"])
+    df = df.dropna(subset=["model", "model_response", "model_a_conversation", "model_b_conversation"])
     print(f"After removing missing model and model response: {len(df)} battles")
     print(df.columns)
     
@@ -213,12 +215,14 @@ def load_webdev_data_single(args):
     df_a = df.copy()
     df_a["model"] = df['model_a']
     df_a["model_response"] = df['model_a_response']
+    df_a["model_a_conversation"] = df['conversation_a']
     df_b = df.copy()
     df_b["model"] = df['model_b']
     df_b["model_response"] = df['model_b_response']
+    df_b["model_b_conversation"] = df['conversation_b']
     df = pd.concat([df_a, df_b])
-    df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score"])
-    df = df.dropna(subset=["model", "model_response"])
+    df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score", "conversation_a", "conversation_b"])
+    df = df.dropna(subset=["model", "model_response", "model_a_conversation", "model_b_conversation"])
     print(f"After removing missing model and model response: {len(df)} battles")
     print(df.columns)
     return df, _extract_content_webdev, "single_model_system_prompt"

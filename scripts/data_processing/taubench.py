@@ -327,6 +327,11 @@ def process_data(file: str, incorrect_only: bool = False) -> list[dict]:
     if incorrect_only:
         data_gpt = data_gpt[data_gpt["score"].apply(lambda x: int(x["reward"])) == 0]
     
+    # Add the original columns for preservation
+    data_gpt["traj"] = data_gpt["traj"]
+    data_gpt["info"] = data_gpt["info"]
+    data_gpt["actions"] = data_gpt.apply(lambda x: x["info"]["task"].get("actions", []) if x["info"] and "task" in x["info"] else [], axis=1)
+    
     return data_gpt
 
 def process_airline_data(incorrect_only: bool = False) -> list[dict]:
@@ -356,3 +361,102 @@ airline_data.to_json("./data/taubench/airline_data_incorrect.jsonl", orient="rec
 retail_data = process_retail_data(incorrect_only=True)
 print(f"Retail data incorrect: {len(retail_data)}")
 retail_data.to_json("./data/taubench/retail_data_incorrect.jsonl", orient="records", lines=True)
+
+
+# def convert_to_new_oai_format(row):
+#     """
+#     Convert trajectory data to the updated OAI format described in conv_to_str.py.
+#     This format has content as a dictionary with text/image/tool_calls keys.
+#     """
+#     messages = []
+    
+#     # Add info as first message with role 'info'
+#     info_message = {
+#         "role": "info",
+#         "content": {
+#             "text": str(row["info"])
+#         },
+#         "name": "information about the user and the task"
+#     }
+#     messages.append(info_message)
+    
+#     # Convert trajectory messages to new format
+#     for msg in row["traj"]:
+#         role = msg.get("role", "unknown")
+#         content = msg.get("content")
+        
+#         # Handle different content types
+#         if content is None:
+#             # For None content, check if there are tool_calls
+#             if "tool_calls" in msg:
+#                 # Convert tool_calls to the expected format
+#                 converted_tool_calls = []
+#                 for tool_call in msg["tool_calls"]:
+#                     converted_tool_call = {
+#                         "name": tool_call.get("function", {}).get("name", ""),
+#                         "arguments": tool_call.get("function", {}).get("arguments", ""),
+#                         "id": tool_call.get("id", ""),
+#                         "type": tool_call.get("type", "")
+#                     }
+#                     # Add any other keys from the original tool_call
+#                     for key, value in tool_call.items():
+#                         if key not in ["function", "id", "type"]:
+#                             converted_tool_call[key] = value
+#                     converted_tool_calls.append(converted_tool_call)
+                
+#                 new_message = {
+#                     "role": role,
+#                     "content": {
+#                         "tool_calls": converted_tool_calls
+#                     }
+#                 }
+#             else:
+#                 new_message = {
+#                     "role": role,
+#                     "content": {
+#                         "text": ""
+#                     }
+#                 }
+#         elif isinstance(content, str):
+#             # String content goes in text field
+#             new_message = {
+#                 "role": role,
+#                 "content": {
+#                     "text": content
+#                 }
+#             }
+#         elif isinstance(content, dict):
+#             # Dictionary content - preserve as is but ensure it's in content field
+#             new_message = {
+#                 "role": role,
+#                 "content": content
+#             }
+#         else:
+#             # Other types convert to string
+#             new_message = {
+#                 "role": role,
+#                 "content": {
+#                     "text": str(content)
+#                 }
+#             }
+        
+#         # Add optional metadata fields
+#         if "name" in msg:
+#             new_message["name"] = msg["name"]
+#         if "id" in msg:
+#             new_message["id"] = msg["id"]
+#         if "tool_call_id" in msg:
+#             new_message["tool_call_id"] = msg["tool_call_id"]
+        
+#         # Add any other keys that might be present
+#         for key, value in msg.items():
+#             if key not in ["role", "content", "name", "id", "tool_call_id"]:
+#                 new_message[key] = value
+        
+#         messages.append(new_message)
+    
+#     return {
+#         "messages": messages,
+#         "task_id": row["task_id"],
+#         "reward": row["reward"]
+#     }
