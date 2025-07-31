@@ -299,14 +299,31 @@ def create_frequencies_tab(model_stats: Dict[str, Any], selected_models: List[st
                     'Quality Score': f"{quality_score:.3f}" if quality_score is not None else "N/A"
                 }
                 
-                # Add frequency data for each model
+                # Add frequency data and confidence intervals for each model
                 for model in models:
                     model_freq = cluster_freq_data[cluster_freq_data['model'] == model]
                     if not model_freq.empty:
-                        freq_value = model_freq.iloc[0]['frequency']
+                        freq_row = model_freq.iloc[0]
+                        freq_value = freq_row['frequency']
                         row[f'{model} Freq (%)'] = f"{freq_value:.1f}"
+                        
+                        # Calculate confidence intervals using the same logic as in the chart
+                        if (freq_row.get('has_ci', False) and 
+                            freq_row.get('ci_lower') is not None and 
+                            freq_row.get('ci_upper') is not None):
+                            
+                            # Convert distinctiveness score CIs to frequency uncertainty
+                            distinctiveness_ci_width = freq_row['ci_upper'] - freq_row['ci_lower']
+                            freq_uncertainty = distinctiveness_ci_width * freq_value * 0.1
+                            ci_lower = max(0, freq_value - freq_uncertainty)
+                            ci_upper = freq_value + freq_uncertainty
+                            
+                            row[f'{model} CI'] = f"[{ci_lower:.1f}, {ci_upper:.1f}]"
+                        else:
+                            row[f'{model} CI'] = "N/A"
                     else:
                         row[f'{model} Freq (%)'] = "0.0"
+                        row[f'{model} CI'] = "N/A"
                 
                 table_data.append(row)
             
@@ -328,12 +345,17 @@ def create_frequencies_tab(model_stats: Dict[str, Any], selected_models: List[st
                     )
                 }
                 
-                # Add frequency column configs
+                # Add frequency and confidence interval column configs
                 for model in models:
                     column_config[f'{model} Freq (%)'] = st.column_config.NumberColumn(
                         f'{model} Frequency (%)',
                         width='small',
                         help=f"Percentage of {model} responses in this cluster"
+                    )
+                    column_config[f'{model} CI'] = st.column_config.TextColumn(
+                        f'{model} CI',
+                        width='small',
+                        help=f"95% confidence interval for {model} frequency (estimated from distinctiveness score CI)"
                     )
                 
                 st.dataframe(

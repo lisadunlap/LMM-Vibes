@@ -6,6 +6,9 @@ into pipeline stages.
 """
 
 from typing import List
+import pandas as pd
+import os
+
 from ..core.stage import PipelineStage
 from ..core.data_objects import PropertyDataset, Cluster
 from ..core.mixins import LoggingMixin, TimingMixin, WandbMixin
@@ -67,35 +70,44 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             'min_samples': min(min_cluster_size, max(5, min_cluster_size // 2)),  # Default calculation
             'cluster_selection_epsilon': 0.0  # Default value
         })()
-                
-    def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
+
+    def _save(self, clustered_df: pd.DataFrame, clusters: List[Cluster]):
+        """
+        Save the clustered results to a file.
+        """
+        from .clustering_utils import save_clustered_results
+        
+        # Generate base filename from output directory
+        base_filename = os.path.basename(self.output_dir.rstrip('/'))
+        
+        # Save clustered results using the enhanced function
+        save_results = save_clustered_results(
+            df=clustered_df,
+            base_filename=base_filename,
+            include_embeddings=self.include_embeddings,
+            config=self.config,
+            output_dir=self.output_dir
+        )
+        
+        self.log(f"✅ Auto-saved clustering results to: {self.output_dir}")
+        for key, path in save_results.items():
+            if path:
+                self.log(f"  • {key}: {path}")
+
+        # --- Wandb logging ---
+        if self.use_wandb:
+            self.init_wandb(project=self.wandb_project)
+            import wandb
+            log_df = pd.DataFrame([c.to_dict() for c in clusters]).astype(str)
+            self.log_wandb({
+                "Clustering/hdbscan_clustered_table": wandb.Table(dataframe=log_df)
+            })
+        # --- End wandb logging ---
+
+    def run_embedding_clustering(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
         """
         Cluster properties using HDBSCAN.
-        
-        Args:
-            data: PropertyDataset with properties to cluster
-            
-        Returns:
-            PropertyDataset with populated clusters
         """
-        self.log(f"Clustering {len(data.properties)} properties using HDBSCAN")
-        
-        # ------------------------------------------------------------------
-        # Build a DataFrame of property descriptions
-        # ------------------------------------------------------------------
-        import pandas as pd
-
-        # remove bad properties
-        valid_properties = data.get_valid_properties()
-
-        descriptions = [p.property_description for p in valid_properties]
-        if not descriptions:
-            self.log("No property descriptions to cluster – skipping stage")
-            return data
-
-        # ------------------------------------------------------------------
-        # Run clustering using the original helper
-        # ------------------------------------------------------------------
         try:
             from lmmvibes.clusterers.hierarchical_clustering import hdbscan_cluster_categories, ClusterConfig
         except ImportError:
@@ -118,6 +130,48 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             config=cfg
         )
 
+        return clustered_df, cfg
+        
+                
+    def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
+        """
+        Cluster properties using HDBSCAN.
+        
+        Args:
+            data: PropertyDataset with properties to cluster
+            
+        Returns:
+            PropertyDataset with populated clusters
+        """
+        self.log(f"Clustering {len(data.properties)} properties using HDBSCAN")
+        
+        # remove bad properties
+        valid_properties = data.get_valid_properties()
+
+        descriptions = [p.property_description for p in valid_properties]
+        if not descriptions:
+            raise ValueError("No property descriptions to cluster")
+
+        # ------------------------------------------------------------------
+        # Run HDBSCAN clustering
+        # ------------------------------------------------------------------
+        clustered_df, cfg = self.run_embedding_clustering(data, column_name)
+
+        # assign any clusters smaller than min_cluster_size to Outliers
+        fine_label_col = f'{column_name}_fine_cluster_label'
+        fine_id_col = f'{column_name}_fine_cluster_id'
+        # Get counts for each fine cluster label
+        label_counts = clustered_df[fine_label_col].value_counts()
+        # Find labels that are too small
+        too_small_labels = label_counts[label_counts < cfg.min_cluster_size].index
+        # For each too-small label, assign its rows to Outliers
+        for label in too_small_labels:
+            mask = clustered_df[fine_label_col] == label
+            cid = clustered_df.loc[mask, fine_id_col].iloc[0] if not clustered_df.loc[mask].empty else None
+            print(f"Assigning cluster {cid} (label '{label}') to Outliers because it has {label_counts[label]} items")
+            clustered_df.loc[mask, fine_label_col] = "Outliers"
+            clustered_df.loc[mask, fine_id_col] = -1
+
         # ------------------------------------------------------------------
         # Convert clustering result into a simple summary dict
         # ------------------------------------------------------------------
@@ -127,10 +181,6 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         coarse_id_col    = f'{column_name}_coarse_cluster_id'
 
         clusters: List[Cluster] = []
-
-        # ------------------------------------------------------------------
-        # Convert clustering result into a simple summary dict
-        # ------------------------------------------------------------------
         if self.hierarchical:
             for cid, group in clustered_df.groupby(fine_id_col):
                 cid_group = group[group[fine_id_col] == cid]
@@ -160,41 +210,7 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
         # ------------------------------------------------------------------
         # Auto-save clustering results if output_dir is provided
         # ------------------------------------------------------------------
-        from .clustering_utils import save_clustered_results
-        import os
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        # Generate base filename from output directory
-        base_filename = os.path.basename(self.output_dir.rstrip('/'))
-        
-        # Save clustered results using the enhanced function
-        save_results = save_clustered_results(
-            df=clustered_df,
-            base_filename=base_filename,
-            include_embeddings=self.include_embeddings,
-            config=self.config,
-            output_dir=self.output_dir
-        )
-        
-        self.log(f"✅ Auto-saved clustering results to: {self.output_dir}")
-        for key, path in save_results.items():
-            if path:
-                self.log(f"  • {key}: {path}")
-
-        # --- Wandb logging ---
-        if self.use_wandb:
-            self.init_wandb(project=self.wandb_project)
-            try:
-                import wandb
-                log_df = pd.DataFrame([c.to_dict() for c in clusters]).astype(str)
-                self.log_wandb({
-                    "Clustering/hdbscan_clustered_table": wandb.Table(dataframe=log_df)
-                })
-            except Exception as e:
-                self.log(f"Failed to log to wandb: {e}", level="warning")
-        # --- End wandb logging ---
+        self._save(clustered_df, clusters)
 
         return PropertyDataset(
             conversations=data.conversations,
@@ -203,3 +219,17 @@ class HDBSCANClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin):
             clusters=clusters,
             model_stats=data.model_stats
         )
+    
+class LLMOnlyClusterer(HDBSCANClusterer):
+    """
+    HDBSCAN clustering stage.
+    
+    This stage migrates the hdbscan_cluster_categories function from
+    clustering/hierarchical_clustering.py into the pipeline architecture.
+    """
+    
+    def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
+        """
+        Cluster properties using HDBSCAN.
+        """
+        return super().run(data, column_name)

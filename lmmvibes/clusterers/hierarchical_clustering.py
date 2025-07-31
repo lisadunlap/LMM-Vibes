@@ -567,7 +567,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
     cluster_label_map = {new_id: lbl for lbl, new_id in label_to_new_id.items()}
     cluster_label_map[-1] = "Outliers"  # Ensure outliers are properly mapped
 
-    # Step 5: Handle hierarchical clustering if requested
+    # # Step 5: Handle hierarchical clustering if requested
     coarse_cluster_data = None
     if config.hierarchical:
         if config.verbose:

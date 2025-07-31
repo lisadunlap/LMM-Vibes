@@ -50,15 +50,6 @@ class Property:
         # Require that the model has been resolved to a known value
         if isinstance(self.model, str) and self.model.lower() == "unknown":
             raise ValueError("Property must have a known model; got 'unknown'.")
-        # Only validate once fields are parsed / populated
-        # if self.type is not None and self.type not in ["Context-Specific", "General"]:
-        #     raise ValueError(
-        #         f"Property type must be 'Context-Specific' or 'General', got: {self.type}"
-        #     )
-        if self.impact is not None and self.impact not in ["High", "Medium", "Low"]:
-            raise ValueError(
-                f"Property impact must be 'High', 'Medium', or 'Low', got: {self.impact}"
-            )
 
 @dataclass
 class Cluster:
@@ -96,6 +87,7 @@ class ModelStats:
     quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys and model names as keys)
     size: int # number of properties in the cluster
     proportion: float # proportion of all properties that are in the cluster
+    proportion_global: float # proportion of all questions that are in the cluster (cluster_size_global / total_questions)
     examples: List[str] # example property id's in the cluster
     metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
 
@@ -103,8 +95,13 @@ class ModelStats:
     score_ci: Optional[Dict[str, float]] = None  # 95% CI for distinctiveness score: {"lower": x, "upper": y}
     quality_score_ci: Optional[Dict[str, Dict[str, float]]] = None  # CI bounds for each quality score key: {"key": {"lower": x, "upper": y}}
 
+    # Statistical significance
+    score_statistical_significance: Optional[bool] = None
+    quality_score_statistical_significance: Optional[Dict[str, bool]] = None
+
     def to_dict(self):
         return asdict(self)
+    
 
 @dataclass
 class PropertyDataset:
@@ -163,7 +160,7 @@ class PropertyDataset:
                     question_id=str(row.get('question_id', row.name)),
                     prompt=str(row.get('prompt', row.get('user_prompt', ''))),
                     model=str(row.get('model', 'model')),
-                    responses=str(row.get('model_response', '')),
+                    responses=row.get('model_response', ''),
                     scores=scores,
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model', 'model_response', 'score']}
@@ -241,6 +238,7 @@ class PropertyDataset:
                 if "model_x" in df.columns or "model_y" in df.columns:
                     df["model"] = df.get("model_y").combine_first(df.get("model_x"))
                     df.drop(columns=[c for c in ["model_x", "model_y"] if c in df.columns], inplace=True)
+                    
         print(f"df.model.value_counts() NEW: {df.model.value_counts()}")
 
         if self.clusters and type in ["all", "clusters"]:

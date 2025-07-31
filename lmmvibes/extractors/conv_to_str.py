@@ -13,6 +13,7 @@
 
 import pprint
 import ast
+import json
 
 def pretty_print_dict(val):
     """
@@ -94,9 +95,9 @@ def conv_to_str(conv):
         else:
             if 'name' in msg:
                 if 'id' in msg:
-                    ret.append(f"**{msg['role']} {msg['name']} (id: {msg['id']})**\n{convert_content_to_str(msg['content'])}")
+                    ret.append(f"\n**{msg['role']} {msg['name']} (id: {msg['id']}):**\n{convert_content_to_str(msg['content'])}")
                 else:
-                    ret.append(f"**{msg['role']} {msg['name']}**\n{convert_content_to_str(msg['content'])}")
+                    ret.append(f"\n**{msg['role']} {msg['name']}**\n{convert_content_to_str(msg['content'])}")
             else:
-                ret.append(f"**{msg['role']}**\n{convert_content_to_str(msg['content'])}")
+                ret.append(f"\n**{msg['role']}:**\n{convert_content_to_str(msg['content'])}")
     return "\n\n".join(ret)

@@ -335,4 +335,55 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             
         except Exception as e:
             self.log(f"Failed to log extraction to wandb: {e}", level="warning")
-    
+
+from .conv_to_str import conv_to_str
+class OpenAIExtractor_OAI_Format(OpenAIExtractor):
+    """
+    Extract behavioral properties using OpenAI models in OAI format.
+    """
+    def _default_prompt_builder(self, conversation) -> str:
+        """
+        Default prompt builder for side-by-side comparisons.
+        
+        Args:
+            conversation: ConversationRecord
+            
+        Returns:
+            Formatted prompt string
+        """
+        # Check if this is a side-by-side comparison or single model
+        if isinstance(conversation.model, list) and len(conversation.model) == 2:
+            # Side-by-side format
+            model_a, model_b = conversation.model
+            response_a = conv_to_str(conversation.responses[0])
+            response_b = conv_to_str(conversation.responses[1])
+            scores = conversation.scores
+
+            # if scores is an empty dict, then we don't have scores
+            if not scores:
+                return (
+                    f"# {model_a} conversation:\n {response_a}\n\n"
+                    f"# {model_b} conversation:\n {response_b}"
+                )
+            else:
+                return (
+                    f"# {model_a} conversation:\n {response_a}\n\n"
+                    f"# {model_b} conversation:\n {response_b}\n\n"
+                    f"# Scores:\n {scores}"
+                )
+        elif isinstance(conversation.model, str):
+            # Single model format
+            model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)
+            response = conv_to_str(conversation.responses)
+            scores = conversation.scores
+
+            if not scores:
+                print("No scores found")
+                return response
+            else:
+                return (
+                    f"{response}\n\n"
+                    f"# Scores:\n {scores}"
+                )
+        else:
+            raise ValueError(f"Invalid conversation format: {conversation}")        

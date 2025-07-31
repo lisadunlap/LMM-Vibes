@@ -30,10 +30,10 @@ def display_openai_message(role, content, name=None, message_id=None):
     # Define colors for different roles
     role_colors = {
         "system": "#ff6b6b",      # Red
-        "user": "#4ecdc4",        # Teal 
+        "info": "#4ecdc4",        # Teal 
         "assistant": "#45b7d1",   # Blue
         "tool": "#96ceb4",        # Green
-        "info": "#feca57"         # Yellow
+        "user": "#feca57"         # Yellow
     }
     
     # Get color for this role, default to gray
@@ -133,13 +133,15 @@ def display_openai_conversation(conversation_data):
                 
             role = message.get('role', 'unknown')
             content = message.get('content')
+            if isinstance(content, dict) and 'text' in content:
+                content = content['text']
             name = message.get('name')
             message_id = message.get('id')
             
             display_openai_message(role, content, name, message_id)
             
             # Handle tool calls if present
-            if 'tool_calls' in message:
+            if 'tool_calls' in message and message['tool_calls'] is not None:
                 for j, tool_call in enumerate(message['tool_calls']):
                     st.markdown(f"""
                     <div style="

@@ -20,12 +20,13 @@ from .prompts import (
     single_model_no_score_system_prompt,
     single_model_system_prompt,
     # Agent-specific prompts for agentic environments
-    taubench_system_prompt,
     taubench_comparison_system_prompt,
     agentic_swe_system_prompt,
     agentic_tool_focused_prompt,
     agentic_reasoning_focused_prompt,
-    agentic_reward_hacking_focused_prompt
+    agentic_reward_hacking_focused_prompt,
+    single_model_system_prompt_new,
+    sbs_system_prompt_new
 )
 
 
@@ -49,10 +50,11 @@ __all__ = [
     "single_model_no_score_system_prompt", 
     "single_model_system_prompt",
     # Agent prompts
-    "taubench_system_prompt",
     "taubench_comparison_system_prompt",
     "agentic_swe_system_prompt", 
     "agentic_tool_focused_prompt",
     "agentic_reasoning_focused_prompt",
-    "agentic_reward_hacking_focused_prompt"
+    "agentic_reward_hacking_focused_prompt",
+    "single_model_system_prompt_new",
+    "sbs_system_prompt_new"
 ] 

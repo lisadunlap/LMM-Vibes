@@ -100,24 +100,24 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
         for i, stage in enumerate(self.stages):
             stage_start_time = time.time()
             
-            try:
-                self.log(f"Running stage {i+1}/{len(self.stages)}: {stage.name}")
+            # try:
+            self.log(f"Running stage {i+1}/{len(self.stages)}: {stage.name}")
+            
+            # Execute the stage
+            current_data = stage(current_data)
+            
+            # Track timing
+            stage_execution_time = time.time() - stage_start_time
+            self.stage_times[stage.name] = stage_execution_time
+            
+            self.log(f"Stage {stage.name} completed in {stage_execution_time:.2f}s")
+            
+            # Log stage-specific metrics
+            self._log_stage_metrics(stage, current_data)
                 
-                # Execute the stage
-                current_data = stage(current_data)
-                
-                # Track timing
-                stage_execution_time = time.time() - stage_start_time
-                self.stage_times[stage.name] = stage_execution_time
-                
-                self.log(f"Stage {stage.name} completed in {stage_execution_time:.2f}s")
-                
-                # Log stage-specific metrics
-                self._log_stage_metrics(stage, current_data)
-                
-            except Exception as e:
-                self.stage_errors[stage.name] = str(e)
-                self.handle_error(e, f"stage {i+1} ({stage.name})")
+            # except Exception as e:
+            #     self.stage_errors[stage.name] = str(e)
+            #     self.handle_error(e, f"stage {i+1} ({stage.name})")
                 
         total_time = self.end_timer()
         self.log(f"Pipeline '{self.name}' completed in {total_time:.2f}s")

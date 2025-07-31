@@ -627,88 +627,84 @@ def log_results_to_wandb(df_light, light_json_path, base_filename, config):
     
     logger.info("📊 Logging results to wandb...")
     
-    try:
-        # Log the lightweight CSV file
-        artifact = wandb.Artifact(
-            name=f"{base_filename}_clustered_data",
-            type="clustered_dataset",
-            description=f"Clustered dataset without embeddings - {base_filename}"
-        )
-        artifact.add_file(light_json_path)
-        wandb.log_artifact(artifact)
+    # Log the lightweight CSV file
+    artifact = wandb.Artifact(
+        name=f"{base_filename}_clustered_data",
+        type="clustered_dataset",
+        description=f"Clustered dataset without embeddings - {base_filename}"
+    )
+    artifact.add_file(light_json_path)
+    wandb.log_artifact(artifact)
+    
+    # Log the actual clustering results as a table
+    # Find the original column that was clustered
+    original_col = None
+    for col in df_light.columns:
+        if not any(suffix in col for suffix in ['_cluster', '_embedding']):
+            # This is likely the original column
+            original_col = col
+            break
+    
+    if original_col:
+        # Create a table with the key clustering results
+        cluster_cols = [col for col in df_light.columns if 'cluster' in col.lower()]
+        table_cols = [original_col] + cluster_cols
         
-        # Log the actual clustering results as a table
-        # Find the original column that was clustered
-        original_col = None
-        for col in df_light.columns:
-            if not any(suffix in col for suffix in ['_cluster', '_embedding']):
-                # This is likely the original column
-                original_col = col
-                break
+        # Sample the data if it's too large (wandb has limits)
+        sample_size = min(100, len(df_light))
+        if len(df_light) > sample_size:
+            df_sample = df_light[table_cols].sample(n=sample_size, random_state=42)
+            logger.info(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
+        else:
+            df_sample = df_light[table_cols]
+            logger.info(f"📋 Logging all {len(df_sample)} rows")
         
-        if original_col:
-            # Create a table with the key clustering results
-            cluster_cols = [col for col in df_light.columns if 'cluster' in col.lower()]
-            table_cols = [original_col] + cluster_cols
-            
-            # Sample the data if it's too large (wandb has limits)
-            sample_size = min(100, len(df_light))
-            if len(df_light) > sample_size:
-                df_sample = df_light[table_cols].sample(n=sample_size, random_state=42)
-                logger.info(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
-            else:
-                df_sample = df_light[table_cols]
-                logger.info(f"📋 Logging all {len(df_sample)} rows")
-            
-            # Convert to string to handle any non-serializable data
-            df_sample_str = df_sample.astype(str)
-            wandb.log({f"{base_filename}_clustering_results": wandb.Table(dataframe=df_sample_str)})
+        # Convert to string to handle any non-serializable data
+        df_sample_str = df_sample.astype(str)
+        wandb.log({f"{base_filename}_clustering_results": wandb.Table(dataframe=df_sample_str)})
+    
+    # Calculate clustering metrics
+    cluster_cols = [col for col in df_light.columns if 'cluster_id' in col.lower()]
+    metrics = {"clustering_dataset_size": len(df_light)}
+    
+    for col in cluster_cols:
+        cluster_ids = df_light[col].values
+        n_clusters = len(set(cluster_ids)) - (1 if -1 in cluster_ids else 0)
+        n_outliers = list(cluster_ids).count(-1)
         
-        # Calculate clustering metrics
-        cluster_cols = [col for col in df_light.columns if 'cluster_id' in col.lower()]
-        metrics = {"clustering_dataset_size": len(df_light)}
+        level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
+        metrics[f"clustering_{level}_clusters"] = n_clusters
+        metrics[f"clustering_{level}_outliers"] = n_outliers
+        metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
         
-        for col in cluster_cols:
-            cluster_ids = df_light[col].values
-            n_clusters = len(set(cluster_ids)) - (1 if -1 in cluster_ids else 0)
-            n_outliers = list(cluster_ids).count(-1)
-            
-            level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
-            metrics[f"clustering_{level}_clusters"] = n_clusters
-            metrics[f"clustering_{level}_outliers"] = n_outliers
-            metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
-            
-            # Calculate cluster size distribution
-            cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
-            if cluster_sizes:
-                metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
-                metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)
-                metrics[f"clustering_{level}_max_cluster_size"] = max(cluster_sizes)
-        
-        # Log clustering configuration
-        config_dict = {
-            "clustering_min_cluster_size": config.min_cluster_size,
-            "clustering_embedding_model": config.embedding_model,
-            "clustering_hierarchical": config.hierarchical,
-            "clustering_assign_outliers": config.assign_outliers,
-            "clustering_disable_dim_reduction": config.disable_dim_reduction,
-            "clustering_min_samples": config.min_samples,
-            "clustering_cluster_selection_epsilon": config.cluster_selection_epsilon
-        }
-        
-        # Log all metrics as summary metrics (not regular metrics)
-        # Note: This function doesn't have access to WandbMixin, so we'll log directly to wandb.run.summary
-        all_metrics = {**metrics, **config_dict}
-        for key, value in all_metrics.items():
-            wandb.run.summary[key] = value
-        
-        logger.info(f"✅ Logged clustering results to wandb")
-        logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
-        logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
-        logger.info(f"   - Summary metrics: {list(all_metrics.keys())}")
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to log to wandb: {e}")
+        # Calculate cluster size distribution
+        cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
+        if cluster_sizes:
+            metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
+            metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)
+            metrics[f"clustering_{level}_max_cluster_size"] = max(cluster_sizes)
+    
+    # Log clustering configuration
+    config_dict = {
+        "clustering_min_cluster_size": config.min_cluster_size,
+        "clustering_embedding_model": config.embedding_model,
+        "clustering_hierarchical": config.hierarchical,
+        "clustering_assign_outliers": config.assign_outliers,
+        "clustering_disable_dim_reduction": config.disable_dim_reduction,
+        "clustering_min_samples": config.min_samples,
+        "clustering_cluster_selection_epsilon": config.cluster_selection_epsilon
+    }
+    
+    # Log all metrics as summary metrics (not regular metrics)
+    # Note: This function doesn't have access to WandbMixin, so we'll log directly to wandb.run.summary
+    all_metrics = {**metrics, **config_dict}
+    for key, value in all_metrics.items():
+        wandb.run.summary[key] = value
+    
+    logger.info(f"✅ Logged clustering results to wandb")
+    logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
+    logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
+    logger.info(f"   - Summary metrics: {list(all_metrics.keys())}")
 
 
 def initialize_wandb(config, method_name, input_file):
@@ -839,7 +835,6 @@ def create_summary_table(df, config=None, **kwargs):
         }
         res = {
             "fine_label": label,
-            "coarse_label": df_label.property_description_coarse_cluster_label.value_counts().idxmax(),
             "count": df_label.shape[0],
             "percent": df_label.shape[0] / len(df),
             "model_counts": df_label.model.value_counts().to_dict(),
@@ -849,6 +844,8 @@ def create_summary_table(df, config=None, **kwargs):
             },
             "examples": examples,
         }
+        if "property_description_coarse_cluster_label" in df_label.columns:
+            res["coarse_label"] = df_label.property_description_coarse_cluster_label.value_counts().idxmax()
         results.append(res)
 
     results = pd.DataFrame(results)

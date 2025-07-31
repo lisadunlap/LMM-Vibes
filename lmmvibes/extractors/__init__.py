@@ -36,8 +36,8 @@ def get_extractor(
     """
     
     if model_name.lower().startswith("gpt"):
-        from .openai import OpenAIExtractor
-        return OpenAIExtractor(
+        from .openai import OpenAIExtractor, OpenAIExtractor_OAI_Format
+        return OpenAIExtractor_OAI_Format(
             model=model_name,
             system_prompt=system_prompt,
             prompt_builder=prompt_builder,
@@ -47,6 +47,16 @@ def get_extractor(
             max_workers=max_workers,
             **kwargs
         )
+        # return OpenAIExtractor(
+        #     model=model_name,
+        #     system_prompt=system_prompt,
+        #     prompt_builder=prompt_builder,
+        #     temperature=temperature,
+        #     top_p=top_p,
+        #     max_tokens=max_tokens,
+        #     max_workers=max_workers,
+        #     **kwargs
+        # )
     else:
         from .vllm import VLLMExtractor
         return VLLMExtractor(
