@@ -11,6 +11,55 @@ from pydantic import BaseModel, Field, validator
 import numpy as np
 import random
 
+def simple_to_oai_format(prompt: str, response: str) -> list:
+    """
+    Convert a simple prompt-response pair to OAI format.
+    
+    Args:
+        prompt: The user's prompt/question
+        response: The model's response
+        
+    Returns:
+        List of dictionaries in OAI conversation format
+    """
+    return [
+        {
+            "role": "user",
+            "content": prompt
+        },
+        {
+            "role": "assistant", 
+            "content": response
+        }
+    ]
+
+def check_and_convert_to_oai_format(prompt: str, response: str) -> tuple[list, bool]:
+    """
+    Check if response is a string and convert to OAI format if needed.
+    
+    Args:
+        prompt: The user's prompt/question
+        response: The model's response (could be string or already OAI format)
+        
+    Returns:
+        Tuple of (conversation_in_oai_format, was_converted)
+    """
+    # If response is already a list (OAI format), return as is
+    if isinstance(response, list):
+        return response, False
+    
+    # If response is a string, convert to OAI format
+    if isinstance(response, str):
+        return simple_to_oai_format(prompt, response), True
+    
+    # For other types, try to convert to string first
+    try:
+        response_str = str(response)
+        return simple_to_oai_format(prompt, response_str), True
+    except Exception:
+        # If conversion fails, return as is
+        return response, False
+
 
 @dataclass
 class ConversationRecord:
@@ -82,12 +131,10 @@ class ModelStats:
     """Model statistics."""
     property_description: str # name of proprty cluster (either fine or coarse)
     model_name: str # name of model we are comparing
-    cluster_size_global: int # number of properties in the cluster
     score: float # score of the property cluster
     quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys and model names as keys)
     size: int # number of properties in the cluster
-    proportion: float # proportion of all properties that are in the cluster
-    proportion_global: float # proportion of all questions that are in the cluster (cluster_size_global / total_questions)
+    proportion: float # proportion of model's properties that are in the cluster
     examples: List[str] # example property id's in the cluster
     metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
 
@@ -134,11 +181,19 @@ class PropertyDataset:
             # Expected columns: question_id, prompt, model_a, model_b, 
             # model_a_response, model_b_response, winner, etc.
             for _, row in df.iterrows():
+                prompt = str(row.get('prompt', row.get('user_prompt', '')))
+                model_a_response = row.get('model_a_response', '')
+                model_b_response = row.get('model_b_response', '')
+                
+                # Convert responses to OAI format if they're strings
+                oai_response_a, was_converted_a = check_and_convert_to_oai_format(prompt, model_a_response)
+                oai_response_b, was_converted_b = check_and_convert_to_oai_format(prompt, model_b_response)
+                
                 conversation = ConversationRecord(
                     question_id=str(row.get('question_id', row.name)),
-                    prompt=str(row.get('prompt', row.get('user_prompt', ''))),
+                    prompt=prompt,
                     model=[row.get('model_a', 'model_a'), row.get('model_b', 'model_b')],
-                    responses=[row.get('model_a_response', ''), row.get('model_b_response', '')],
+                    responses=[oai_response_a, oai_response_b],
                     scores=row.get('score', {}),
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model_a', 'model_b', 
@@ -156,11 +211,17 @@ class PropertyDataset:
                 elif not isinstance(scores, dict):
                     scores = {'score': scores}
 
+                prompt = str(row.get('prompt', row.get('user_prompt', '')))
+                response = row.get('model_response', '')
+                
+                # Convert response to OAI format if it's a string
+                oai_response, was_converted = check_and_convert_to_oai_format(prompt, response)
+                
                 conversation = ConversationRecord(
                     question_id=str(row.get('question_id', row.name)),
-                    prompt=str(row.get('prompt', row.get('user_prompt', ''))),
+                    prompt=prompt,
                     model=str(row.get('model', 'model')),
-                    responses=row.get('model_response', ''),
+                    responses=oai_response,
                     scores=scores,
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model', 'model_response', 'score']}

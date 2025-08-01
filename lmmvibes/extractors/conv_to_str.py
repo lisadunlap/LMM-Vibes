@@ -101,3 +101,52 @@ def conv_to_str(conv):
             else:
                 ret.append(f"\n**{msg['role']}:**\n{convert_content_to_str(msg['content'])}")
     return "\n\n".join(ret)
+
+def simple_to_oai_format(prompt: str, response: str) -> list:
+    """
+    Convert a simple prompt-response pair to OAI format.
+    
+    Args:
+        prompt: The user's prompt/question
+        response: The model's response
+        
+    Returns:
+        List of dictionaries in OAI conversation format
+    """
+    return [
+        {
+            "role": "user",
+            "content": prompt
+        },
+        {
+            "role": "assistant", 
+            "content": response
+        }
+    ]
+
+def check_and_convert_to_oai_format(prompt: str, response: str) -> tuple[list, bool]:
+    """
+    Check if response is a string and convert to OAI format if needed.
+    
+    Args:
+        prompt: The user's prompt/question
+        response: The model's response (could be string or already OAI format)
+        
+    Returns:
+        Tuple of (conversation_in_oai_format, was_converted)
+    """
+    # If response is already a list (OAI format), return as is
+    if isinstance(response, list):
+        return response, False
+    
+    # If response is a string, convert to OAI format
+    if isinstance(response, str):
+        return simple_to_oai_format(prompt, response), True
+    
+    # For other types, try to convert to string first
+    try:
+        response_str = str(response)
+        return simple_to_oai_format(prompt, response_str), True
+    except Exception:
+        # If conversion fails, return as is
+        return response, False

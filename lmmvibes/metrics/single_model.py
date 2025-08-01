@@ -96,8 +96,8 @@ class SingleModelMetrics(BaseMetrics):
         median_prop_global = np.median([v for v in prop_global_per_model.values() if v > 0]) or 1e-9
 
         # Calculate the global frequency of this cluster (cluster_size_global / total_questions_global)
+        # Cluster size for information (not stored in ModelStats anymore)
         cluster_size_global = len(group["id"].unique())
-        proportion_global = cluster_size_global / total_questions_global if total_questions_global > 0 else 0.0
 
         # Compute quality score once for the whole cluster
         quality_score = self._compute_normalized_quality_score(group)
@@ -152,10 +152,9 @@ class SingleModelMetrics(BaseMetrics):
                 model_name=str(model),
                 score=float(score),
                 quality_score=quality_score_for_model,
-                cluster_size_global=int(cluster_size_global),
                 size=int(counts.get(model, 0)),
                 proportion=float(prop_global),
-                proportion_global=float(proportion_global),
+                
                 examples=self._example_props(group[group.model == model]),
                 metadata={
                     "cluster_id": cid,

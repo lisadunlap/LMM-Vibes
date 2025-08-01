@@ -49,7 +49,7 @@ setup(
             "mypy>=0.900",
         ],
         "viz": [
-            "streamlit>=1.0.0",
+            "gradio>=4.0.0",
             "plotly>=5.0.0",
         ],
     },

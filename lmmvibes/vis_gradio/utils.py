@@ -239,11 +239,19 @@ def format_cluster_dataframe(clustered_df: pd.DataFrame,
     return df
 
 
+def truncate_cluster_name(cluster_desc: str, max_length: int = 50) -> str:
+    """Truncate cluster description to fit in table column."""
+    if len(cluster_desc) <= max_length:
+        return cluster_desc
+    return cluster_desc[:max_length-3] + "..."
+
 def create_frequency_comparison_table(model_stats: Dict[str, Any], 
                                     selected_models: List[str],
                                     cluster_level: str = 'fine',
-                                    top_n: int = 50) -> pd.DataFrame:
-    """Create a comparison table of cluster frequencies across models with quality confidence intervals."""
+                                    top_n: int = 50,
+                                    selected_model: str = None,
+                                    selected_quality_metric: str = None) -> pd.DataFrame:
+    """Create a simplified comparison table with cluster, frequency, quality, and significance data."""
     if not selected_models:
         return pd.DataFrame()
     
@@ -259,7 +267,7 @@ def create_frequency_comparison_table(model_stats: Dict[str, Any],
             quality_score_ci = cluster.get('quality_score_ci', {})
             has_quality_ci = bool(quality_score_ci)
             
-            # Get distinctiveness score confidence intervals (correct structure)
+            # Get distinctiveness score confidence intervals
             score_ci = cluster.get('score_ci', {})
             ci_lower = score_ci.get('lower') if score_ci else None
             ci_upper = score_ci.get('upper') if score_ci else None
@@ -275,7 +283,10 @@ def create_frequency_comparison_table(model_stats: Dict[str, Any],
                 'ci_upper': ci_upper,
                 'has_quality_ci': has_quality_ci,
                 'quality_score': cluster.get('quality_score', {}),
-                'quality_score_ci': quality_score_ci
+                'quality_score_ci': quality_score_ci,
+                # Significance flags from metrics computation
+                'score_significance': cluster.get('score_statistical_significance', False),
+                'quality_significance': any(cluster.get('quality_score_statistical_significance', {}).values()) if isinstance(cluster.get('quality_score_statistical_significance'), dict) else False
             })
     
     if not all_clusters_data:
@@ -321,14 +332,34 @@ def create_frequency_comparison_table(model_stats: Dict[str, Any],
     if chart_data.empty:
         return pd.DataFrame()
     
-    # Get unique models for the table (from chart_data, not selected_models!)
-    models = chart_data['model'].unique()
-    
-    # Create a comprehensive table with both frequency and quality data
+    # Create a simplified table with the requested columns
     table_data = []
     for cluster_desc in top_clusters:
         # Get frequency data for all models
         cluster_freq_data = chart_data[chart_data['property_description'] == cluster_desc]
+        
+        # Calculate average frequency across all models
+        avg_frequency = cluster_freq_data['frequency'].mean()
+        
+        # Calculate average confidence intervals for frequency
+        freq_ci_lower = []
+        freq_ci_upper = []
+        for _, row in cluster_freq_data.iterrows():
+            if (row.get('has_ci', False) and 
+                row.get('ci_lower') is not None and 
+                row.get('ci_upper') is not None):
+                
+                # Convert distinctiveness score CIs to frequency uncertainty
+                distinctiveness_ci_width = row['ci_upper'] - row['ci_lower']
+                freq_uncertainty = distinctiveness_ci_width * row['frequency'] * 0.1
+                ci_lower = max(0, row['frequency'] - freq_uncertainty)
+                ci_upper = row['frequency'] + freq_uncertainty
+                freq_ci_lower.append(ci_lower)
+                freq_ci_upper.append(ci_upper)
+        
+        # Calculate average frequency CI
+        avg_freq_ci_lower = np.mean(freq_ci_lower) if freq_ci_lower else None
+        avg_freq_ci_upper = np.mean(freq_ci_upper) if freq_ci_upper else None
         
         # Get quality score and confidence intervals for this cluster
         quality_score = None
@@ -364,85 +395,61 @@ def create_frequency_comparison_table(model_stats: Dict[str, Any],
                                     cluster_quality_cis[score_key]['upper'].append(ci_upper)
                     break
         
-        # Calculate average quality score across all models for this cluster
-        if cluster_quality_scores:
-            for score_key, scores in cluster_quality_scores.items():
-                if scores:
-                    quality_score = np.mean(scores)  # Use the first score key as the main quality score
-                    break
+        # Calculate average quality score and CI based on the selected metric
+        quality_score = None
+        quality_ci = None
+
+        if selected_quality_metric:
+            # A specific metric is selected
+            scores = cluster_quality_scores.get(selected_quality_metric, [])
+            if scores:
+                quality_score = np.mean(scores)
+            
+            ci_data = cluster_quality_cis.get(selected_quality_metric, {})
+            if ci_data.get('lower') and ci_data.get('upper'):
+                avg_lower = np.mean(ci_data['lower'])
+                avg_upper = np.mean(ci_data['upper'])
+                quality_ci = {'lower': avg_lower, 'upper': avg_upper}
+        else:
+            # "All Metrics" is selected - average across all available metric scores
+            all_scores = [score for scores in cluster_quality_scores.values() for score in scores]
+            if all_scores:
+                quality_score = np.mean(all_scores)
+
+            # Average the CIs across all metrics
+            all_ci_lowers = [l for ci_data in cluster_quality_cis.values() for l in ci_data.get('lower', [])]
+            all_ci_uppers = [u for ci_data in cluster_quality_cis.values() for u in ci_data.get('upper', [])]
+            if all_ci_lowers and all_ci_uppers:
+                quality_ci = {'lower': np.mean(all_ci_lowers), 'upper': np.mean(all_ci_uppers)}
         
-        # Calculate average confidence intervals across all models for this cluster
-        if cluster_quality_cis:
-            for score_key, ci_data in cluster_quality_cis.items():
-                if ci_data['lower'] and ci_data['upper']:
-                    avg_lower = np.mean(ci_data['lower'])
-                    avg_upper = np.mean(ci_data['upper'])
-                    quality_score_ci[score_key] = {
-                        'lower': avg_lower,
-                        'upper': avg_upper
-                    }
+        # Get significance data, respecting the filter
+        score_significance = cluster_freq_data['score_significance'].any() if 'score_significance' in cluster_freq_data.columns else False
         
-        # Get global cluster size (should be the same for all models in this cluster)
-        global_cluster_size = None
-        if not cluster_freq_data.empty:
-            global_cluster_size = cluster_freq_data.iloc[0]['cluster_size_global']
-        
-        # Create row with cluster description, global size, quality score, and quality CIs
+        quality_significance = False
+        if selected_quality_metric:
+            # Check significance for the specific metric across all models in this cluster
+            all_sigs = []
+            for _, row in cluster_freq_data.iterrows():
+                sig_dict = row.get('quality_score_statistical_significance', {})
+                if isinstance(sig_dict, dict):
+                    all_sigs.append(sig_dict.get(selected_quality_metric, False))
+            quality_significance = any(all_sigs)
+        else:
+            # For "All metrics", check if any metric is significant for any model
+            quality_significance = cluster_freq_data['quality_significance'].any() if 'quality_significance' in cluster_freq_data.columns else False
+
+        # Create row with simplified structure
         row = {
             'Cluster': cluster_desc,
-            'Global Size': global_cluster_size if global_cluster_size is not None else "N/A",
-            'Quality Score': f"{quality_score:.3f}" if quality_score is not None else "N/A"
+            'Frequency (%)': f"{avg_frequency:.1f}",
+            'Freq CI': f"[{avg_freq_ci_lower:.1f}, {avg_freq_ci_upper:.1f}]" if avg_freq_ci_lower is not None and avg_freq_ci_upper is not None else "N/A",
+            'Quality': f"{quality_score:.3f}" if quality_score is not None else "N/A",
+            'Quality CI': f"[{quality_ci['lower']:.3f}, {quality_ci['upper']:.3f}]" if quality_ci else "N/A"
         }
         
-        # Add quality confidence intervals for each score key
-        if quality_score_ci:
-            for score_key, ci_data in quality_score_ci.items():
-                if isinstance(ci_data, dict):
-                    ci_lower = ci_data.get('lower')
-                    ci_upper = ci_data.get('upper')
-                    if ci_lower is not None and ci_upper is not None:
-                        row[f'Quality {score_key} CI'] = f"[{ci_lower:.3f}, {ci_upper:.3f}]"
-                    else:
-                        row[f'Quality {score_key} CI'] = "N/A"
-                else:
-                    row[f'Quality {score_key} CI'] = "N/A"
-        else:
-            # If no quality CIs, add placeholder columns for consistency
-            for model_name, model_data in model_stats.items():
-                clusters = model_data.get(cluster_level, [])
-                for cluster in clusters:
-                    if cluster['property_description'] == cluster_desc:
-                        quality_score_data = cluster.get('quality_score', {})
-                        if isinstance(quality_score_data, dict):
-                            for score_key in quality_score_data.keys():
-                                row[f'Quality {score_key} CI'] = "N/A"
-                        break
-        
-        # Add frequency data and confidence intervals for each model
-        for model in models:
-            model_freq = cluster_freq_data[cluster_freq_data['model'] == model]
-            if not model_freq.empty:
-                freq_row = model_freq.iloc[0]
-                freq_value = freq_row['frequency']
-                row[f'{model} Freq (%)'] = f"{freq_value:.1f}"
-                
-                # Calculate confidence intervals using the same logic as in the chart
-                if (freq_row.get('has_ci', False) and 
-                    freq_row.get('ci_lower') is not None and 
-                    freq_row.get('ci_upper') is not None):
-                    
-                    # Convert distinctiveness score CIs to frequency uncertainty
-                    distinctiveness_ci_width = freq_row['ci_upper'] - freq_row['ci_lower']
-                    freq_uncertainty = distinctiveness_ci_width * freq_value * 0.1
-                    ci_lower = max(0, freq_value - freq_uncertainty)
-                    ci_upper = freq_value + freq_uncertainty
-                    
-                    row[f'{model} CI'] = f"[{ci_lower:.1f}, {ci_upper:.1f}]"
-                else:
-                    row[f'{model} CI'] = "N/A"
-            else:
-                row[f'{model} Freq (%)'] = "0.0"
-                row[f'{model} CI'] = "N/A"
+        # Add significance columns
+        row['Score Significance'] = "Yes" if score_significance else "No"
+        row['Quality Significance'] = "Yes" if quality_significance else "No"
         
         table_data.append(row)
     
@@ -660,10 +667,10 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
         )
     )
     
-    # Update y-axis to show full cluster names
+    # Update y-axis to show truncated cluster names
     fig.update_yaxes(
         tickmode='array',
-        ticktext=[desc[:80] + "..." if len(desc) > 80 else desc for desc in top_clusters],
+        ticktext=[truncate_cluster_name(desc, 60) for desc in top_clusters],
         tickvals=top_clusters
     )
     
@@ -741,7 +748,7 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
         
         # Add a single bar for each cluster
         fig_quality.add_trace(go.Bar(
-            y=quality_df['property_description'],
+            y=[truncate_cluster_name(desc, 60) for desc in quality_df['property_description']],
             x=quality_df['quality_score'],
             orientation='h',
             marker_color='lightblue',  # Single color for all bars

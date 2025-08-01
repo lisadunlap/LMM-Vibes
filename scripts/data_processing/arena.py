@@ -107,8 +107,8 @@ def load_arena_data(args) -> Tuple[pd.DataFrame, Callable, str]:
         _, model_b_resp = _extract_content_arena(row["conversation_b"])
         return pd.Series({
             "question_id": row["question_id"],
-            "model_a_response": model_a_resp,
-            "model_b_response": model_b_resp,
+            "model_a_response": row['conversation_a'],
+            "model_b_response": row['conversation_b'],
         })
 
     response_df = df.apply(_extract_responses, axis=1)
@@ -130,15 +130,15 @@ def load_arena_data_single(args) -> Tuple[pd.DataFrame, Callable, str]:
 
     df_a = df.copy()
     df_a["model"] = df['model_a']
-    df_a["model_a_conversation"] = df['conversation_a']
+    df_a["model_a_response"] = df['conversation_a']
     df_a["model_response"] = df['model_a_response']
     df_b = df.copy()
     df_b["model"] = df['model_b']
-    df_b["model_b_conversation"] = df['conversation_b']
+    df_b["model_b_response"] = df['conversation_b']
     df_b["model_response"] = df['model_b_response']
     df = pd.concat([df_a, df_b])
     df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score", "conversation_a", "conversation_b"])
-    df = df.dropna(subset=["model", "model_response", "model_a_conversation", "model_b_conversation"])
+    df = df.dropna(subset=["model", "model_response"])
     print(f"After removing missing model and model response: {len(df)} battles")
     print(df.columns)
     
@@ -181,8 +181,17 @@ def load_webdev_data(args):
         _, model_b_resp = _extract_content_webdev(row["conversation_b"])
         return pd.Series({
             "question_id": row["question_id"],
-            "model_a_response": model_a_resp,
-            "model_b_response": model_b_resp,
+            "model_a_response": [{
+                "role": "user", "content": user_prompt
+            },
+            {
+                "role": "assistant", "content": model_a_resp
+            }],
+            "model_b_response": [{
+                "role": "user", "content": user_prompt
+            }, {
+                "role": "assistant", "content": model_b_resp
+            }],
         })
 
     response_df = df.apply(_extract_responses_webdev, axis=1)
@@ -215,14 +224,14 @@ def load_webdev_data_single(args):
     df_a = df.copy()
     df_a["model"] = df['model_a']
     df_a["model_response"] = df['model_a_response']
-    df_a["model_a_conversation"] = df['conversation_a']
+    # df_a["model_a_response"] = df['conversation_a']
     df_b = df.copy()
     df_b["model"] = df['model_b']
     df_b["model_response"] = df['model_b_response']
-    df_b["model_b_conversation"] = df['conversation_b']
+    # df_b["model_b_response"] = df['conversation_b']
     df = pd.concat([df_a, df_b])
     df = df.drop(columns=["model_a", "model_a_response", "model_b", "model_b_response", "score", "conversation_a", "conversation_b"])
-    df = df.dropna(subset=["model", "model_response", "model_a_conversation", "model_b_conversation"])
+    df = df.dropna(subset=["model", "model_response"])
     print(f"After removing missing model and model response: {len(df)} battles")
     print(df.columns)
     return df, _extract_content_webdev, "single_model_system_prompt"
@@ -232,7 +241,7 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="webdev")
-    parser.add_argument("--output_dir", type=str, default="data/arena_webdev_sbs.jsonl")
+    parser.add_argument("--output_dir", type=str, default="data/arena_webdev_sbs_oai_format.jsonl")
     parser.add_argument("--single_model", action="store_true")
     parser.add_argument("--filter_english", action="store_true")
     parser.add_argument("--exclude_ties", action="store_true")

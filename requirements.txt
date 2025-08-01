@@ -26,13 +26,7 @@ pickle-mixin
 pyarrow>=12.0.0
 jupyter>=1.0.0
 ipykernel>=6.0.0
-concurrent.futures
-collections
-time
-os
-sys
-re
-json
-warnings
-pickle
-random 
+# Visualization dependencies
+streamlit>=1.28.0
+gradio>=4.0.0
+markdown>=3.4.0 

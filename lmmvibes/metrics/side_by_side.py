@@ -43,6 +43,7 @@ class SideBySideMetrics(BaseMetrics):
     
     def extract_winner_score(self, row: pd.Series) -> float:
         """Convert winner/loser/tie to 1/-1/0."""
+        print(row)
         winner = row["score"]["winner"]
         if winner == row["model"]:
             return 1
@@ -105,7 +106,6 @@ class SideBySideMetrics(BaseMetrics):
                 model_name=str(model),
                 score=float(score),
                 quality_score=quality_score,
-                cluster_size_global=int(len(group["id"].unique())),
                 size=int(counts.get(model, 0)),
                 proportion=float(prop),
                 examples=self._example_props(group[group.model == model]),

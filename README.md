@@ -70,10 +70,10 @@ clustered_df, model_stats = explain(
 )
 ```
 
-### Viewing Results in Streamlit
+### Viewing Results in Gradio
 ```bash
 # View clusters, examples, and metrics
-streamlit run lmmvibes/viz/pipeline_results_app.py -- --results_dir results/test
+python -m lmmvibes.vis_gradio.launcher --share
 ```
 
 ## Outputs
@@ -102,7 +102,7 @@ This allows you to see not just which model "won" overall, but *why*—by surfac
 
 ## Input Data Requirements
 
-LMM-Vibes supports two analysis methods, each with specific data format requirements:
+LMM-Vibes supports two analysis methods, each with specific data format requirements. The system automatically converts simple string responses to OpenAI format for processing.
 
 ### Single Model Analysis
 Analyze behavioral patterns from individual model responses.
@@ -113,7 +113,7 @@ Analyze behavioral patterns from individual model responses.
 | `question_id` | Unique identifier for each question | `"q1"`, `"math_problem_001"` |
 | `prompt` | The question or prompt given to the model | `"What is machine learning?"` |
 | `model` | Name of the model being analyzed | `"gpt-4"`, `"claude-3-opus"` |
-| `model_response` | The model's complete response | `"Machine learning is a subset..."` |
+| `model_response` | The model's complete response (string or OAI format) | `"Machine learning is a subset..."` or OAI conversation format |
 
 **Optional Columns:**
 | Column | Description | Example |
@@ -143,8 +143,8 @@ Compare two models head-to-head (Arena-style battles).
 | `prompt` | The question given to both models | `"What is machine learning?"` |
 | `model_a` | Name of the first model | `"gpt-4"`, `"claude-3-opus"` |
 | `model_b` | Name of the second model | `"gpt-3.5-turbo"`, `"llama-2"` |
-| `model_a_response` | Response from the first model | `"Machine learning is a subset..."` |
-| `model_b_response` | Response from the second model | `"ML involves training algorithms..."` |
+| `model_a_response` | Response from the first model (string or OAI format) | `"Machine learning is a subset..."` or OAI conversation format |
+| `model_b_response` | Response from the second model (string or OAI format) | `"ML involves training algorithms..."` or OAI conversation format |
 
 **Optional Columns:**
 | Column | Description | Example |
@@ -163,6 +163,17 @@ df = pd.DataFrame({
     "score": [{"winner": "gpt-4", "helpfulness": 4.2}, {"winner": "gpt-4", "helpfulness": 3.8}, {"winner": "claude-3", "helpfulness": 4.5}]
 })
 ```
+
+**Format Conversion:**
+The system automatically detects and converts simple string responses to OpenAI conversation format. If your `model_response` (or `model_a_response`/`model_b_response`) is a string, it will be converted to:
+```python
+[
+    {"role": "user", "content": "your_prompt"},
+    {"role": "assistant", "content": "your_response"}
+]
+```
+
+If your response is already in OpenAI format (a list of message dictionaries), it will be used as-is.
 
 ## Pipeline Components
 

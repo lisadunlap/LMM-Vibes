@@ -271,6 +271,100 @@ def _format_user_profile(profile: Dict[str, Any], show_roles: bool = True) -> st
     
     return "\n".join(lines)
 
+def convert_to_new_oai_format(row):
+    """
+    Convert trajectory data to the updated OAI format described in conv_to_str.py.
+    This format has content as a dictionary with text/image/tool_calls keys.
+    """
+    messages = []
+    
+    # Add info as first message with role 'info'
+    info_message = {
+        "role": "info",
+        "content": {
+            "text": str(row["info"])
+        },
+        "name": "information about the user and the task"
+    }
+    messages.append(info_message)
+    
+    # Convert trajectory messages to new format
+    for msg in row["traj"]:
+        role = msg.get("role", "unknown")
+        content = msg.get("content")
+        
+        # Handle different content types
+        if content is None:
+            # For None content, check if there are tool_calls
+            if "tool_calls" in msg:
+                # Convert tool_calls to the expected format
+                converted_tool_calls = []
+                for tool_call in msg["tool_calls"]:
+                    converted_tool_call = {
+                        "name": tool_call.get("function", {}).get("name", ""),
+                        "arguments": tool_call.get("function", {}).get("arguments", ""),
+                        "id": tool_call.get("id", ""),
+                        "type": tool_call.get("type", "")
+                    }
+                    # Add any other keys from the original tool_call
+                    for key, value in tool_call.items():
+                        if key not in ["function", "id", "type"]:
+                            converted_tool_call[key] = value
+                    converted_tool_calls.append(converted_tool_call)
+                
+                new_message = {
+                    "role": role,
+                    "content": {
+                        "tool_calls": converted_tool_calls
+                    }
+                }
+            else:
+                new_message = {
+                    "role": role,
+                    "content": {
+                        "text": ""
+                    }
+                }
+        elif isinstance(content, str):
+            # String content goes in text field
+            new_message = {
+                "role": role,
+                "content": {
+                    "text": content
+                }
+            }
+        elif isinstance(content, dict):
+            # Dictionary content - preserve as is but ensure it's in content field
+            new_message = {
+                "role": role,
+                "content": content
+            }
+        else:
+            # Other types convert to string
+            new_message = {
+                "role": role,
+                "content": {
+                    "text": str(content)
+                }
+            }
+        
+        # Add optional metadata fields
+        if "name" in msg:
+            new_message["name"] = msg["name"]
+        if "id" in msg:
+            new_message["id"] = msg["id"]
+        if "tool_call_id" in msg:
+            new_message["tool_call_id"] = msg["tool_call_id"]
+        
+        # Add any other keys that might be present
+        for key, value in msg.items():
+            if key not in ["role", "content", "name", "id", "tool_call_id"]:
+                new_message[key] = value
+        
+        messages.append(new_message)
+    
+    return messages
+
 def process_data(file: str, incorrect_only: bool = False) -> list[dict]:
     """
     Process the airline data to extract the relevant information.
@@ -290,7 +384,8 @@ def process_data(file: str, incorrect_only: bool = False) -> list[dict]:
             return None
     
     # Apply conversion with error handling
-    data_gpt["model_response"] = data_gpt.apply(safe_agentic_record_to_string, axis=1)
+    # data_gpt["model_response"] = data_gpt.apply(safe_agentic_record_to_string, axis=1)
+    data_gpt["model_response"] = data_gpt.apply(lambda x: convert_to_new_oai_format(x), axis=1)
     
     # Drop rows where conversion failed
     initial_count = len(data_gpt)
@@ -334,6 +429,8 @@ def process_data(file: str, incorrect_only: bool = False) -> list[dict]:
     
     return data_gpt
 
+
+
 def process_airline_data(incorrect_only: bool = False) -> list[dict]:
     df1 = process_data("./data/taubench/gpt-4o-airline.json", incorrect_only)
     df1["model"] = "gpt-4o"
@@ -350,113 +447,16 @@ def process_retail_data(incorrect_only: bool = False) -> list[dict]:
 
 airline_data = process_airline_data()
 print(f"Airline data: {len(airline_data)}")
-airline_data.to_json("./data/taubench/airline_data.jsonl", orient="records", lines=True)
+airline_data.to_json("./data/taubench/airline_data_oai_format.jsonl", orient="records", lines=True)
 retail_data = process_retail_data()
 print(f"Retail data: {len(retail_data)}")
-retail_data.to_json("./data/taubench/retail_data.jsonl", orient="records", lines=True)
+retail_data.to_json("./data/taubench/retail_data_oai_format.jsonl", orient="records", lines=True)
 
-airline_data = process_airline_data(incorrect_only=True)
-print(f"Airline data incorrect: {len(airline_data)}")
-airline_data.to_json("./data/taubench/airline_data_incorrect.jsonl", orient="records", lines=True)
-retail_data = process_retail_data(incorrect_only=True)
-print(f"Retail data incorrect: {len(retail_data)}")
-retail_data.to_json("./data/taubench/retail_data_incorrect.jsonl", orient="records", lines=True)
+# airline_data = process_airline_data(incorrect_only=True)
+# print(f"Airline data incorrect: {len(airline_data)}")
+# airline_data.to_json("./data/taubench/airline_data_incorrect.jsonl", orient="records", lines=True)
+# retail_data = process_retail_data(incorrect_only=True)
+# print(f"Retail data incorrect: {len(retail_data)}")
+# retail_data.to_json("./data/taubench/retail_data_incorrect.jsonl", orient="records", lines=True)
 
 
-# def convert_to_new_oai_format(row):
-#     """
-#     Convert trajectory data to the updated OAI format described in conv_to_str.py.
-#     This format has content as a dictionary with text/image/tool_calls keys.
-#     """
-#     messages = []
-    
-#     # Add info as first message with role 'info'
-#     info_message = {
-#         "role": "info",
-#         "content": {
-#             "text": str(row["info"])
-#         },
-#         "name": "information about the user and the task"
-#     }
-#     messages.append(info_message)
-    
-#     # Convert trajectory messages to new format
-#     for msg in row["traj"]:
-#         role = msg.get("role", "unknown")
-#         content = msg.get("content")
-        
-#         # Handle different content types
-#         if content is None:
-#             # For None content, check if there are tool_calls
-#             if "tool_calls" in msg:
-#                 # Convert tool_calls to the expected format
-#                 converted_tool_calls = []
-#                 for tool_call in msg["tool_calls"]:
-#                     converted_tool_call = {
-#                         "name": tool_call.get("function", {}).get("name", ""),
-#                         "arguments": tool_call.get("function", {}).get("arguments", ""),
-#                         "id": tool_call.get("id", ""),
-#                         "type": tool_call.get("type", "")
-#                     }
-#                     # Add any other keys from the original tool_call
-#                     for key, value in tool_call.items():
-#                         if key not in ["function", "id", "type"]:
-#                             converted_tool_call[key] = value
-#                     converted_tool_calls.append(converted_tool_call)
-                
-#                 new_message = {
-#                     "role": role,
-#                     "content": {
-#                         "tool_calls": converted_tool_calls
-#                     }
-#                 }
-#             else:
-#                 new_message = {
-#                     "role": role,
-#                     "content": {
-#                         "text": ""
-#                     }
-#                 }
-#         elif isinstance(content, str):
-#             # String content goes in text field
-#             new_message = {
-#                 "role": role,
-#                 "content": {
-#                     "text": content
-#                 }
-#             }
-#         elif isinstance(content, dict):
-#             # Dictionary content - preserve as is but ensure it's in content field
-#             new_message = {
-#                 "role": role,
-#                 "content": content
-#             }
-#         else:
-#             # Other types convert to string
-#             new_message = {
-#                 "role": role,
-#                 "content": {
-#                     "text": str(content)
-#                 }
-#             }
-        
-#         # Add optional metadata fields
-#         if "name" in msg:
-#             new_message["name"] = msg["name"]
-#         if "id" in msg:
-#             new_message["id"] = msg["id"]
-#         if "tool_call_id" in msg:
-#             new_message["tool_call_id"] = msg["tool_call_id"]
-        
-#         # Add any other keys that might be present
-#         for key, value in msg.items():
-#             if key not in ["role", "content", "name", "id", "tool_call_id"]:
-#                 new_message[key] = value
-        
-#         messages.append(new_message)
-    
-#     return {
-#         "messages": messages,
-#         "task_id": row["task_id"],
-#         "reward": row["reward"]
-#     }

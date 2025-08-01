@@ -279,38 +279,34 @@ def view_clusters_table(selected_models: List[str], cluster_level: str,
 
 
 def create_frequency_comparison(selected_models: List[str], cluster_level: str, 
-                              top_n: int = 50) -> pd.DataFrame:
-    """Create frequency comparison table between models."""
+                              top_n: int = 50, selected_model: str = None, 
+                              selected_quality_metric: str = None) -> Tuple[pd.DataFrame, str]:
+    """Create frequency comparison table and return it along with info text."""
     if not app_state['model_stats']:
-        return pd.DataFrame({"Message": ["Please load data first"]})
+        return pd.DataFrame({"Message": ["Please load data first"]}), ""
     
     if not selected_models:
-        return pd.DataFrame({"Message": ["Please select at least one model"]})
+        return pd.DataFrame({"Message": ["Please select at least one model"]}), ""
+    
+    # Handle "All Models" and "All Metrics" selections
+    model_filter = None if selected_model == "All Models" else selected_model
+    quality_filter = None if selected_quality_metric == "All Metrics" else selected_quality_metric
     
     comparison_df = create_frequency_comparison_table(
-        app_state['model_stats'], selected_models, cluster_level, top_n
+        app_state['model_stats'], selected_models, cluster_level, top_n, 
+        model_filter, quality_filter
     )
     
     if comparison_df.empty:
-        return pd.DataFrame({"Message": ["No data available for comparison"]})
+        return pd.DataFrame({"Message": ["No data available for comparison"]}), "Rows: 0"
     
-    return comparison_df
+    info_text = f"**Displaying {len(comparison_df)} rows.**"
+    
+    return comparison_df, info_text
 
-
-def create_frequency_plots(selected_models: List[str], cluster_level: str, 
-                          top_n: int = 50, show_ci: bool = True) -> Tuple[Optional[go.Figure], Optional[go.Figure]]:
-    """Create frequency comparison plots between models."""
-    if not app_state['model_stats']:
-        return None, None
-    
-    if not selected_models:
-        return None, None
-    
-    freq_plot, quality_plot = create_frequency_comparison_plots(
-        app_state['model_stats'], selected_models, cluster_level, top_n, show_confidence_intervals=show_ci
-    )
-    
-    return freq_plot, quality_plot
+def create_frequency_plots(*args, **kwargs):
+    """Placeholder function to avoid breaking existing event handlers. Plots are removed."""
+    return None, None
 
 
 def search_examples(search_term: str, selected_models: List[str], 
@@ -470,6 +466,38 @@ def update_example_dropdowns() -> Tuple[Any, Any, Any]:
         gr.update(choices=prompts, value="All Prompts" if prompts else None),
         gr.update(choices=models, value="All Models" if models else None), 
         gr.update(choices=properties, value="All Clusters" if properties else None)
+    )
+
+
+def get_filter_options() -> Tuple[List[str], List[str]]:
+    """Get available models and quality metrics for filtering."""
+    if not app_state['model_stats']:
+        return ["All Models"], ["All Metrics"]
+    
+    # Get available models
+    available_models = ["All Models"] + list(app_state['model_stats'].keys())
+    
+    # Get available quality metrics
+    quality_metrics = set()
+    for model_data in app_state['model_stats'].values():
+        clusters = model_data.get('fine', []) + model_data.get('coarse', [])
+        for cluster in clusters:
+            quality_score = cluster.get('quality_score', {})
+            if isinstance(quality_score, dict):
+                quality_metrics.update(quality_score.keys())
+    
+    available_metrics = ["All Metrics"] + sorted(list(quality_metrics))
+    
+    return available_models, available_metrics
+
+
+def update_filter_dropdowns() -> Tuple[Any, Any]:
+    """Update filter dropdown choices when data is loaded."""
+    models, metrics = get_filter_options()
+    
+    return (
+        gr.update(choices=models, value="All Models" if models else None),
+        gr.update(choices=metrics, value="All Metrics" if metrics else None)
     )
 
 
@@ -664,57 +692,52 @@ def create_app() -> gr.Blocks:
                         label="Top N Clusters",
                         minimum=5, maximum=200, value=50, step=5
                     )
-                    show_ci_checkbox = gr.Checkbox(
-                        label="Show Confidence Intervals",
-                        value=True,
-                        info="Display confidence intervals in plots"
+                
+                with gr.Row():
+                    selected_model_filter = gr.Dropdown(
+                        label="Filter by Specific Model (Optional)",
+                        choices=["All Models"],
+                        value="All Models",
+                        info="Select a specific model to show only its data, or 'All Models' for aggregated view"
+                    )
+                    selected_quality_metric = gr.Dropdown(
+                        label="Filter by Quality Metric (Optional)",
+                        choices=["All Metrics"],
+                        value="All Metrics",
+                        info="Select a specific quality metric to show only its data, or 'All Metrics' for aggregated view"
                     )
                 
                 refresh_freq_btn = gr.Button("Refresh Comparison", variant="primary")
                 
-                # Plots section
-                with gr.Row():
-                    with gr.Column(scale=2):
-                        frequency_plot = gr.Plot(
-                            label="Model Frequencies by Cluster",
-                            value=None
-                        )
-                    with gr.Column(scale=1):
-                        quality_plot = gr.Plot(
-                            label="Quality Scores",
-                            value=None
-                        )
+                frequency_table_info = gr.Markdown("")
+                
+                # Frequency table first
+                frequency_table = gr.Dataframe(
+                    label="Frequency Comparison Table",
+                    interactive=False,
+                    wrap=True,
+                    max_height=800,
+                    elem_classes=["frequency-comparison-table"]
+                )
+                
+                # Plots section has been removed
                 
                 # Add CSS styling for the frequency table
                 gr.HTML("""
                 <style>
-                /* Target the frequency comparison table specifically with more specific selectors */
-                .frequency-comparison-table,
-                .frequency-comparison-table .dataframe,
-                .frequency-comparison-table table,
-                div[data-testid="dataframe"] {
-                    overflow-x: auto !important;
-                    max-width: 100% !important;
-                    width: 100% !important;
-                }
-                
-                /* Ensure the table container allows horizontal scrolling */
-                .frequency-comparison-table {
-                    overflow-x: auto !important;
-                    overflow-y: auto !important;
-                    max-width: 100% !important;
-                    border: 1px solid #ddd !important;
-                    border-radius: 4px !important;
-                    position: relative !important;
-                }
-                
-                /* Make the table itself wide enough to require scrolling */
+                /* Make the actual table use fixed layout to avoid reflow jitter */
                 .frequency-comparison-table table,
                 div[data-testid="dataframe"] table {
-                    min-width: 1200px !important;
-                    table-layout: auto !important;
-                    width: max-content !important;
+                    table-layout: fixed !important;
+                    width: 100% !important;
                     border-collapse: collapse !important;
+                }
+
+                .frequency-comparison-table th,
+                .frequency-comparison-table td {
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                    white-space: nowrap !important;
                 }
                 
                 /* Make cluster column (first column) wider with better text wrapping */
@@ -722,112 +745,32 @@ def create_app() -> gr.Blocks:
                 .frequency-comparison-table table td:first-child,
                 div[data-testid="dataframe"] table th:first-child,
                 div[data-testid="dataframe"] table td:first-child {
-                    min-width: 150px !important;
-                    max-width: 200px !important;
+                    min-width: 250px !important;
+                    max-width: 400px !important;
                     white-space: normal !important;
                     word-wrap: break-word !important;
                     word-break: break-word !important;
-                    text-align: left !important;
-                    padding: 8px 10px !important;
-                    font-size: 12px !important;
-                    line-height: 1.3 !important;
                     overflow-wrap: break-word !important;
-                }
-                
-                /* Global Size column */
-                .frequency-comparison-table table th:nth-child(2),
-                .frequency-comparison-table table td:nth-child(2),
-                div[data-testid="dataframe"] table th:nth-child(2),
-                div[data-testid="dataframe"] table td:nth-child(2) {
-                    min-width: 80px !important;
-                    max-width: 100px !important;
-                    text-align: center !important;
-                    padding: 6px 8px !important;
-                    font-size: 12px !important;
-                }
-                
-                /* Quality Score column */
-                .frequency-comparison-table table th:nth-child(3),
-                .frequency-comparison-table table td:nth-child(3),
-                div[data-testid="dataframe"] table th:nth-child(3),
-                div[data-testid="dataframe"] table td:nth-child(3) {
-                    min-width: 90px !important;
-                    max-width: 110px !important;
-                    text-align: center !important;
-                    padding: 6px 8px !important;
-                    font-size: 12px !important;
-                }
-                
-                /* Quality CI columns - make them wider and more readable */
-                .frequency-comparison-table table th:nth-child(n+4):not([class*="Freq"]):not([class*="CI"]),
-                .frequency-comparison-table table td:nth-child(n+4):not([class*="Freq"]):not([class*="CI"]),
-                div[data-testid="dataframe"] table th:nth-child(n+4):not([class*="Freq"]):not([class*="CI"]),
-                div[data-testid="dataframe"] table td:nth-child(n+4):not([class*="Freq"]):not([class*="CI"]) {
-                    min-width: 120px !important;
-                    max-width: 140px !important;
-                    text-align: center !important;
-                    padding: 6px 8px !important;
-                    font-size: 11px !important;
-                    white-space: nowrap !important;
-                }
-                
-                /* Make frequency columns wider and centered */
-                .frequency-comparison-table table th[class*="Freq"],
-                .frequency-comparison-table table td[class*="Freq"],
-                div[data-testid="dataframe"] table th[class*="Freq"],
-                div[data-testid="dataframe"] table td[class*="Freq"] {
-                    min-width: 80px !important;
-                    max-width: 100px !important;
-                    text-align: center !important;
-                    padding: 6px 8px !important;
-                    font-size: 12px !important;
-                }
-                
-                /* Make CI columns wider and centered */
-                .frequency-comparison-table table th[class*="CI"],
-                .frequency-comparison-table table td[class*="CI"],
-                div[data-testid="dataframe"] table th[class*="CI"],
-                div[data-testid="dataframe"] table td[class*="CI"] {
-                    min-width: 100px !important;
-                    max-width: 120px !important;
-                    text-align: center !important;
-                    padding: 6px 8px !important;
-                    font-size: 11px !important;
-                    white-space: nowrap !important;
                 }
                 
                 /* Ensure horizontal scrolling works properly for all table containers */
                 .frequency-comparison-table,
                 div[data-testid="dataframe"] {
-                    overflow-x: auto !important;
-                    overflow-y: auto !important;
-                    max-height: 600px !important;
+                    overflow: auto !important;
+                    max-height: 800px !important;
                     border: 1px solid #ddd !important;
                     border-radius: 4px !important;
                     position: relative !important;
                 }
                 
-                /* Add a subtle scroll indicator */
+                /* Remove the scroll indicator which can cause jitter */
                 .frequency-comparison-table::after,
                 div[data-testid="dataframe"]::after {
-                    content: "← Scroll horizontally to see all columns →";
-                    display: block;
-                    text-align: center;
-                    padding: 8px;
-                    background: #f8f9fa;
-                    color: #666;
-                    font-size: 12px;
-                    border-top: 1px solid #ddd;
-                    border-radius: 0 0 4px 4px;
-                    position: sticky;
-                    bottom: 0;
-                    z-index: 10;
+                    display: none !important;
                 }
                 
                 /* Ensure the dataframe component itself allows scrolling */
                 div[data-testid="dataframe"] {
-                    overflow-x: auto !important;
-                    overflow-y: auto !important;
                     max-width: 100% !important;
                     width: 100% !important;
                 }
@@ -840,60 +783,51 @@ def create_app() -> gr.Blocks:
                 </style>
                 
                 <script>
-                // JavaScript to ensure horizontal scrolling works for frequency tables
-                function ensureFrequencyTableScrolling() {
-                    // Find all frequency comparison tables
+                // JavaScript to stabilize table layout and prevent jitter
+                function stabilizeTableLayout() {
                     const tables = document.querySelectorAll('.frequency-comparison-table, div[data-testid="dataframe"]');
                     
-                    tables.forEach(table => {
-                        // Ensure horizontal scrolling is enabled
-                        table.style.overflowX = 'auto';
-                        table.style.overflowY = 'auto';
-                        table.style.maxWidth = '100%';
+                    tables.forEach(container => {
+                        const table = container.querySelector('table');
+                        if (!table) return;
+
+                        // Set a fixed table layout to prevent column widths from changing during scroll
+                        table.style.tableLayout = 'fixed';
                         table.style.width = '100%';
-                        
-                        // Find the actual table element inside
-                        const tableElement = table.querySelector('table');
-                        if (tableElement) {
-                            tableElement.style.minWidth = '1200px';
-                            tableElement.style.width = 'max-content';
-                            tableElement.style.tableLayout = 'auto';
-                        }
-                        
-                        // Add scroll event listener to show/hide scroll indicator
-                        table.addEventListener('scroll', function() {
-                            const scrollIndicator = table.querySelector('.scroll-indicator');
-                            if (scrollIndicator) {
-                                if (this.scrollLeft > 0) {
-                                    scrollIndicator.style.opacity = '0.7';
-                                } else {
-                                    scrollIndicator.style.opacity = '0.3';
-                                }
-                            }
-                        });
+
+                        // Ensure the container is set to scroll
+                        container.style.overflow = 'auto';
                     });
                 }
                 
-                // Run on page load and after any dynamic content updates
-                document.addEventListener('DOMContentLoaded', ensureFrequencyTableScrolling);
+                // Run on initial load
+                document.addEventListener('DOMContentLoaded', stabilizeTableLayout);
                 
-                // Also run periodically to catch dynamically loaded content
-                setInterval(ensureFrequencyTableScrolling, 2000);
-                
-                // Run when Gradio updates content
-                if (typeof gradio !== 'undefined') {
-                    gradio.addEventListener('update', ensureFrequencyTableScrolling);
+                // Re-run whenever Gradio updates the component
+                const observer = new MutationObserver((mutations) => {
+                    for (const mutation of mutations) {
+                        if (mutation.type === 'childList' || mutation.type === 'subtree') {
+                            stabilizeTableLayout();
+                        }
+                    }
+                });
+
+                function setupObserver() {
+                    const tableContainer = document.querySelector('.frequency-comparison-table, div[data-testid="dataframe"]');
+                    if (tableContainer) {
+                        observer.observe(tableContainer, {
+                            childList: true,
+                            subtree: true,
+                        });
+                    }
                 }
+
+                document.addEventListener('DOMContentLoaded', setupObserver);
+
+                // Fallback interval to catch dynamic updates
+                setInterval(stabilizeTableLayout, 1000);
                 </script>
                 """)
-                
-                frequency_table = gr.Dataframe(
-                    label="Frequency Comparison Table",
-                    interactive=False,
-                    wrap=False,  # Disable text wrapping to allow horizontal scrolling
-                    max_height=600,  # Set max height for vertical scrolling
-                    elem_classes=["frequency-comparison-table"]  # Add specific CSS class
-                )
                 
                 # Remove duplicate elements
                 # frequency_plots = gr.Plot(
@@ -940,7 +874,7 @@ def create_app() -> gr.Blocks:
         if BASE_RESULTS_DIR:
             # Use dropdown for experiment selection
             if 'experiment_dropdown' in locals():
-                experiment_dropdown.change(
+                (experiment_dropdown.change(
                     fn=load_experiment_data,
                     inputs=[experiment_dropdown],
                     outputs=[data_status, models_info, selected_models]
@@ -948,18 +882,17 @@ def create_app() -> gr.Blocks:
                     fn=update_example_dropdowns,
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=create_frequency_comparison,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq],
-                    outputs=[frequency_table]
+                    fn=update_filter_dropdowns,
+                    outputs=[selected_model_filter, selected_quality_metric]
                 ).then(
-                    fn=create_frequency_plots,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-                    outputs=[frequency_plot, quality_plot]
-                )
+                    fn=create_frequency_comparison,
+                    inputs=[selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric],
+                    outputs=[frequency_table, frequency_table_info]
+                ))
         else:
             # Use textbox for manual path entry
             if 'load_btn' in locals() and 'results_dir_input' in locals():
-                load_btn.click(
+                (load_btn.click(
                     fn=load_data,
                     inputs=[results_dir_input],
                     outputs=[data_status, models_info, selected_models]
@@ -967,14 +900,13 @@ def create_app() -> gr.Blocks:
                     fn=update_example_dropdowns,
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=create_frequency_comparison,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq],
-                    outputs=[frequency_table]
+                    fn=update_filter_dropdowns,
+                    outputs=[selected_model_filter, selected_quality_metric]
                 ).then(
-                    fn=create_frequency_plots,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-                    outputs=[frequency_plot, quality_plot]
-                )
+                    fn=create_frequency_comparison,
+                    inputs=[selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric],
+                    outputs=[frequency_table, frequency_table_info]
+                ))
         
         refresh_overview_btn.click(
             fn=create_overview,
@@ -1014,53 +946,16 @@ def create_app() -> gr.Blocks:
             outputs=[examples_display]
         )
         
-        refresh_freq_btn.click(
-            fn=create_frequency_comparison,
-            inputs=[selected_models, cluster_level_freq, top_n_freq],
-            outputs=[frequency_table]
-        ).then(
-            fn=create_frequency_plots,
-            inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-            outputs=[frequency_plot, quality_plot]
-        )
+        # Frequency Tab Handlers
+        freq_inputs = [selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric]
+        freq_outputs = [frequency_table, frequency_table_info]
 
-        # Auto-refresh plots when dropdowns change
-        cluster_level_freq.change(
-            fn=create_frequency_plots,
-            inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-            outputs=[frequency_plot, quality_plot]
-        ).then(
-            fn=create_frequency_comparison,
-            inputs=[selected_models, cluster_level_freq, top_n_freq],
-            outputs=[frequency_table]
-        )
-        top_n_freq.change(
-            fn=create_frequency_plots,
-            inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-            outputs=[frequency_plot, quality_plot]
-        ).then(
-            fn=create_frequency_comparison,
-            inputs=[selected_models, cluster_level_freq, top_n_freq],
-            outputs=[frequency_table]
-        )
-
-        # Auto-refresh plots when models change
-        selected_models.change(
-            fn=create_frequency_plots,
-            inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-            outputs=[frequency_plot, quality_plot]
-        ).then(
-            fn=create_frequency_comparison,
-            inputs=[selected_models, cluster_level_freq, top_n_freq],
-            outputs=[frequency_table]
-        )
-        
-        # Auto-refresh plots when confidence interval checkbox changes
-        show_ci_checkbox.change(
-            fn=create_frequency_plots,
-            inputs=[selected_models, cluster_level_freq, top_n_freq, show_ci_checkbox],
-            outputs=[frequency_plot, quality_plot]
-        )
+        refresh_freq_btn.click(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
+        cluster_level_freq.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
+        top_n_freq.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
+        selected_models.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
+        selected_model_filter.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
+        selected_quality_metric.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
         
         search_btn.click(
             fn=search_examples,

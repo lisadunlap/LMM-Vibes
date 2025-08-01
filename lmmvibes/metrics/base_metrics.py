@@ -2,7 +2,59 @@
 lmmvibes.metrics.base_metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Base class for metrics computation with shared functionality.
+Base class for metrics computation, defining the core logic for calculating
+per-model and aggregate statistics for behavioral property clusters.
+
+Metric Definitions
+------------------
+
+Metrics are computed for each model and aggregated globally under an "all" key.
+
+**1. Per-Model Metrics:**
+
+For a given model *m* and cluster *c*:
+
+- **Distinctiveness Score:**
+  - `prop(m, c) = (# unique questions where m exhibits c) / (# total unique questions for m)`
+  - `score(m, c) = prop(m, c) / median_{m'} prop(m', c)`
+  - A score > 1 indicates the model is **over-represented** in that cluster.
+
+- **Quality Score:**
+  - For each quality metric *k* (e.g., 'BERTScore-F'), the score is the average
+    value of *k* for all conversations belonging to model *m* within cluster *c*.
+  - This is a direct average, not normalized by the model's global average.
+
+- **Proportion:**
+  - `proportion(m, c) = (# properties from m in c) / (total # properties from m)`
+
+- **Confidence Intervals & Significance:**
+  - If enabled, 95% confidence intervals are computed for both distinctiveness
+    and quality scores via bootstrapping.
+  - Statistical significance is determined based on these CIs (e.g., for
+    distinctiveness, if the CI is entirely above 1.0).
+
+**2. Aggregate ("all") Metrics:**
+
+For each cluster *c*, statistics are aggregated across all models:
+
+- **Distinctiveness Score:**
+  - The **maximum** distinctiveness score observed for cluster *c* across all
+    individual models is chosen. The CI and significance flag from that top-
+    performing model are carried over.
+
+- **Quality Score:**
+  - A **weighted average** of the quality score for each metric *k* is computed,
+    weighted by the number of properties (`size`) each model contributed to the cluster.
+
+- **Size & Proportion:**
+  - `size` is the total count of all properties in the cluster from all models.
+  - `proportion` is `size / (total properties across all models)`.
+
+- **Examples:**
+  - A combined list of all example property IDs from all models in the cluster.
+
+The final output is a `model_stats.json` file containing a dictionary where keys
+are model names, plus an additional key `"all"` for the aggregate statistics.
 """
 
 from __future__ import annotations
@@ -239,6 +291,12 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
         for model in stats:
             stats[model]["stats"] = global_stats.get(model, {})
 
+        # ------------------------------------------------------------------
+        # NEW: Compute "all" (global) metrics across every model
+        # ------------------------------------------------------------------
+        all_stats = self._compute_all_metrics(stats)
+        stats["all"] = all_stats
+        
         data.model_stats = stats  # type: ignore[assignment]
 
         if self.compute_confidence_intervals:
@@ -704,3 +762,92 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                     print(f"  Top {level} cluster: {top_cluster.property_description} (Score: {top_cluster.score:.2f})")
                 else:
                     print(f"  No {level} clusters found for {model_str}") 
+
+    # ------------------------------------------------------------------
+    def _compute_all_metrics(self, per_model_stats: Dict[str, Dict[str, List[ModelStats]]]) -> Dict[str, List[ModelStats]]:
+        """Aggregate per-model stats to produce a global "all" entry.
+
+        For each cluster we merge all examples, average quality metrics, sum sizes, and
+        choose the *max* distinctiveness score among models (carrying its CI & significance).
+        """
+        # Collect clusters across all models → key: (level, property_description)
+        clusters: Dict[tuple[str, str], List[ModelStats]] = {}
+        for model, by_level in per_model_stats.items():
+            for level, stats_list in by_level.items():
+                if level not in ("fine", "coarse"):
+                    continue
+                for ms in stats_list:
+                    key = (level, ms.property_description)
+                    clusters.setdefault(key, []).append(ms)
+
+        out: Dict[str, List[ModelStats]] = {"fine": [], "coarse": []}
+
+        for (level, prop_desc), stats_list in clusters.items():
+            # Combine sizes & examples
+            total_size = sum(s.size for s in stats_list)
+            all_examples: List[str] = []
+            for s in stats_list:
+                all_examples.extend(s.examples)
+
+            # Frequency proportion: based on sum of model totals. Need total properties across all models
+            # We approximate by summing total properties for each model (size / proportion)
+            total_props_global = 0
+            for s in stats_list:
+                if s.proportion > 0:
+                    total_props_global += int(round(s.size / s.proportion))
+            proportion = total_size / total_props_global if total_props_global else 0.0
+
+            # Quality averages across all examples (weighted by size)
+            quality_keys = set()
+            for s in stats_list:
+                quality_keys.update(s.quality_score.keys())
+
+            quality_score_avg: Dict[str, float] = {}
+            for key in quality_keys:
+                # weighted average by size
+                numer = sum(s.quality_score.get(key, 0) * s.size for s in stats_list)
+                quality_score_avg[key] = numer / total_size if total_size else 0.0
+
+            # Combine quality CI: simple min/max of bounds for now
+            quality_ci_combined: Dict[str, Dict[str, float]] = {}
+            for key in quality_keys:
+                lowers_raw = [s.quality_score_ci.get(key, {}).get("lower") for s in stats_list if s.quality_score_ci]
+                uppers_raw = [s.quality_score_ci.get(key, {}).get("upper") for s in stats_list if s.quality_score_ci]
+                lowers = [v for v in lowers_raw if v is not None]
+                uppers = [v for v in uppers_raw if v is not None]
+                if lowers and uppers:
+                    quality_ci_combined[key] = {"lower": min(lowers), "upper": max(uppers)}
+
+            # Distinctiveness – choose max score
+            max_stat = max(stats_list, key=lambda s: s.score)
+            score = max_stat.score
+            score_ci = max_stat.score_ci
+            score_sig = max_stat.score_statistical_significance
+
+            # Quality significance: any true across models
+            quality_sig: Dict[str, bool] = {}
+            for key in quality_keys:
+                quality_sig[key] = any(s.quality_score_statistical_significance and s.quality_score_statistical_significance.get(key, False) for s in stats_list)
+
+            all_ms = ModelStats(
+                property_description=prop_desc,
+                model_name="all",
+                score=score,
+                quality_score=quality_score_avg,
+                size=total_size,
+                proportion=proportion,
+                examples=all_examples,
+                metadata={"level": level},
+                score_ci=score_ci,
+                quality_score_ci=quality_ci_combined if quality_ci_combined else None,
+                score_statistical_significance=score_sig,
+                quality_score_statistical_significance=quality_sig if quality_sig else None,
+            )
+
+            out[level].append(all_ms)
+
+        # Sort each level by score descending
+        for level in ("fine", "coarse"):
+            out[level].sort(key=lambda s: s.score, reverse=True)
+
+        return out 

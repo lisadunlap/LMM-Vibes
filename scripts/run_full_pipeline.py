@@ -203,8 +203,8 @@ def main():
                         help="Sample size to use (default: use full dataset)")
     
     # Flags
-    parser.add_argument("--no_hierarchical", action="store_true",
-                        help="Disable hierarchical clustering")
+    parser.add_argument("--hierarchical", action="store_true",
+                        help="Enable hierarchical clustering")
     parser.add_argument("--use_wandb", action="store_true",
                         help="Enable wandb logging")
     parser.add_argument("--quiet", action="store_true",
@@ -222,7 +222,7 @@ def main():
         min_cluster_size=args.min_cluster_size,
         max_coarse_clusters=args.max_coarse_clusters,
         embedding_model=args.embedding_model,
-        hierarchical=not args.no_hierarchical,
+        hierarchical=args.hierarchical,
         max_workers=args.max_workers,
         use_wandb=args.use_wandb,
         verbose=not args.quiet,
