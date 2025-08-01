@@ -48,7 +48,7 @@ def wandb_logging(model_stats: Dict[str, Dict[str, List[Dict]]]):
                     row = {
                         "cluster_description": stat.get("property_description", ""),
                         "score": stat.get("score", 0),
-                        "cluster_size": stat.get("cluster_size_global", 0),
+                        "cluster_size": stat.get("cluster_size", 0),
                         "model_examples": stat.get("size", 0),
                         "proportion": stat.get("proportion", 0),
                     }
@@ -140,7 +140,7 @@ def wandb_logging(model_stats: Dict[str, Dict[str, List[Dict]]]):
                     row = {
                         "cluster_description": stat.get("property_description", ""),
                         "score": stat.get("score", 0),
-                        "total_conversations": stat.get("cluster_size_global", 0), 
+                        "total_conversations": stat.get("cluster_size", 0), 
                         "num_model_conversations": stat.get("size", 0),
                         "proportion_of_model_conversations": stat.get("proportion", 0),
                     }

@@ -5,7 +5,7 @@ A toolkit for analyzing and understanding model behavior patterns through
 property extraction, clustering, and metrics computation.
 """
 
-from .public import explain, explain_side_by_side, explain_single_model, explain_with_custom_pipeline, compute_metrics_only
+from .public import explain, explain_side_by_side, explain_single_model, explain_with_custom_pipeline, compute_metrics_only, label
 from .prompts import (
     get_default_system_prompt,
     # Standard model comparison prompts
@@ -37,6 +37,7 @@ __all__ = [
     "explain_single_model",
     "explain_with_custom_pipeline",
     "compute_metrics_only",
+    "label",
     "get_default_system_prompt",
     # Standard model comparison prompts
     "sbs_w_metrics_system_prompt",

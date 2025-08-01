@@ -513,10 +513,12 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
             # Sample the entire dataset with replacement
             bootstrap_indices = np.random.choice(len(df), size=len(df), replace=True)
             bootstrap_df = df.iloc[bootstrap_indices].copy()
+            bootstrap_df["qid_bootstrap"] = bootstrap_df["question_id"].astype(str) + "_" + bootstrap_df.groupby("question_id").cumcount().astype(str)
             
             # Recalculate total questions per model for this bootstrap sample
             bootstrap_total_q = (
-                bootstrap_df[["model", "question_id"]]
+                bootstrap_df[["model", "qid_bootstrap"]]
+                .drop_duplicates()
                 .groupby("model")
                 .size()
                 .to_dict()
@@ -529,7 +531,7 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                     
                 # Calculate distinctiveness scores using the same logic as _compute
                 counts_series = (
-                    group[["model", "question_id"]]
+                    group[["model", "qid_bootstrap"]]
                     .drop_duplicates()
                     .groupby("model")
                     .size()
@@ -568,7 +570,7 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                         
                     # Calculate distinctiveness scores using the same logic as _compute
                     counts_series = (
-                        group[["model", "question_id"]]
+                        group[["model", "qid_bootstrap"]]
                         .drop_duplicates()
                         .groupby("model")
                         .size()
@@ -785,6 +787,7 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
         for (level, prop_desc), stats_list in clusters.items():
             # Combine sizes & examples
             total_size = sum(s.size for s in stats_list)
+            cluster_size = stats_list[0].cluster_size
             all_examples: List[str] = []
             for s in stats_list:
                 all_examples.extend(s.examples)
@@ -836,6 +839,7 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                 quality_score=quality_score_avg,
                 size=total_size,
                 proportion=proportion,
+                cluster_size=cluster_size,
                 examples=all_examples,
                 metadata={"level": level},
                 score_ci=score_ci,

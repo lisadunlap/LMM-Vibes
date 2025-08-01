@@ -135,6 +135,7 @@ class ModelStats:
     quality_score: Dict[str, Any] # quality score of the property cluster (dict with score keys and model names as keys)
     size: int # number of properties in the cluster
     proportion: float # proportion of model's properties that are in the cluster
+    cluster_size: int # number of properties in the cluster
     examples: List[str] # example property id's in the cluster
     metadata: Dict[str, Any] = field(default_factory=dict) # all other metadata
 

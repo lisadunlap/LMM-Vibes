@@ -585,26 +585,43 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                 sample_size = min(100, len(parsed_properties))
                 sample_properties = parsed_properties[:sample_size]
                 
-                property_data = []
+                # Build rows with only non-null attributes
+                rows: List[Dict[str, Any]] = []
+                dynamic_cols: set[str] = set()
+
                 for prop in sample_properties:
-                    property_data.append({
+                    row: Dict[str, Any] = {
                         "question_id": prop.question_id,
                         "model": prop.model,
                         "property_description": prop.property_description,
+                    }
+
+                    # Optional fields – add only if they are not None/empty
+                    optional = {
+                        "reason": prop.reason,
+                        "evidence": prop.evidence,
                         "category": prop.category,
                         "impact": prop.impact,
                         "type": prop.type,
                         "user_preference_direction": prop.user_preference_direction,
                         "contains_errors": prop.contains_errors,
                         "unexpected_behavior": prop.unexpected_behavior,
-                    })
-                
+                    }
+                    for k, v in optional.items():
+                        if v not in [None, "", []]:
+                            row[k] = v
+                    dynamic_cols.update(row.keys())
+                    rows.append(row)
+
+                # Ensure consistent column order: mandatory first, then sorted rest
+                mandatory = ["question_id", "model", "property_description"]
+                other_cols = [c for c in sorted(dynamic_cols) if c not in mandatory]
+                cols = mandatory + other_cols
+
+                data_matrix = [[row.get(col, "") for col in cols] for row in rows]
+
                 self.log_wandb({
-                    "Property_Extraction/parsed_properties_sample": wandb.Table(
-                        columns=["question_id", "model", "property_description", "category", "impact", "type", "user_preference_direction", "contains_errors", "unexpected_behavior"],
-                        data=[[row[col] for col in ["question_id", "model", "property_description", "category", "impact", "type", "user_preference_direction", "contains_errors", "unexpected_behavior"]] 
-                              for row in property_data]
-                    )
+                    "Property_Extraction/parsed_properties_sample": wandb.Table(columns=cols, data=data_matrix)
                 })
             
         except Exception as e:

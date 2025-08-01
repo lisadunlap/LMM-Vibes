@@ -96,11 +96,16 @@ class PropertyValidator(LoggingMixin, PipelineStage):
         total_original = sum(model_property_counts.values())
         total_valid = sum(valid_model_property_counts.values())
         total_filtered = total_original - total_valid
-        print(f"   • Validation Summary:")
+
+        print("   • Validation Summary:")
         print(f"     - Total properties before validation: {total_original}")
         print(f"     - Total properties after validation: {total_valid}")
         print(f"     - Total properties filtered out: {total_filtered}")
-        print(f"     - Validation success rate: {total_valid/total_original*100:.1f}%")
+
+        if total_original == 0:
+            print("     - Validation success rate: N/A (no properties)")
+        else:
+            print(f"     - Validation success rate: {total_valid/total_original*100:.1f}%")
         print()
         
         # Check for 0 valid properties and provide helpful error message

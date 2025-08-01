@@ -95,9 +95,8 @@ class SingleModelMetrics(BaseMetrics):
         # Calculate the median of these proportions for normalization
         median_prop_global = np.median([v for v in prop_global_per_model.values() if v > 0]) or 1e-9
 
-        # Calculate the global frequency of this cluster (cluster_size_global / total_questions_global)
         # Cluster size for information (not stored in ModelStats anymore)
-        cluster_size_global = len(group["id"].unique())
+        cluster_size_global = len(group["question_id"].unique())
 
         # Compute quality score once for the whole cluster
         quality_score = self._compute_normalized_quality_score(group)
@@ -154,6 +153,7 @@ class SingleModelMetrics(BaseMetrics):
                 quality_score=quality_score_for_model,
                 size=int(counts.get(model, 0)),
                 proportion=float(prop_global),
+                cluster_size=cluster_size_global,
                 
                 examples=self._example_props(group[group.model == model]),
                 metadata={

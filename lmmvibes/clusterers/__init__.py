@@ -51,6 +51,9 @@ def get_clusterer(
             include_embeddings=include_embeddings,
             **kwargs
         )
+    elif method == "dummy":
+        from .dummy_clusterer import DummyClusterer
+        return DummyClusterer(**kwargs)
     else:
         raise ValueError(f"Unknown clustering method: {method}")
 
@@ -58,9 +61,11 @@ def get_clusterer(
 # Import clusterer classes for direct access
 from .hdbscan import HDBSCANClusterer
 from .hierarchical import HierarchicalClusterer
+from .dummy_clusterer import DummyClusterer
 
 __all__ = [
     "get_clusterer",
     "HDBSCANClusterer", 
-    "HierarchicalClusterer"
+    "HierarchicalClusterer",
+    "DummyClusterer"
 ] 

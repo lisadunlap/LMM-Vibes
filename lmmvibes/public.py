@@ -649,6 +649,134 @@ def _save_final_summary(
         print(f"  ✓ Saved final summary: {summary_path}")
 
 
+# ------------------------------------------------------------------
+# 🆕  Fixed-taxonomy "label" entry point
+# ------------------------------------------------------------------
+
+def _build_fixed_axes_pipeline(
+    *,
+    taxonomy: Dict[str, str],
+    model_name: str,
+    temperature: float,
+    top_p: float,
+    max_tokens: int,
+    max_workers: int,
+    metrics_kwargs: Optional[Dict[str, Any]],
+    use_wandb: bool,
+    wandb_project: Optional[str],
+    include_embeddings: bool,
+    verbose: bool,
+    output_dir: Optional[str],
+    extraction_cache_dir: Optional[str] = None,
+    metrics_cache_dir: Optional[str] = None,
+    **kwargs,
+):
+    """Internal helper that constructs a pipeline for *label()* calls."""
+
+    from .extractors.fixed_axes_labeler import FixedAxesLabeler
+    from .postprocess import LLMJsonParser, PropertyValidator
+    from .clusterers.dummy_clusterer import DummyClusterer
+    from .metrics import get_metrics
+
+    builder = PipelineBuilder(name="LMM-Vibes-fixed-axes")
+
+    common_cfg = {"verbose": verbose, "use_wandb": use_wandb, "wandb_project": wandb_project or "lmm-vibes"}
+
+    # 1️⃣  Extraction / labeling
+    extractor = FixedAxesLabeler(
+        taxonomy=taxonomy,
+        model=model_name,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        max_workers=max_workers,
+        cache_dir=extraction_cache_dir or ".cache/lmmvibes",
+        output_dir=output_dir,
+        **common_cfg,
+    )
+    builder.extract_properties(extractor)
+
+    # 2️⃣  JSON parsing
+    parser = LLMJsonParser(output_dir=output_dir, fail_fast=True, **common_cfg)
+    builder.parse_properties(parser)
+
+    # 3️⃣  Validation
+    validator = PropertyValidator(output_dir=output_dir, **common_cfg)
+    builder.add_stage(validator)
+
+    # 4️⃣  Dummy clustering
+    dummy_clusterer = DummyClusterer(allowed_labels=list(taxonomy.keys()), output_dir=output_dir, **common_cfg)
+    builder.cluster_properties(dummy_clusterer)
+
+    # 5️⃣  Metrics (single-model only)
+    metrics_stage = get_metrics(method="single_model", output_dir=output_dir, **(metrics_kwargs or {}), **({"cache_dir": metrics_cache_dir} if metrics_cache_dir else {}), **common_cfg)
+    builder.compute_metrics(metrics_stage)
+
+    return builder.configure(**common_cfg).build()
+
+
+def label(
+    df: pd.DataFrame,
+    *,
+    taxonomy: Dict[str, str],
+    model_name: str = "gpt-4o-mini",
+    temperature: float = 0.0,
+    top_p: float = 1.0,
+    max_tokens: int = 2048,
+    max_workers: int = 8,
+    metrics_kwargs: Optional[Dict[str, Any]] = None,
+    use_wandb: bool = True,
+    wandb_project: Optional[str] = None,
+    include_embeddings: bool = True,
+    verbose: bool = True,
+    output_dir: Optional[str] = None,
+    extraction_cache_dir: Optional[str] = None,
+    metrics_cache_dir: Optional[str] = None,
+    **kwargs,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """Run the *fixed-taxonomy* analysis pipeline.
+
+    Unlike :pyfunc:`explain`, this entry point does **not** perform clustering;
+    each taxonomy label simply becomes its own cluster.  The input `df` **must**
+    be in *single-model* format (columns `question_id`, `prompt`, `model`, `model_response`, …).
+    """
+
+    method = "single_model"  # hard-coded, we only support single-model here
+    if "model_b" in df.columns:
+        raise ValueError("label() currently supports only single-model data.  Use explain() for side-by-side analyses.")
+
+    # ------------------------------------------------------------------
+    # Build dataset & pipeline
+    # ------------------------------------------------------------------
+    dataset = PropertyDataset.from_dataframe(df, method=method)
+
+    pipeline = _build_fixed_axes_pipeline(
+        taxonomy=taxonomy,
+        model_name=model_name,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        max_workers=max_workers,
+        metrics_kwargs=metrics_kwargs,
+        use_wandb=use_wandb,
+        wandb_project=wandb_project,
+        include_embeddings=include_embeddings,
+        verbose=verbose,
+        output_dir=output_dir,
+        extraction_cache_dir=extraction_cache_dir,
+        metrics_cache_dir=metrics_cache_dir,
+        **kwargs,
+    )
+
+    # ------------------------------------------------------------------
+    # Execute
+    # ------------------------------------------------------------------
+    result_dataset = pipeline.run(dataset)
+    clustered_df = result_dataset.to_dataframe(type="clusters", method=method)
+
+    return clustered_df, result_dataset.model_stats
+
+
 # Convenience functions for common use cases
 def explain_side_by_side(
     df: pd.DataFrame,
