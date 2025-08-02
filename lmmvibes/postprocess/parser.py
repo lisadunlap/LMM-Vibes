@@ -68,15 +68,48 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         parsed_properties: List[Property] = []
         parse_errors = 0
         unknown_model_filtered = 0
+        empty_list_responses = 0  # Track when LLM returns empty lists
         consecutive_errors = 0  # Track consecutive parsing errors
         max_consecutive_errors = 3
         
         for i, prop in enumerate(data.properties):
             # We only process properties that still have raw_response
             if not prop.raw_response:
-                parsed_properties.append(prop)
-                consecutive_errors = 0  # Reset consecutive error counter
-                continue
+                # Debug: Print information about the property with empty raw_response
+                self.log(f"⚠️  Property {i+1}/{len(data.properties)} has empty raw_response:", level="error")
+                self.log(f"   • Property ID: {prop.id}", level="error")
+                self.log(f"   • Question ID: {prop.question_id}", level="error")
+                self.log(f"   • Model: {prop.model}", level="error")
+                self.log(f"   • Raw response: {repr(prop.raw_response)}", level="error")
+                
+                # Find the corresponding conversation to get more context
+                matching_conv = None
+                for conv in data.conversations:
+                    if conv.question_id == prop.question_id:
+                        matching_conv = conv
+                        break
+                
+                if matching_conv:
+                    self.log(f"   • Matching conversation found:", level="error")
+                    self.log(f"     - Question ID: {matching_conv.question_id}", level="error")
+                    self.log(f"     - Model: {matching_conv.model}", level="error")
+                    if hasattr(matching_conv, 'model_response'):
+                        response_snippet = str(matching_conv.model_response)[:200] if matching_conv.model_response else "None"
+                        self.log(f"     - Model response snippet: {response_snippet}", level="error")
+                    if hasattr(matching_conv, 'prompt'):
+                        prompt_snippet = str(matching_conv.prompt)[:200] if matching_conv.prompt else "None"
+                        self.log(f"     - Prompt snippet: {prompt_snippet}", level="error")
+                else:
+                    self.log(f"   • No matching conversation found for question_id: {prop.question_id}", level="error")
+                
+                # Throw an error to help debug the extraction issue
+                raise ValueError(
+                    f"Property {i+1}/{len(data.properties)} (ID: {prop.id}) has empty raw_response. "
+                    f"This indicates the extraction stage failed to get a response from the LLM for "
+                    f"question_id: {prop.question_id}, model: {prop.model}. "
+                    f"Check your API connectivity, rate limits, or extraction stage configuration. "
+                    f"Total properties with empty responses: {sum(1 for p in data.properties if not p.raw_response)}"
+                )
 
             parsed_json = self._parse_json_response(prop.raw_response)
             if parsed_json is None:
@@ -164,6 +197,14 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             # Successfully processed structure - reset consecutive error counter
             consecutive_errors = 0
             
+            # Log when LLM returns empty list (no properties found)
+            if isinstance(prop_dicts, list) and len(prop_dicts) == 0:
+                self.log(f"LLM returned empty list for conversation {prop.question_id} (model: {prop.model})", level="warning")
+                self.log(f"  Raw response snippet: {(prop.raw_response or '')[:200]}", level="debug")
+                # This is not a parsing failure - the LLM legitimately found no properties
+                empty_list_responses += 1
+                continue
+            
             for j, p_dict in enumerate(prop_dicts):
                 try:
                     parsed_properties.append(self._to_property(p_dict, prop))
@@ -212,6 +253,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         self.log(f"Parsed {len(parsed_properties)} properties successfully")
         self.log(f"Filtered out {unknown_model_filtered} properties with unknown models")
         self.log(f"{parse_errors} properties failed parsing")
+        self.log(f"{empty_list_responses} conversations returned empty lists (no properties found)")
         self.log(f"Collected {len(self.parsing_failures)} detailed failure records")
         
         # Count properties per model after parsing
@@ -245,16 +287,19 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         print(f"     - Total properties before parsing: {total_original}")
         print(f"     - Total properties after parsing: {total_parsed}")
         print(f"     - Total properties filtered out: {total_filtered}")
+        print(f"       • JSON parsing errors: {parse_errors}")
+        print(f"       • Empty list responses (no properties found): {empty_list_responses}")
+        print(f"       • Unknown model filtered: {unknown_model_filtered}")
         print(f"     - Parsing success rate: {total_parsed/total_original*100:.1f}%")
         print()
         
         # Log to wandb if enabled
         if hasattr(self, 'use_wandb') and self.use_wandb:
-            self._log_parsing_to_wandb(data.properties, parsed_properties, parse_errors, unknown_model_filtered)
+            self._log_parsing_to_wandb(data.properties, parsed_properties, parse_errors, unknown_model_filtered, empty_list_responses)
         
         # Auto-save parsing results if output_dir is provided
         if self.output_dir:
-            self._save_stage_results(data, parsed_properties, parse_errors, unknown_model_filtered)
+            self._save_stage_results(data, parsed_properties, parse_errors, unknown_model_filtered, empty_list_responses)
         
         return PropertyDataset(
             conversations=data.conversations,
@@ -264,7 +309,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             model_stats=data.model_stats
         )
     
-    def _save_stage_results(self, data: PropertyDataset, parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int):
+    def _save_stage_results(self, data: PropertyDataset, parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int, empty_list_responses: int):
         """Save parsing results to the specified output directory."""
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -283,6 +328,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             "total_parsed_properties": len(parsed_properties),
             "parse_errors": parse_errors,
             "unknown_model_filtered": unknown_model_filtered,
+            "empty_list_responses": empty_list_responses,
             "parsing_success_rate": len(parsed_properties) / len(data.properties) if data.properties else 0,
             "failures_count": len(self.parsing_failures),
         }
@@ -560,7 +606,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             user_preference_direction=p.get("user_preference_direction"),
         )
 
-    def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int):
+    def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int, empty_list_responses: int):
         """Log parsing results to wandb."""
         try:
             import wandb
@@ -577,8 +623,49 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                 "parsing_failed_properties": parse_errors,
                 "parsing_success_rate": parse_success_rate,
                 "parsing_filtered_unknown_models": unknown_model_filtered,
+                "parsing_empty_list_responses": empty_list_responses,
+                "parsing_failures_count": len(self.parsing_failures),
             }
             self.log_wandb(summary_stats, is_summary=True)
+            
+            # Log parsing failures if any
+            if self.parsing_failures:
+                # Log failure summary by error type
+                error_type_counts = {}
+                for failure in self.parsing_failures:
+                    error_type = failure['error_type']
+                    error_type_counts[error_type] = error_type_counts.get(error_type, 0) + 1
+                
+                # Log error type distribution as summary metrics
+                for error_type, count in error_type_counts.items():
+                    self.log_wandb({f"parsing_failures_{error_type.lower()}": count}, is_summary=True)
+                
+                # Log detailed failures table (sample if too many)
+                sample_size = min(100, len(self.parsing_failures))
+                sample_failures = self.parsing_failures[:sample_size]
+                
+                failure_rows = []
+                for failure in sample_failures:
+                    # Truncate long text fields for wandb table display
+                    raw_response_snippet = str(failure.get('raw_response', ''))[:200] + '...' if len(str(failure.get('raw_response', ''))) > 200 else str(failure.get('raw_response', ''))
+                    error_message_snippet = str(failure.get('error_message', ''))[:100] + '...' if len(str(failure.get('error_message', ''))) > 100 else str(failure.get('error_message', ''))
+                    
+                    failure_rows.append([
+                        failure.get('property_id', ''),
+                        failure.get('question_id', ''),
+                        failure.get('model', ''),
+                        failure.get('error_type', ''),
+                        error_message_snippet,
+                        raw_response_snippet,
+                        failure.get('consecutive_errors', 0),
+                        failure.get('index', 0)
+                    ])
+                
+                if failure_rows:
+                    failure_cols = ['property_id', 'question_id', 'model', 'error_type', 'error_message', 'raw_response_snippet', 'consecutive_errors', 'index']
+                    self.log_wandb({
+                        "Property_Extraction/parsing_failures": wandb.Table(columns=failure_cols, data=failure_rows)
+                    })
             
             # Log a sample of parsed properties (as table, not summary)
             if parsed_properties:

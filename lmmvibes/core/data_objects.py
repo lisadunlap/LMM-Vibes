@@ -286,10 +286,13 @@ class PropertyDataset:
             prop_df = pd.DataFrame([p.to_dict() for p in self.properties])
             print("len of base df ", len(df))
             if "model_a" in df.columns and "model_b" in df.columns:
-                df = df.merge(prop_df, on=["question_id"], how="right").drop_duplicates(subset="id")
+                df = df.merge(prop_df, on=["question_id"], how="left").drop_duplicates(subset="id")
             else:
-                df = df.merge(prop_df, on=["question_id", "model"], how="left").drop_duplicates(subset="id") 
+                # CHANGE: Use left join to preserve all conversations, including those without properties
+                # Don't drop duplicates to ensure conversations without properties are preserved
+                df = df.merge(prop_df, on=["question_id", "model"], how="left")
             print("len of df after merge with properties ", len(df))
+            print(df.id.value_counts())
 
             # ------------------------------------------------------------------
             # Ensure `model` column is present (avoid _x / _y duplicates)
@@ -321,6 +324,29 @@ class PropertyDataset:
                 )
                 cluster_df = cluster_df.explode("property_description")
                 df = df.merge(cluster_df, on=["property_description"], how="left")
+        
+        # CHANGE: Handle conversations without properties by creating a "No properties" cluster
+        # This ensures all conversations are considered in metrics calculation
+        if type in ["all", "clusters"]:
+            # Identify rows without properties (no property_description or it's NaN)
+            mask_no_properties = df["property_description"].isna() | (df["property_description"] == "")
+            
+            if mask_no_properties.any():
+                print(f"Found {mask_no_properties.sum()} conversations without properties - creating 'No properties' cluster")
+                
+                # Fill in missing data for conversations without properties
+                df.loc[mask_no_properties, "property_description"] = "No properties"
+                df.loc[mask_no_properties, "fine_cluster_id"] = -2  # Use -2 since -1 is for outliers
+                df.loc[mask_no_properties, "fine_cluster_label"] = "No properties"
+                
+                # Set coarse cluster info for consistency
+                df.loc[mask_no_properties, "coarse_cluster_id"] = -2
+                df.loc[mask_no_properties, "coarse_cluster_label"] = "No properties"
+                
+                # Handle missing scores for conversations without properties
+                mask_no_score = mask_no_properties & (df["score"].isna() | (df["score"] == {}))
+                if mask_no_score.any():
+                    df.loc[mask_no_score, "score"] = df.loc[mask_no_score, "score"].apply(lambda x: {"score": 0} if pd.isna(x) or x == {} else x)
         
         return df
     

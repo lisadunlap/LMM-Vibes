@@ -734,7 +734,9 @@ def label(
     metrics_cache_dir: Optional[str] = None,
     **kwargs,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Run the *fixed-taxonomy* analysis pipeline.
+    """Run the *fixed-taxonomy* analysis pipeline. This is just you're run of the mill LLM-judge with a given rubric. 
+
+    The user provides a dataframe with a model and its responses alone with a taxonomy.
 
     Unlike :pyfunc:`explain`, this entry point does **not** perform clustering;
     each taxonomy label simply becomes its own cluster.  The input `df` **must**
@@ -773,6 +775,22 @@ def label(
     # ------------------------------------------------------------------
     result_dataset = pipeline.run(dataset)
     clustered_df = result_dataset.to_dataframe(type="clusters", method=method)
+
+    # Save final summary and full dataset if output_dir is provided (same as explain() function)
+    if output_dir is not None:
+        _save_final_summary(result_dataset, clustered_df, result_dataset.model_stats, output_dir, verbose)
+        
+        # Also save the full dataset for backward compatibility with compute_metrics_only and other tools
+        import pathlib
+        import json
+        
+        output_path = pathlib.Path(output_dir)
+        
+        # Save full dataset as JSON
+        full_dataset_json_path = output_path / "full_dataset.json"
+        result_dataset.save(str(full_dataset_json_path))
+        if verbose:
+            print(f"  ✓ Saved full dataset: {full_dataset_json_path}")
 
     return clustered_df, result_dataset.model_stats
 

@@ -81,7 +81,7 @@ def load_data(results_dir: str) -> Tuple[str, str, str]:
         summary = f"""
         ✅ **Successfully loaded pipeline results!**
         
-        📊 **Data Summary:**
+        **Data Summary:**
         - **Models:** {n_models}
         - **Properties:** {n_properties:,}
         - **Results Directory:** {Path(final_dir).name}
@@ -106,7 +106,9 @@ def load_data(results_dir: str) -> Tuple[str, str, str]:
         return "", error_msg, gr.update(choices=[], value=[])
 
 
-def create_overview(selected_models: List[str], cluster_level: str, top_n: int) -> str:
+def create_overview(selected_models: List[str], cluster_level: str, top_n: int, 
+                   score_significant_only: bool = False, quality_significant_only: bool = False,
+                   sort_by: str = "score_desc") -> str:
     """Create model overview with summary cards."""
     if not app_state['model_stats']:
         return "Please load data first using the 'Load Data' tab."
@@ -139,7 +141,10 @@ def create_overview(selected_models: List[str], cluster_level: str, top_n: int) 
             model_name, 
             app_state['model_stats'], 
             cluster_level, 
-            top_n
+            top_n,
+            score_significant_only=score_significant_only,
+            quality_significant_only=quality_significant_only,
+            sort_by=sort_by
         )
         overview_html += card_html
     
@@ -178,7 +183,7 @@ def view_clusters_interactive(selected_models: List[str], cluster_level: str,
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     ">
-        <h3 style="margin: 0 0 15px 0;">📊 Cluster Statistics</h3>
+        <h3 style="margin: 0 0 15px 0;">Cluster Statistics</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
             <div>
                 <div style="font-size: 24px; font-weight: bold;">{stats['total_properties']:,}</div>
@@ -369,7 +374,7 @@ def debug_data_structure() -> str:
         <h3>🐛 Data Structure Debug Info</h3>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h4>📊 Basic Statistics</h4>
+            <h4>Basic Statistics</h4>
             <ul>
                 <li><strong>Rows:</strong> {n_rows:,}</li>
                 <li><strong>Columns:</strong> {n_cols}</li>
@@ -379,7 +384,7 @@ def debug_data_structure() -> str:
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h4>📋 Available Columns</h4>
+            <h4>Available Columns</h4>
             <div style="max-height: 200px; overflow-y: auto; background: white; padding: 10px; border-radius: 4px;">
                 <ul>
     """
@@ -394,7 +399,7 @@ def debug_data_structure() -> str:
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h4>🔍 Sample Data (First {sample_rows} rows)</h4>
+            <h4>Sample Data (First {sample_rows} rows)</h4>
             <div style="max-height: 400px; overflow: auto; background: white; padding: 10px; border-radius: 4px;">
                 {sample_data}
             </div>
@@ -606,6 +611,33 @@ def create_app() -> gr.Blocks:
                         label="Top N Clusters per Model",
                         minimum=1, maximum=10, value=3, step=1,
                         info="Number of top clusters to show per model"
+                    )
+                
+                with gr.Row():
+                    score_significant_only = gr.Checkbox(
+                        label="Show Only Score Significant Clusters",
+                        value=False,
+                        info="Only show clusters where the distinctiveness score is statistically significant"
+                    )
+                    quality_significant_only = gr.Checkbox(
+                        label="Show Only Quality Significant Clusters",
+                        value=False,
+                        info="Only show clusters where the quality score is statistically significant"
+                    )
+                
+                with gr.Row():
+                    sort_by = gr.Dropdown(
+                        label="Sort Clusters By",
+                        choices=[
+                            ("Score (Descending)", "score_desc"),
+                            ("Score (Ascending)", "score_asc"),
+                            ("Quality (Ascending)", "quality_asc"),
+                            ("Quality (Descending)", "quality_desc"),
+                            ("Frequency (Descending)", "frequency_desc"),
+                            ("Frequency (Ascending)", "frequency_asc")
+                        ],
+                        value="score_desc",
+                        info="How to sort clusters within each model card"
                     )
                 
                 overview_display = gr.HTML(label="Model Overview")
@@ -910,7 +942,7 @@ def create_app() -> gr.Blocks:
         
         refresh_overview_btn.click(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview],
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
             outputs=[overview_display]
         )
         
@@ -971,18 +1003,45 @@ def create_app() -> gr.Blocks:
         # Auto-refresh on model selection change
         selected_models.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview],
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            outputs=[overview_display]
+        )
+        
+        # Auto-refresh on significance filter changes
+        score_significant_only.change(
+            fn=create_overview,
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            outputs=[overview_display]
+        )
+        
+        quality_significant_only.change(
+            fn=create_overview,
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            outputs=[overview_display]
+        )
+        
+        # Auto-refresh on sort dropdown change
+        sort_by.change(
+            fn=create_overview,
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            outputs=[overview_display]
+        )
+        
+        # Auto-refresh on cluster level change
+        cluster_level.change(
+            fn=create_overview,
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            outputs=[overview_display]
+        )
+        
+        # Auto-refresh on top N change
+        top_n_overview.change(
+            fn=create_overview,
+            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
             outputs=[overview_display]
         )
         
         selected_models.change(
-            fn=view_clusters_interactive,
-            inputs=[selected_models, cluster_level, search_clusters],
-            outputs=[clusters_display]
-        )
-        
-        # Auto-refresh clusters when cluster level changes
-        cluster_level.change(
             fn=view_clusters_interactive,
             inputs=[selected_models, cluster_level, search_clusters],
             outputs=[clusters_display]
@@ -1050,7 +1109,7 @@ def launch_app(results_dir: Optional[str] = None,
             print(f"📋 Multiple experiments found. Please select one from the dropdown.")
     
     print(f"🚀 Launching Gradio app on {server_name}:{server_port}")
-    print(f"📊 Share mode: {share}")
+    print(f"Share mode: {share}")
     print(f"🔧 Additional kwargs: {kwargs}")
     
     try:

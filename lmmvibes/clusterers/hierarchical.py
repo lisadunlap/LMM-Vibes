@@ -155,6 +155,41 @@ class HierarchicalClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin
         coarse_cluster_count = len(clustered_df[coarse_id_col].unique())
         self.log(f"Created {coarse_cluster_count} coarse clusters")
 
+        # CHANGE: Create a "No properties" cluster for conversations without properties
+        # This ensures all conversations are considered in metrics calculation
+        conversations_with_properties = set()
+        for prop in data.properties:
+            conversations_with_properties.add((prop.question_id, prop.model))
+        
+        conversations_without_properties = []
+        for conv in data.conversations:
+            if isinstance(conv.model, str):
+                if (conv.question_id, conv.model) not in conversations_with_properties:
+                    conversations_without_properties.append((conv.question_id, conv.model))
+            elif isinstance(conv.model, list):
+                for model in conv.model:
+                    if (conv.question_id, model) not in conversations_with_properties:
+                        conversations_without_properties.append((conv.question_id, model))
+        
+        if conversations_without_properties:
+            self.log(f"Found {len(conversations_without_properties)} conversations without properties - creating 'No properties' cluster")
+            
+            # Create the "No properties" cluster
+            no_props_cluster = Cluster(
+                id=-2,  # Use -2 since -1 is for outliers
+                label="No properties",
+                size=len(conversations_without_properties),
+                property_descriptions=["No properties"] * len(conversations_without_properties),
+                question_ids=[qid for qid, _ in conversations_without_properties],
+                parent_id=-2,  # Same ID for coarse cluster
+                parent_label="No properties"
+            )
+            clusters.append(no_props_cluster)
+            
+            self.log(f"Created 'No properties' cluster with {len(conversations_without_properties)} conversations")
+        else:
+            self.log("All conversations have properties - no 'No properties' cluster needed")
+
         # Attach cluster id/label back onto Property objects
         desc_to_fine_id = dict(zip(clustered_df[column_name], clustered_df[fine_id_col]))
         desc_to_fine_label = dict(zip(clustered_df[column_name], clustered_df[fine_label_col]))

@@ -31,6 +31,8 @@ DEFAULT_TAXONOMY = {
     ),
 }
 
+MAST_TAXONOMY = json.load(open("mast.json"))
+
 
 def load_dataframe(path: str) -> pd.DataFrame:
     """Load input data (CSV / JSONL / Parquet)."""
@@ -47,7 +49,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run LMM-Vibes fixed-taxonomy pipeline")
     parser.add_argument("--input_file", required=True, help="CSV / JSONL / Parquet with single-model responses")
     parser.add_argument("--output_dir", required=True, help="Directory to write results")
-    parser.add_argument("--model_name", default="gpt-4o-mini", help="Labeling model (OpenAI)")
+    parser.add_argument("--model_name", default="gpt-4.1", help="Labeling model (OpenAI)")
     parser.add_argument("--sample_size", type=int, default=None, help="Optional subsample for quick runs")
     parser.add_argument("--max_workers", type=int, default=8, help="Parallel requests to OpenAI")
     args = parser.parse_args()
@@ -60,33 +62,14 @@ def main() -> None:
 
     clustered_df, model_stats = label(
         df,
-        taxonomy=DEFAULT_TAXONOMY,
+        taxonomy=MAST_TAXONOMY,
         model_name=args.model_name,
         output_dir=args.output_dir,
         metrics_kwargs={"compute_confidence_intervals": True},
         verbose=True,
     )
 
-    # Save clustered results for immediate inspection
-    clustered_path = os.path.join(args.output_dir, "clustered_results.parquet")
-
-    # Parquet fails if columns mix scalars & nested structures.  Convert any
-    # list / dict columns to JSON strings first.
-    def _needs_stringify(series):
-        if series.dtype != "object":
-            return False
-        return series.apply(lambda x: isinstance(x, (list, dict))).any()
-
-    # Remove columns that contain nested structures (lists / dicts) that Parquet cannot handle
-    nested_cols = [c for c in clustered_df.columns if clustered_df[c].dtype == "object" and clustered_df[c].apply(lambda x: isinstance(x, (list, dict))).any()]
-    clustered_df = clustered_df.drop(columns=nested_cols)
-
-    for col in clustered_df.columns:
-        if _needs_stringify(clustered_df[col]):
-            clustered_df[col] = clustered_df[col].apply(lambda v: json.dumps(v, ensure_ascii=False) if isinstance(v, (list, dict)) else v)
-
-    clustered_df.to_parquet(clustered_path)
-    print(f"\n🎉 Fixed-taxonomy pipeline finished. Results → {clustered_path}")
+    print(f"\n🎉 Fixed-taxonomy pipeline finished. Results saved to: {args.output_dir}")
 
 
 if __name__ == "__main__":

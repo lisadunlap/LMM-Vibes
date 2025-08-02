@@ -145,11 +145,16 @@ def get_top_clusters_for_model(model_stats: Dict[str, Any], model_name: str,
 
 
 def create_model_summary_card(model_name: str, model_stats: Dict[str, Any], 
-                             cluster_level: str = 'fine', top_n: int = 3) -> str:
+                             cluster_level: str = 'fine', top_n: int = 3,
+                             score_significant_only: bool = False, 
+                             quality_significant_only: bool = False,
+                             sort_by: str = "score_desc") -> str:
     """Create HTML summary card for a model."""
-    top_clusters = get_top_clusters_for_model(model_stats, model_name, cluster_level, 5)
+    # Get all clusters for this model
+    model_data = model_stats.get(model_name, {})
+    all_clusters = model_data.get(cluster_level, [])
     
-    if not top_clusters:
+    if not all_clusters:
         return f"""
         <div style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
             <h3 style="margin: 0 0 10px 0; color: #333;">{model_name}</h3>
@@ -157,16 +162,69 @@ def create_model_summary_card(model_name: str, model_stats: Dict[str, Any],
         </div>
         """
     
+    # Apply significance filters
+    filtered_clusters = []
+    for cluster in all_clusters:
+        # Check score significance filter
+        if score_significant_only:
+            score_sig = cluster.get('score_statistical_significance', False)
+            if not score_sig:
+                continue
+        
+        # Check quality significance filter
+        if quality_significant_only:
+            quality_sig_dict = cluster.get('quality_score_statistical_significance', {})
+            if isinstance(quality_sig_dict, dict):
+                quality_sig = any(quality_sig_dict.values())
+            else:
+                quality_sig = False
+            if not quality_sig:
+                continue
+        
+        filtered_clusters.append(cluster)
+    
+    if not filtered_clusters:
+        return f"""
+        <div style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
+            <h3 style="margin: 0 0 10px 0; color: #333;">{model_name}</h3>
+            <p>No clusters match the selected significance filters</p>
+        </div>
+        """
+    
+    # Apply sorting
+    if sort_by == "score_desc":
+        # Sort by distinctiveness score (descending)
+        filtered_clusters.sort(key=lambda x: x.get('score', 0), reverse=True)
+    elif sort_by == "score_asc":
+        # Sort by distinctiveness score (ascending)
+        filtered_clusters.sort(key=lambda x: x.get('score', 0), reverse=False)
+    elif sort_by == "quality_asc":
+        # Sort by quality score (ascending - low quality first)
+        filtered_clusters.sort(key=lambda x: extract_quality_score(x.get('quality_score', 0)), reverse=False)
+    elif sort_by == "quality_desc":
+        # Sort by quality score (descending - high quality first)
+        filtered_clusters.sort(key=lambda x: extract_quality_score(x.get('quality_score', 0)), reverse=True)
+    elif sort_by == "frequency_desc":
+        # Sort by frequency (descending)
+        filtered_clusters.sort(key=lambda x: x.get('proportion', 0), reverse=True)
+    elif sort_by == "frequency_asc":
+        # Sort by frequency (ascending)
+        filtered_clusters.sort(key=lambda x: x.get('proportion', 0), reverse=False)
+    
+    # Take top N clusters after filtering and sorting
+    top_clusters = filtered_clusters[:top_n]
+    
     # Calculate total battles by summing cluster sizes
     total_battles = sum(cluster.get('size', 0) for cluster in top_clusters)
     
     # Create cluster cards
     cluster_cards = ""
-    for idx, cluster in enumerate(top_clusters[:top_n]):
+    for idx, cluster in enumerate(top_clusters):
         cluster_desc = cluster['property_description']
         frequency = cluster.get('proportion', 0) * 100  # Convert to percentage
         cluster_size = cluster.get('size', 0)
-        cluster_size_global = cluster.get('cluster_size_global', 0)
+        # Total conversations for this model card (deduped count across clusters)
+        total_conversations = total_battles  # Already computed above using unique question_ids per cluster
         quality_score = extract_quality_score(cluster.get('quality_score', 0))
         distinctiveness = cluster.get('score', 1.0)
         
@@ -177,19 +235,31 @@ def create_model_summary_card(model_name: str, model_stats: Dict[str, Any],
         if has_ci:
             ci_display = f"<br><span style='font-size: 12px; color: #666;'>CI: {format_confidence_interval(score_ci)}</span>"
         
+        # Add significance indicators
+        significance_indicators = ""
+        if cluster.get('score_statistical_significance', False):
+            significance_indicators += '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-right: 5px;">Score Sig</span>'
+        
+        quality_sig_dict = cluster.get('quality_score_statistical_significance', {})
+        if isinstance(quality_sig_dict, dict) and any(quality_sig_dict.values()):
+            significance_indicators += '<span style="background: #007bff; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Quality Sig</span>'
+        
         cluster_cards += f"""
         <div style="margin: 8px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
             <div style="font-weight: 600; font-size: 14px; margin-bottom: 5px;">
                 {cluster_desc}
             </div>
             <div style="font-size: 13px; color: #666;">
-                <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {cluster_size_global} total)
+                <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {total_conversations} conversations)
             </div>
             <div style="font-size: 12px; color: #3182ce;">
                 {distinctiveness:.1f}x more distinctive{ci_display}
             </div>
             <div style="position: absolute; bottom: 8px; right: 10px; font-size: 12px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
                 Quality: {quality_score:.3f}
+            </div>
+            <div style="position: absolute; top: 8px; right: 10px;">
+                {significance_indicators}
             </div>
         </div>
         """
@@ -361,41 +431,11 @@ def create_frequency_comparison_table(model_stats: Dict[str, Any],
         avg_freq_ci_lower = np.mean(freq_ci_lower) if freq_ci_lower else None
         avg_freq_ci_upper = np.mean(freq_ci_upper) if freq_ci_upper else None
         
+        # Initialize containers for quality metrics per cluster
+        cluster_quality_scores: Dict[str, List[float]] = {}
+        cluster_quality_cis: Dict[str, Dict[str, List[float]]] = {}
+
         # Get quality score and confidence intervals for this cluster
-        quality_score = None
-        quality_score_ci = {}
-        
-        # Collect quality scores and CIs from all models for this cluster
-        cluster_quality_scores = {}
-        cluster_quality_cis = {}
-        
-        for model_name, model_data in model_stats.items():
-            clusters = model_data.get(cluster_level, [])
-            for cluster in clusters:
-                if cluster['property_description'] == cluster_desc:
-                    # Get quality score for this model
-                    model_quality_score = cluster.get('quality_score', {})
-                    if isinstance(model_quality_score, dict):
-                        for score_key, score_value in model_quality_score.items():
-                            if score_key not in cluster_quality_scores:
-                                cluster_quality_scores[score_key] = []
-                            cluster_quality_scores[score_key].append(score_value)
-                    
-                    # Get quality CIs for this model
-                    model_quality_ci = cluster.get('quality_score_ci', {})
-                    if isinstance(model_quality_ci, dict):
-                        for score_key, ci_data in model_quality_ci.items():
-                            if isinstance(ci_data, dict):
-                                ci_lower = ci_data.get('lower')
-                                ci_upper = ci_data.get('upper')
-                                if ci_lower is not None and ci_upper is not None:
-                                    if score_key not in cluster_quality_cis:
-                                        cluster_quality_cis[score_key] = {'lower': [], 'upper': []}
-                                    cluster_quality_cis[score_key]['lower'].append(ci_lower)
-                                    cluster_quality_cis[score_key]['upper'].append(ci_upper)
-                    break
-        
-        # Calculate average quality score and CI based on the selected metric
         quality_score = None
         quality_ci = None
 
@@ -1503,6 +1543,16 @@ def get_example_data(clustered_df: pd.DataFrame,
             'fine_cluster_label': row.get('property_description_fine_cluster_label', 'N/A'),
             'coarse_cluster_id': row.get('property_description_coarse_cluster_id', 'N/A'),
             'coarse_cluster_label': row.get('property_description_coarse_cluster_label', 'N/A'),
+            # Additional Property attributes
+            'category': row.get('category', 'N/A'),
+            'type': row.get('type', 'N/A'),
+            'impact': row.get('impact', 'N/A'),
+            'reason': row.get('reason', 'N/A'),
+            'evidence': row.get('evidence', 'N/A'),
+            'user_preference_direction': row.get('user_preference_direction', 'N/A'),
+            'raw_response': row.get('raw_response', 'N/A'),
+            'contains_errors': row.get('contains_errors', 'N/A'),
+            'unexpected_behavior': row.get('unexpected_behavior', 'N/A'),
         }
         examples.append(example)
     
@@ -1645,6 +1695,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
             <div style="padding: 20px; background: #f8f9fa;">
                 <div style="margin-bottom: 10px; font-size: 13px; color: #666;">
                     <strong>ID:</strong> {example['id']}
+                    {f' | <strong>Score:</strong> {example["score"]}' if example["score"] not in ["N/A", "None"] else ""}
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -1666,6 +1717,29 @@ def format_examples_display(examples: List[Dict[str, Any]],
                         {example['property_description']}
                     </div>
                     {cluster_info}
+                </div>
+                
+                <!-- Additional Property Attributes -->
+                <div style="margin-bottom: 15px;">
+                    <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">📋 Property Details</h5>
+                    <div style="
+                        background: #f8f9fa; 
+                        padding: 15px; 
+                        border-radius: 6px; 
+                        border-left: 4px solid #6c757d;
+                        font-size: 13px;
+                    ">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            {f'<div><strong>Category:</strong> {example["category"]}</div>' if example["category"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>Type:</strong> {example["type"]}</div>' if example["type"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>Impact:</strong> {example["impact"]}</div>' if example["impact"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>User Preference:</strong> {example["user_preference_direction"]}</div>' if example["user_preference_direction"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>Contains Errors:</strong> {example["contains_errors"]}</div>' if example["contains_errors"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>Unexpected Behavior:</strong> {example["unexpected_behavior"]}</div>' if example["unexpected_behavior"] not in ["N/A", "None"] else ""}
+                        </div>
+                        {f'<div style="margin-top: 10px;"><strong>Reason:</strong> {example["reason"]}</div>' if example["reason"] not in ["N/A", "None"] else ""}
+                        {f'<div style="margin-top: 10px;"><strong>Evidence:</strong> {example["evidence"]}</div>' if example["evidence"] not in ["N/A", "None"] else ""}
+                    </div>
                 </div>
             </div>
         </details>
