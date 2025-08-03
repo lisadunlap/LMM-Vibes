@@ -165,7 +165,7 @@ class PropertyDataset:
     model_stats: Dict[str, Any] = field(default_factory=dict)
     
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, method: str = "side_by_side") -> "PropertyDataset":
+    def from_dataframe(cls, df: pd.DataFrame, method: str = "single_model") -> "PropertyDataset":
         """
         Create PropertyDataset from existing DataFrame formats.
         
@@ -209,7 +209,7 @@ class PropertyDataset:
                 scores = row.get('score')
                 if scores is None:
                     scores = {'score': 0}
-                elif not isinstance(scores, dict):
+                elif isinstance(scores, int) or isinstance(scores, float):
                     scores = {'score': scores}
 
                 prompt = str(row.get('prompt', row.get('user_prompt', '')))
@@ -271,6 +271,7 @@ class PropertyDataset:
             rows.append(base_row)
         
         df = pd.DataFrame(rows)
+        print(f"Original unique questions: {df.question_id.nunique()}")
         
         # Add properties if they exist
         if self.properties and type in ["all", "properties", "clusters"]:
@@ -292,7 +293,6 @@ class PropertyDataset:
                 # Don't drop duplicates to ensure conversations without properties are preserved
                 df = df.merge(prop_df, on=["question_id", "model"], how="left")
             print("len of df after merge with properties ", len(df))
-            print(df.id.value_counts())
 
             # ------------------------------------------------------------------
             # Ensure `model` column is present (avoid _x / _y duplicates)
@@ -305,6 +305,7 @@ class PropertyDataset:
                     df.drop(columns=[c for c in ["model_x", "model_y"] if c in df.columns], inplace=True)
                     
         print(f"df.model.value_counts() NEW: {df.model.value_counts()}")
+        print(f"total questions: {df.question_id.nunique()}")
 
         if self.clusters and type in ["all", "clusters"]:
             # If cluster columns already exist (e.g. after reload from parquet)
@@ -455,12 +456,15 @@ class PropertyDataset:
         import json, pickle
 
         fmt = format.lower()
+        print(f"Loading dataset from {path} with format {fmt}")
         if fmt == "json":
-            with open(path, "r", encoding="utf-8") as f:
+            print(f"Loading dataset from {path}")
+            with open(path, "r") as f:
                 data = json.load(f)
+            print(f"Data: {data.keys()}")
             
             # Expected format: dictionary with keys like "conversations", "properties", etc.
-            conversations = [ConversationRecord(**conv) for conv in data.get("conversations", [])]
+            conversations = [ConversationRecord(**conv) for conv in data["conversations"]]
             properties = [Property(**prop) for prop in data.get("properties", [])]
             
             # Convert cluster data to Cluster objects

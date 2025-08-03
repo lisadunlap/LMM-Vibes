@@ -33,6 +33,11 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
         self.stages = stages or []
         self.stage_times = {}
         self.stage_errors = {}
+        # Store output directory (if any) so that we can automatically persist
+        # intermediate pipeline results after each stage.  This enables tooling
+        # such as compute_metrics_only() to pick up from any point in the
+        # pipeline without the caller having to remember to save explicitly.
+        self.output_dir = kwargs.get('output_dir')
         
         # Now call parent __init__ methods safely
         super().__init__(**kwargs)
@@ -114,6 +119,28 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
             
             # Log stage-specific metrics
             self._log_stage_metrics(stage, current_data)
+
+            # --------------------------------------------------------------
+            # 📝  Auto-save full dataset snapshot after each stage
+            # --------------------------------------------------------------
+            if getattr(self, "output_dir", None):
+                from pathlib import Path
+                import os
+
+                # Ensure the directory exists (mkdir ‑p semantics)
+                Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+
+                # File name pattern: full_dataset_after_<idx>_<stage>.json
+                snapshot_name = (
+                    f"full_dataset_after_{i+1}_{stage.name.replace(' ', '_').lower()}.json"
+                )
+                snapshot_path = os.path.join(self.output_dir, snapshot_name)
+
+                # Persist using the JSON format for maximum portability
+                current_data.save(snapshot_path)
+
+                if getattr(self, "verbose", False):
+                    print(f"   • Saved dataset snapshot: {snapshot_path}")
                 
             # except Exception as e:
             #     self.stage_errors[stage.name] = str(e)

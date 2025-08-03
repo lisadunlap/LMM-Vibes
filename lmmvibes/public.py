@@ -445,7 +445,7 @@ def _build_default_pipeline(
     builder.compute_metrics(metrics_stage)
     
     # Build and return the pipeline
-    pipeline = builder.configure(**common_config).build()
+    pipeline = builder.configure(output_dir=output_dir, **common_config).build()
     
     # If wandb is already initialized globally, mark the pipeline as having wandb available
     if use_wandb:
@@ -712,7 +712,7 @@ def _build_fixed_axes_pipeline(
     metrics_stage = get_metrics(method="single_model", output_dir=output_dir, **(metrics_kwargs or {}), **({"cache_dir": metrics_cache_dir} if metrics_cache_dir else {}), **common_cfg)
     builder.compute_metrics(metrics_stage)
 
-    return builder.configure(**common_cfg).build()
+    return builder.configure(output_dir=output_dir, **common_cfg).build()
 
 
 def label(

@@ -71,6 +71,7 @@ from ..core.stage import PipelineStage
 from ..core.mixins import LoggingMixin, TimingMixin
 from ..core.data_objects import PropertyDataset, ModelStats
 from .utils import wandb_logging
+from .helpers import score_keys, sanitize_cluster_column
 
 
 class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
@@ -89,6 +90,38 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
             group["id"].dropna().unique().tolist()[:n]
             if "id" in group.columns else []
         )
+
+    # ------------------------------------------------------------------
+    # Lightweight helper utilities reused by subclasses.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _safe_div(numer: float | int, denom: float | int, default: float = 0.0) -> float:
+        """Return numer/denom, or *default* if denom is zero."""
+        return numer / denom if denom else default
+
+    @staticmethod
+    def _per_model_counts(group: pd.DataFrame) -> Dict[str, int]:
+        """Count unique (model, question_id) pairs inside *group*."""
+        return (
+            group[["model", "question_id"]]
+            .drop_duplicates()
+            .groupby("model")
+            .size()
+            .to_dict()
+        )
+
+    def _per_model_proportions(self, counts: Dict[str, int], total_q: Dict[str, int]) -> Dict[str, float]:
+        """Calculate (#questions where m shows cluster)/(#questions answered by m)."""
+        return {m: self._safe_div(counts.get(m, 0), total_q.get(m, 0)) for m in total_q}
+
+    def _distinctiveness_scores(self, proportions: Dict[str, float]) -> tuple[float, Dict[str, float]]:
+        """Return cluster median proportion and per-model distinctiveness score."""
+        non_zero = [v for v in proportions.values() if v > 0]
+        median = np.median(non_zero) if non_zero else 0.0
+        median = median or 1e-9  # avoid divide-by-zero later
+        scores = {m: self._safe_div(p, median) for m, p in proportions.items()}
+        return float(median), scores
 
     # ------------------------------------------------------------------
     @abstractmethod
@@ -159,6 +192,8 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
             "coarse_cluster_label",
         ]:
             if base not in df.columns:
+                print(f"⚠️  DataFrame missing column: {base}")
+                raise ValueError(f"DataFrame missing column: {base}")
                 # Try to collapse _x / _y variants
                 x_col, y_col = f"{base}_x", f"{base}_y"
                 if x_col in df.columns or y_col in df.columns:
@@ -330,12 +365,27 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
         pass
 
     # ------------------------------------------------------------------
-    def _compute_quality_score(self, group: pd.DataFrame) -> dict:
-        """
-        Compute the quality score of a cluster for each score key and model:
-        For each key, compute (average score in cluster for that model) / (average score for that model overall),
-        for each model present in the cluster. Exclude models not present in the cluster.
-        Returns a dictionary where keys are the score keys and values are dictionaries of model -> ratio.
+    # NOTE: Removed unused `_compute_quality_score` method; its functionality
+    # has been superseded by `_compute_normalized_quality_score`.
+    # ------------------------------------------------------------------
+
+    def _compute_normalized_quality_score(
+        self,
+        group: pd.DataFrame,
+        model: str,
+    ) -> dict:
+        """Compute the per-model normalised quality score dictionary.
+
+        For each score key ``k`` we return::
+
+            (avg_k_for_model_in_cluster − model_global_avg_k) / global_range_k
+
+        • *avg_k_for_model_in_cluster*  : mean of ``row["score"][k]`` for the
+          specified *model* within *group*.
+        • *model_global_avg_k*         : pre-computed global average for that
+          model/key (stored in ``self.avg_score_per_model``).
+        • *global_range_k*             : max − min across the entire dataset,
+          taken from ``self.global_score_stats``.
         """
         # Get all score keys from the first non-empty score dict
         score_keys = []
@@ -346,99 +396,32 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
         if not score_keys:
             return {}
 
-        # Compute per-model average for each key in the cluster
-        result = {}
-        models_in_cluster = group["model"].unique()
-        for key in score_keys:
-            model_ratios = {}
-            for model in models_in_cluster:
-                model_rows = group[group["model"] == model]
-                # Average score for this model in this cluster
-                cluster_avg = model_rows.apply(lambda row: self._extract_score_for_key(row, key), axis=1).mean()
-                # Average score for this model overall (from self.avg_score_per_model)
-                try:
-                    model_avg = self.avg_score_per_model.loc[model, key]
-                except Exception:
-                    model_avg = None
-                if model_avg and model_avg != 0:
-                    model_ratios[model] = cluster_avg / model_avg
-                else:
-                    model_ratios[model] = 0
-            result[key] = model_ratios
-        return result
+        result: Dict[str, float] = {}
 
-    def _compute_normalized_quality_score(self, group: pd.DataFrame) -> dict:
-        """
-        Compute normalized quality scores that are centered around zero.
-        
-        **Normalization Method:**
-        For each score key, we compute:
-        1. Cluster average: avg(score for all examples in this cluster)
-        2. Global average for each model: avg(score for that model across all data)
-        3. Normalized score: (cluster_avg - model_global_avg) / global_range
-        
-        **Interpretation:**
-        - Values > 0: Model performs better in this cluster than its global average
-        - Values < 0: Model performs worse in this cluster than its global average
-        - Values = 0: Model performs exactly at its global average in this cluster
-        
-        **Benefits:**
-        - Zero-centered scale makes it easy to see relative performance
-        - Positive values indicate above-average performance in this cluster
-        - Negative values indicate below-average performance in this cluster
-        - Normalization by global range keeps scores comparable across metrics
-        
-        Returns a dictionary where keys are score keys and values are normalized scores.
-        """
-        # Get all score keys from the first non-empty score dict
-        score_keys = []
-        for s in group["score"]:
-            if isinstance(s, dict) and s:
-                score_keys = list(s.keys())
-                break
-        if not score_keys:
-            return {}
+        model_rows = group[group["model"] == model]
 
-        result = {}
         for key in score_keys:
-            # Use vectorized operations instead of iterrows()
-            scores_series = group.apply(lambda row: self._extract_score_for_key(row, key), axis=1)
-            
-            # Calculate cluster average using vectorized operations
-            cluster_avg = scores_series.mean()
-            
-            # Calculate model-specific global averages for models in this cluster
-            models_in_cluster = group["model"].unique()
-            model_global_avgs = []
-            
-            for model in models_in_cluster:
-                try:
-                    model_global_avg = self.avg_score_per_model.loc[model, key]
-                    model_global_avgs.append(model_global_avg)
-                except Exception:
-                    # If model not found, skip
-                    continue
-            
-            # Use the average of model global averages as the baseline
-            if model_global_avgs:
-                baseline_avg = np.mean(model_global_avgs)
+            # Cluster average restricted to model
+            cluster_avg = (
+                model_rows.apply(lambda row: self._extract_score_for_key(row, key), axis=1).mean()
+                if not model_rows.empty else 0.0
+            )
+
+            # Baseline: model-specific global average
+            try:
+                baseline_avg = float(self.avg_score_per_model.loc[model, key])
+            except Exception:
+                baseline_avg = 0.0
+
+            # Normalise using global min/max range
+            stats = self.global_score_stats.get(key)
+            if stats and stats["range"] > 0:
+                normalized_score = (cluster_avg - baseline_avg) / stats["range"]
             else:
-                baseline_avg = 0
-            
-            # Use pre-computed global stats for normalization
-            if key in self.global_score_stats:
-                global_range = self.global_score_stats[key]["range"]
-                
-                # Normalize using the new formula
-                if global_range > 0:
-                    normalized_score = (cluster_avg - baseline_avg) / global_range
-                else:
-                    normalized_score = 0  # If all values are the same, no difference
-            else:
-                normalized_score = 0  # Fallback if key not found
-            
+                normalized_score = 0.0
+
             result[key] = normalized_score
-        
+
         return result
 
     def _compute_global_stats(self, df: pd.DataFrame) -> dict:
@@ -554,12 +537,12 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                         score = prop_global / median_prop_global if median_prop_global else 0.0
                         bootstrap_distinctiveness["fine"][cid][model].append(score)
                 
-                # Calculate quality scores
-                quality_scores = self._compute_normalized_quality_score(group)
-                for score_key, normalized_score in quality_scores.items():
-                    models_in_cluster = group["model"].unique()
-                    for model in models_in_cluster:
-                        if model in bootstrap_total_q:  # Only include models present in this bootstrap sample
+                # Calculate quality scores per model
+                models_in_cluster = group["model"].unique()
+                for model in models_in_cluster:
+                    qs = self._compute_normalized_quality_score(group, model)
+                    for score_key, normalized_score in qs.items():
+                        if model in bootstrap_total_q:
                             bootstrap_quality_scores["fine"][cid][score_key][model].append(normalized_score)
             
             # Process coarse clusters
@@ -593,12 +576,12 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                             score = prop_global / median_prop_global if median_prop_global else 0.0
                             bootstrap_distinctiveness["coarse"][cid][model].append(score)
                     
-                    # Calculate quality scores
-                    quality_scores = self._compute_normalized_quality_score(group)
-                    for score_key, normalized_score in quality_scores.items():
-                        models_in_cluster = group["model"].unique()
-                        for model in models_in_cluster:
-                            if model in bootstrap_total_q:  # Only include models present in this bootstrap sample
+                    # Calculate quality scores per model
+                    models_in_cluster = group["model"].unique()
+                    for model in models_in_cluster:
+                        qs = self._compute_normalized_quality_score(group, model)
+                        for score_key, normalized_score in qs.items():
+                            if model in bootstrap_total_q:
                                 bootstrap_quality_scores["coarse"][cid][score_key][model].append(normalized_score)
             
             # Update progress

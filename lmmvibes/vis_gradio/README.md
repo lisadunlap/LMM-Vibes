@@ -1,144 +1,99 @@
-# LMM-Vibes Gradio Visualization
+# LMM-Vibes Gradio Viewer
 
-A Gradio-based web interface for exploring LMM-Vibes pipeline results. This provides an alternative to the Streamlit interface with a clean, intuitive UI for analyzing model performance, cluster analysis, and detailed examples.
+This sub-package contains the standalone Gradio application that lets you
+explore the behavioural-property results produced by the LMM-Vibes pipeline.
+The code has been split into small, focused modules to keep maintenance easy.
 
-## Features
+## Directory layout
 
-🔍 **Model Overview**: Interactive cards showing top distinctive clusters for each model
-📊 **Cluster Analysis**: Searchable tables of cluster data with filtering
-📈 **Frequency Comparison**: Side-by-side comparison of cluster frequencies across models  
-🔎 **Search Examples**: Text search across all data fields to find specific examples
-📁 **Easy Data Loading**: Simple interface for loading pipeline results
-
-## Installation
-
-Make sure you have Gradio installed:
-
-```bash
-pip install gradio
+```
+vis_gradio/
+├── app.py                # Entry-point that builds & launches the interface
+├── state.py              # Shared mutable globals (app_state, BASE_RESULTS_DIR)
+│
+├── load_data_tab.py      # "Load Data" tab – data ingestion helpers
+├── overview_tab.py       # "Overview" tab – model summary cards
+├── clusters_tab.py       # "View Clusters" tab – interactive cluster explorer
+├── examples_tab.py       # "View Examples" tab – individual prompt/response view
+├── frequency_tab.py      # "Frequency Comparison" tab – cross-model stats
+├── debug_tab.py          # "Debug Data" tab – quick sanity checks
+│
+└── data_loader.py        # Low-level JSON/JSONL reading utilities (unchanged)
 ```
 
-## Usage
+Only `app.py` is imported by external callers (`python -m lmmvibes.vis_gradio.launcher`); it wires together the tab builders from the per-tab modules.
 
-### Method 1: Python API
+## Expected input files
 
-```python
-from lmmvibes.vis_gradio import launch_app
+Each *experiment* lives in its own directory and **must contain at least**
 
-# Launch with auto-loaded data
-launch_app(results_dir="/path/to/your/results")
+* `model_stats.json`  – aggregated per-model statistics per cluster.
+* `clustered_results.jsonl`  – one JSON line per evaluated prompt/response.
 
-# Launch without pre-loading (load data in the UI)
-launch_app()
+The default launch script assumes a *base results directory* (`results/` by
+default).  Every sub-folder inside it that contains the two files above is
+treated as an experiment and appears in the **Select Experiment** dropdown.
 
-# Launch with custom settings
-launch_app(
-    results_dir="/path/to/results",
-    share=True,  # Create public link
-    server_port=8080
-)
+### `model_stats.json`
+Roots of this file:
 ```
+{
+  "<model_name>": {
+      "fine": [ { …cluster summary… }, … ],
+      "coarse": [ { …cluster summary… }, … ]
+  },
+  …
+}
+```
+Each *cluster summary* object may include – but is not limited to – the keys
+below (unused keys are ignored):
 
-### Method 2: Command Line
+| key                | type          | description                                        |
+|--------------------|--------------|----------------------------------------------------|
+| `cluster_id`       | int          | numerical id of the cluster                        |
+| `cluster_label`    | str          | human-readable label                               |
+| `frequency`        | float        | fraction of battles that fall in this cluster      |
+| `score`            | float        | distinctiveness score                              |
+| `score_pvalue`     | float        | p-value for `score`                                |
+| `quality_score`    | dict[str, float] | optional quality metrics per evaluator       |
+
+### `clustered_results.jsonl`
+Each line is a dictionary with, at minimum, the columns used by the viewer:
+
+* `question_id` – unique identifier for the prompt instance
+* `prompt` – the full prompt text
+* `model` – name of the responding model (must match keys in `model_stats.json`)
+* `property_description` – textual description of the behavioural property
+* `fine_cluster_id` / `coarse_cluster_id` – numeric ids (optional but needed
+  for the corresponding cluster level)
+
+Optional but recommended columns:
+
+* `fine_cluster_label`, `coarse_cluster_label` – readable names
+* `score` – per-row distinctiveness score
+* Any additional metadata you’d like to surface in the **Debug Data** tab
+
+## How the data is processed
+
+1. **Loading** – `load_data_tab.load_data()` validates the directory, resolves
+   nested sub-folders (produced by sweeps), reads both files and stores the
+   resulting dataframes/dicts in `state.app_state`.
+2. **Global state** – every tab imports `app_state` to access the shared data.
+3. **Per-tab logic** – each `*_tab.py` exposes the Gradio event callbacks that
+   create HTML or `DataFrame` objects based on the current view parameters.
+
+The viewer does *not* mutate the raw JSON/JSONL; everything is computed in
+memory.  When in doubt, open the **Debug Data** tab to confirm your columns are
+present and spelled correctly.
+
+## Launching
 
 ```bash
-# Launch with auto-loaded data
 python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results
-
-# Launch with public sharing
-python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results --share
-
-# Launch on custom port
-python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results --port 8080
-
-# Launch without pre-loading data
-python -m lmmvibes.vis_gradio.launcher
 ```
 
-### Method 3: Direct Script
+If the directory contains exactly one experiment it is auto-loaded; otherwise
+pick one from the dropdown.
 
-```bash
-python lmmvibes/vis_gradio/launcher.py --results_dir /path/to/results
-```
-
-## Expected Data Format
-
-Your results directory should contain:
-
-- `model_stats.json` - Model performance statistics and cluster data
-- `clustered_results.jsonl` - Detailed clustering results with property descriptions
-
-The app will automatically detect subfolders containing these files if they're not in the root directory.
-
-## Interface Overview
-
-### 📁 Load Data Tab
-- Enter the path to your pipeline results directory
-- View data summary and select models for analysis
-- Automatic validation and subfolder detection
-
-### 📊 Overview Tab  
-- Model performance cards with top distinctive clusters
-- Configurable cluster level (fine/coarse) and number of clusters
-- Interactive frequency and distinctiveness metrics
-
-### 📋 View Clusters Tab
-- Searchable table of all cluster data
-- Filter by selected models and cluster level
-- Export-friendly format
-
-### 📈 Frequency Comparison Tab
-- Side-by-side comparison of cluster frequencies across models
-- Sortable by average frequency
-- Both frequency percentages and raw scores
-
-### 🔎 Search Examples Tab
-- Full-text search across all data fields
-- Filter by selected models
-- Configurable result limits
-
-## Comparison with Streamlit Version
-
-| Feature | Gradio | Streamlit |
-|---------|--------|-----------|
-| Model Overview | ✅ Interactive cards | ✅ Detailed cards |
-| Cluster Tables | ✅ Searchable | ✅ Advanced filtering |
-| Frequency Analysis | ✅ Comparison tables | ✅ Charts + tables |
-| Search Functionality | ✅ Simple text search | ✅ Vector search |
-| Data Loading | ✅ Simple UI | ✅ Advanced options |
-| Deployment | ✅ Easy sharing | ✅ Streamlit Cloud |
-| Customization | ✅ Programmatic API | ✅ Widget ecosystem |
-
-## Performance Notes
-
-- Data is cached automatically for fast interactions
-- Large datasets are limited to reasonable display sizes
-- Search results are capped at 100 items for performance
-
-## Troubleshooting
-
-### "Please load data first" messages
-Make sure you've successfully loaded data using the Load Data tab and that there are no error messages.
-
-### Empty tables/results
-Check that:
-- Your results directory contains the required files
-- You have selected at least one model for analysis
-- Your search terms match existing data
-
-### Performance issues
-For very large datasets:
-- Reduce the "Max Rows" slider values
-- Use more specific search terms
-- Select fewer models for comparison
-
-## Development
-
-The Gradio interface is built with modularity in mind:
-
-- `app.py` - Main application and UI logic
-- `data_loader.py` - Data loading utilities (no Streamlit dependencies)  
-- `utils.py` - Analysis and formatting utilities
-- `launcher.py` - CLI interface
-
-To extend functionality, add new functions to `utils.py` and wire them up in `app.py`. 
+For more deployment options (port binding, public sharing, etc.) see the root
+project **README**. 

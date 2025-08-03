@@ -20,11 +20,8 @@ Thus ``score > 1`` means the model is **over-represented** in that cluster,
 
 from __future__ import annotations
 
-from collections import defaultdict
-from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from .base_metrics import BaseMetrics
@@ -65,22 +62,18 @@ class SideBySideMetrics(BaseMetrics):
         """Compute metrics for one cluster and add to *out*."""
 
         # Counts per model inside this cluster
-        counts_series = (
-            group[["model", "question_id"]]
-            .drop_duplicates()
-            .groupby("model")
-            .size()
-        )
-        counts = counts_series.to_dict()
+        counts = self._per_model_counts(group)
 
-        props = {m: counts.get(m, 0) / total_q[m] for m in total_q}
-        median_prop = np.median([v for v in props.values() if v > 0]) or 1e-9
+        # Proportions and distinctiveness
+        props = self._per_model_proportions(counts, total_q)
+        median_prop, scores_dict = self._distinctiveness_scores(props)
 
-        # Compute quality score once for the whole cluster
-        quality_score = self._compute_normalized_quality_score(group)
+        # Cache per-model quality scores
+        quality_score_cache = {m: self._compute_normalized_quality_score(group, m) for m in props}
 
         for model, prop in props.items():
-            score = prop / median_prop if median_prop else 0.0
+            score = scores_dict.get(model, 0.0)
+            quality_score = quality_score_cache.get(model, {})
             
             # Get confidence intervals for this model
             score_ci = None

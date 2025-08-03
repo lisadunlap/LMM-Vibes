@@ -43,11 +43,8 @@ evaluation criteria (e.g., accuracy, helpfulness, harmlessness) stored as dictio
 
 from __future__ import annotations
 
-from collections import defaultdict
-from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from .base_metrics import BaseMetrics
@@ -92,14 +89,14 @@ class SingleModelMetrics(BaseMetrics):
             else:
                 prop_global_per_model[model] = 0.0
 
-        # Calculate the median of these proportions for normalization
-        median_prop_global = np.median([v for v in prop_global_per_model.values() if v > 0]) or 1e-9
+        # Calculate distinctiveness scores
+        median_prop_global, scores_dict = self._distinctiveness_scores(prop_global_per_model)
 
         # Cluster size for information (not stored in ModelStats anymore)
         cluster_size_global = len(group["question_id"].unique())
 
-        # Compute quality score once for the whole cluster
-        quality_score = self._compute_normalized_quality_score(group)
+        # Precompute per-model quality scores using unified helper
+        quality_score_cache = {m: self._compute_normalized_quality_score(group, m) for m in prop_global_per_model}
 
         for model, prop_global in prop_global_per_model.items():
             # Skip models with no examples in this cluster
@@ -111,8 +108,8 @@ class SingleModelMetrics(BaseMetrics):
             quality_score_ci = {}
             
             # Initialize score and quality_score
-            score = prop_global / median_prop_global if median_prop_global else 0.0
-            quality_score_for_model = quality_score.copy()  # Make a copy to modify per model
+            score = scores_dict.get(model, self._safe_div(prop_global, median_prop_global))
+            quality_score_for_model = quality_score_cache.get(model, {})
             
             if self.compute_confidence_intervals:
                 # Get distinctiveness CI
@@ -131,7 +128,7 @@ class SingleModelMetrics(BaseMetrics):
                         score = score_ci["average"]
                 
                 # Get quality score CIs and update quality_score_for_model
-                for score_key in quality_score.keys():
+                for score_key in quality_score_for_model.keys():
                     model_ci = self.quality_score_cis.get(level, {}).get(cid, {}).get(score_key, {}).get(model, (0.0, 0.0))
                     if model_ci != (0.0, 0.0):
                         quality_score_ci[score_key] = {
