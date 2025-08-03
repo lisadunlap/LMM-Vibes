@@ -539,11 +539,18 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                 
                 # Calculate quality scores per model
                 models_in_cluster = group["model"].unique()
-                for model in models_in_cluster:
-                    qs = self._compute_normalized_quality_score(group, model)
+                # Add scores for every model (0 if absent)
+                for model in total_q.keys():
+                    if model in models_in_cluster:
+                        qs = self._compute_normalized_quality_score(group, model)
+                    else:
+                        qs = {key: 0.0 for key in self.global_score_stats.keys()}
                     for score_key, normalized_score in qs.items():
                         if model in bootstrap_total_q:
                             bootstrap_quality_scores["fine"][cid][score_key][model].append(normalized_score)
+                        else:
+                            # model absent entirely in bootstrap dataset, still push zero
+                            bootstrap_quality_scores["fine"][cid][score_key][model].append(0.0)
             
             # Process coarse clusters
             if (bootstrap_df["coarse_cluster_id"] != -1).any():
@@ -578,11 +585,16 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                     
                     # Calculate quality scores per model
                     models_in_cluster = group["model"].unique()
-                    for model in models_in_cluster:
-                        qs = self._compute_normalized_quality_score(group, model)
+                    for model in total_q.keys():
+                        if model in models_in_cluster:
+                            qs = self._compute_normalized_quality_score(group, model)
+                        else:
+                            qs = {key: 0.0 for key in self.global_score_stats.keys()}
                         for score_key, normalized_score in qs.items():
                             if model in bootstrap_total_q:
                                 bootstrap_quality_scores["coarse"][cid][score_key][model].append(normalized_score)
+                            else:
+                                bootstrap_quality_scores["coarse"][cid][score_key][model].append(0.0)
             
             # Update progress
             if progress_bar:

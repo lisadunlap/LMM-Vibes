@@ -11,6 +11,16 @@ import markdown
 import plotly.graph_objects as go
 import plotly.express as px
 from typing import Dict, List, Any, Optional, Tuple
+import html
+import ast
+
+# Conversation rendering helpers are now in a dedicated module for clarity
+from . import conversation_display as _convdisp
+from .conversation_display import (
+    convert_to_openai_format,
+    display_openai_conversation_html,
+    pretty_print_embedded_dicts,
+)
 
 
 def extract_quality_score(quality_score) -> float:
@@ -1129,434 +1139,115 @@ def get_unique_values_for_dropdowns(clustered_df: pd.DataFrame) -> Dict[str, Lis
         'properties': properties
     }
 
+# ---------------------------------------------------------------------------
+# Example data extraction (restored)
+# ---------------------------------------------------------------------------
 
-def convert_to_openai_format(response_data):
-    """Convert various response formats to OpenAI format (Gradio version)"""
-    
-    if isinstance(response_data, list):
-        # Already in OpenAI format
-        return response_data
-    elif isinstance(response_data, str):
-        # Try to parse as Python literal first (handles single quotes)
-        try:
-            import ast
-            parsed = ast.literal_eval(response_data)
-            if isinstance(parsed, list):
-                return parsed
-        except (ValueError, SyntaxError):
-            pass
-        
-        # Try to parse as JSON
-        try:
-            parsed = json.loads(response_data)
-            if isinstance(parsed, list):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-        
-        # Fallback: treat as plain text
-        return [{"role": "assistant", "content": response_data}]
-    else:
-        # Fallback for other types
-        return [{"role": "assistant", "content": str(response_data)}]
+def get_example_data(
+    clustered_df: pd.DataFrame,
+    selected_prompt: str | None = None,
+    selected_model: str | None = None,
+    selected_property: str | None = None,
+    max_examples: int = 5,
+) -> List[Dict[str, Any]]:
+    """Return a list of example rows filtered by prompt / model / property.
 
-
-def display_openai_conversation_html(conversation_data, use_accordion=True):
-    """Convert OpenAI conversation format to HTML (Gradio version)
-    
-    Args:
-        conversation_data: List of conversation messages
-        use_accordion: If True, group info and system messages in collapsible accordions
+    This function was accidentally removed during a refactor; it is required by
+    *examples_tab.py* and other parts of the UI.
     """
-    
-    if not conversation_data:
-        return "<p>No conversation data available</p>"
-    
-    # Define colors for different roles
-    role_colors = {
-        "system": "#ff6b6b",      # Red
-        "info": "#4ecdc4",        # Teal 
-        "assistant": "#45b7d1",   # Blue
-        "tool": "#96ceb4",        # Green
-        "user": "#feca57"         # Yellow
-    }
-    
-    html = ""
-    
-    if use_accordion:
-        # Group messages by type for accordion
-        system_messages = []
-        info_messages = []
-        other_messages = []
-        
-        for message in conversation_data:
-            if not isinstance(message, dict):
-                continue
-                
-            role = message.get("role", "unknown").lower()
-            content = message.get("content", "")
 
-            if type(content) == dict and "text" in content:
-                content = content["text"]
-            
-            if role in ["system", "info"]:
-                if role == "system":
-                    system_messages.append((role, content))
-                else:
-                    info_messages.append((role, content))
-            else:
-                other_messages.append((role, content))
-        
-        # Create accordion for system messages
-        if system_messages:
-            html += """
-            <details style="margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <summary style="
-                    padding: 12px 15px; 
-                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-                    color: white; 
-                    cursor: pointer; 
-                    font-weight: 600;
-                    font-size: 14px;
-                    user-select: none;
-                    list-style: none;
-                ">
-                    🔧 System Messages ({len(system_messages)})
-                </summary>
-                <div style="padding: 15px; background: #fff5f5;">
-            """
-            
-            for role, content in system_messages:
-                color = role_colors.get(role, "#95a5a6")
-                
-                # Format content with markdown
-                if isinstance(content, dict):
-                    content_html = f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2)}</pre>"
-                elif isinstance(content, str):
-                    content_html = markdown.markdown(content, extensions=['nl2br', 'fenced_code'])
-                elif content is None:
-                    content_html = "<em>(No content)</em>"
-                else:
-                    content_html = str(content)
-                
-                html += f"""
-                <div style="
-                    border-left: 4px solid {color};
-                    margin: 8px 0;
-                    background-color: #f8f9fa;
-                    padding: 12px;
-                    border-radius: 0 8px 8px 0;
-                ">
-                    <div style="
-                        font-weight: 600;
-                        color: {color};
-                        margin-bottom: 8px;
-                        text-transform: capitalize;
-                        font-size: 14px;
-                    ">
-                        {role}
-                    </div>
-                    <div style="
-                        color: #333;
-                        line-height: 1.6;
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    ">
-                        {content_html}
-                    </div>
-                </div>
-                """
-            
-            html += """
-                </div>
-            </details>
-            """
-        
-        # Create accordion for info messages
-        if info_messages:
-            html += """
-            <details style="margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <summary style="
-                    padding: 12px 15px; 
-                    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
-                    color: white; 
-                    cursor: pointer; 
-                    font-weight: 600;
-                    font-size: 14px;
-                    user-select: none;
-                    list-style: none;
-                ">
-                    ℹ️ Info Messages ({len(info_messages)})
-                </summary>
-                <div style="padding: 15px; background: #f0fdfa;">
-            """
-            
-            for role, content in info_messages:
-                color = role_colors.get(role, "#95a5a6")
-                
-                # Format content with markdown
-                if isinstance(content, dict):
-                    content_html = f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2)}</pre>"
-                elif isinstance(content, str):
-                    content_html = markdown.markdown(content, extensions=['nl2br', 'fenced_code'])
-                elif content is None:
-                    content_html = "<em>(No content)</em>"
-                else:
-                    content_html = str(content)
-                
-                html += f"""
-                <div style="
-                    border-left: 4px solid {color};
-                    margin: 8px 0;
-                    background-color: #f8f9fa;
-                    padding: 12px;
-                    border-radius: 0 8px 8px 0;
-                ">
-                    <div style="
-                        font-weight: 600;
-                        color: {color};
-                        margin-bottom: 8px;
-                        text-transform: capitalize;
-                        font-size: 14px;
-                    ">
-                        {role}
-                    </div>
-                    <div style="
-                        color: #333;
-                        line-height: 1.6;
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    ">
-                        {content_html}
-                    </div>
-                </div>
-                """
-            
-            html += """
-                </div>
-            </details>
-            """
-        
-        # Display other messages normally
-        for role, content in other_messages:
-            color = role_colors.get(role, "#95a5a6")
-            
-            # Format content with markdown
-            if isinstance(content, dict):
-                content_html = f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2)}</pre>"
-            elif isinstance(content, str):
-                content_html = markdown.markdown(content, extensions=['nl2br', 'fenced_code'])
-            elif content is None:
-                content_html = "<em>(No content)</em>"
-            else:
-                content_html = str(content)
-            
-            html += f"""
-            <div style="
-                border-left: 4px solid {color};
-                margin: 8px 0;
-                background-color: #f8f9fa;
-                padding: 12px;
-                border-radius: 0 8px 8px 0;
-            ">
-                <div style="
-                    font-weight: 600;
-                    color: {color};
-                    margin-bottom: 8px;
-                    text-transform: capitalize;
-                    font-size: 14px;
-                ">
-                    {role}
-                </div>
-                <div style="
-                    color: #333;
-                    line-height: 1.6;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                ">
-                    {content_html}
-                </div>
-            </div>
-            """
-    
-    else:
-        # Original behavior - display all messages normally
-        for message in conversation_data:
-            if not isinstance(message, dict):
-                continue
-                
-            role = message.get("role", "unknown")
-            content = message.get("content", "")
-
-            if type(content) == dict and "text" in content:
-                content = content["text"]
-            
-            # Get color for this role, default to gray
-            color = role_colors.get(role.lower(), "#95a5a6")
-            
-            # Format content with markdown
-            if isinstance(content, dict):
-                content_html = f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2)}</pre>"
-            elif isinstance(content, str):
-                # Convert markdown to HTML properly
-                content_html = markdown.markdown(content, extensions=['nl2br', 'fenced_code'])
-            elif content is None:
-                content_html = "<em>(No content)</em>"
-            else:
-                content_html = str(content)
-            
-            # Create message HTML
-            html += f"""
-            <div style="
-                border-left: 4px solid {color};
-                margin: 8px 0;
-                background-color: #f8f9fa;
-                padding: 12px;
-                border-radius: 0 8px 8px 0;
-            ">
-                <div style="
-                    font-weight: 600;
-                    color: {color};
-                    margin-bottom: 8px;
-                    text-transform: capitalize;
-                    font-size: 14px;
-                ">
-                    {role}
-                </div>
-                <div style="
-                    color: #333;
-                    line-height: 1.6;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                ">
-                    {content_html}
-                </div>
-            </div>
-            """
-    
-    # Add CSS for accordion styling
-    if use_accordion:
-        html = f"""
-        <style>
-        details > summary {{
-            transition: all 0.3s ease;
-        }}
-        details > summary:hover {{
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        details > summary::-webkit-details-marker {{
-            display: none;
-        }}
-        details > summary::marker {{
-            display: none;
-        }}
-        </style>
-        {html}
-        """
-    
-    return html
-
-
-def get_example_data(clustered_df: pd.DataFrame, 
-                    selected_prompt: str = None,
-                    selected_model: str = None, 
-                    selected_property: str = None,
-                    max_examples: int = 5) -> List[Dict[str, Any]]:
-    """Get example data based on filter criteria."""
     if clustered_df.empty:
         return []
-    
+
     df = clustered_df.copy()
-    
-    # Apply filters
+
+    # Apply model filter
     if selected_model and selected_model != "All Models":
-        df = df[df['model'] == selected_model]
-    
+        df = df[df["model"] == selected_model]
+
+    # Apply prompt filter (supports truncated options ending with ...)
     if selected_prompt and selected_prompt != "All Prompts":
-        # Handle truncated prompt selection by matching the beginning of the text
-        if selected_prompt.endswith("..."):
-            prompt_prefix = selected_prompt[:-3]  # Remove the "..."
-            # Check different possible prompt column names
-            if 'prompt' in df.columns:
-                df = df[df['prompt'].str.startswith(prompt_prefix, na=False)]
-            elif 'question' in df.columns:
-                df = df[df['question'].str.startswith(prompt_prefix, na=False)]
-            elif 'input' in df.columns:
-                df = df[df['input'].str.startswith(prompt_prefix, na=False)]
-            elif 'user_prompt' in df.columns:
-                df = df[df['user_prompt'].str.startswith(prompt_prefix, na=False)]
-        else:
-            # Exact match for non-truncated prompts
-            if 'prompt' in df.columns:
-                df = df[df['prompt'] == selected_prompt]
-            elif 'question' in df.columns:
-                df = df[df['question'] == selected_prompt]
-            elif 'input' in df.columns:
-                df = df[df['input'] == selected_prompt]
-            elif 'user_prompt' in df.columns:
-                df = df[df['user_prompt'] == selected_prompt]
-    
+        prompt_cols = [c for c in ["prompt", "question", "input", "user_prompt"] if c in df.columns]
+        if prompt_cols:
+            if selected_prompt.endswith("..."):
+                prefix = selected_prompt[:-3]
+                mask = False
+                for c in prompt_cols:
+                    mask |= df[c].str.startswith(prefix, na=False)
+                df = df[mask]
+            else:
+                mask = False
+                for c in prompt_cols:
+                    mask |= df[c] == selected_prompt
+                df = df[mask]
+
+    # Apply property filter (fine cluster label preferred)
     if selected_property and selected_property != "All Clusters":
-        # Handle truncated property selection - now using fine cluster labels
+        label_col = "property_description_fine_cluster_label" if "property_description_fine_cluster_label" in df.columns else "property_description"
         if selected_property.endswith("..."):
-            property_prefix = selected_property[:-3]  # Remove the "..."
-            if 'property_description_fine_cluster_label' in df.columns:
-                df = df[df['property_description_fine_cluster_label'].str.startswith(property_prefix, na=False)]
-            else:
-                # Fallback to property descriptions
-                df = df[df['property_description'].str.startswith(property_prefix, na=False)]
+            df = df[df[label_col].str.startswith(selected_property[:-3], na=False)]
         else:
-            # Exact match for non-truncated properties
-            if 'property_description_fine_cluster_label' in df.columns:
-                df = df[df['property_description_fine_cluster_label'] == selected_property]
-            else:
-                # Fallback to property descriptions
-                df = df[df['property_description'] == selected_property]
-    
-    # Limit results
+            df = df[df[label_col] == selected_property]
+
+    # Limit size
     df = df.head(max_examples)
-    
-    # Convert to list of dictionaries for easy display
-    examples = []
+
+    examples: List[Dict[str, Any]] = []
     for _, row in df.iterrows():
-        # Get prompt from various possible columns
-        prompt = (row.get('prompt') or 
-                 row.get('question') or 
-                 row.get('input') or 
-                 row.get('user_prompt') or 
-                 'N/A')
-        
-        # Get response from various possible columns (matching Streamlit version)
-        response = (row.get('model_response') or 
-                   row.get('model_a_response') or 
-                   row.get('model_b_response') or 
-                   row.get('responses') or
-                   row.get('response') or 
-                   row.get('output') or 
-                   'N/A')
-        
-        example = {
-            'id': row.get('id', 'N/A'),
-            'model': row.get('model', 'N/A'),
-            'prompt': prompt,
-            'response': response,
-            'property_description': row.get('property_description', 'N/A'),
-            'score': row.get('score', 'N/A'),
-            'fine_cluster_id': row.get('property_description_fine_cluster_id', 'N/A'),
-            'fine_cluster_label': row.get('property_description_fine_cluster_label', 'N/A'),
-            'coarse_cluster_id': row.get('property_description_coarse_cluster_id', 'N/A'),
-            'coarse_cluster_label': row.get('property_description_coarse_cluster_label', 'N/A'),
-            # Additional Property attributes
-            'category': row.get('category', 'N/A'),
-            'type': row.get('type', 'N/A'),
-            'impact': row.get('impact', 'N/A'),
-            'reason': row.get('reason', 'N/A'),
-            'evidence': row.get('evidence', 'N/A'),
-            'user_preference_direction': row.get('user_preference_direction', 'N/A'),
-            'raw_response': row.get('raw_response', 'N/A'),
-            'contains_errors': row.get('contains_errors', 'N/A'),
-            'unexpected_behavior': row.get('unexpected_behavior', 'N/A'),
-        }
-        examples.append(example)
-    
+        prompt_val = next(
+            (row.get(col) for col in ["prompt", "question", "input", "user_prompt"] if row.get(col) is not None),
+            "N/A",
+        )
+
+        response_val = next(
+            (
+                row.get(col)
+                for col in [
+                    "model_response",
+                    "model_a_response",
+                    "model_b_response",
+                    "responses",
+                    "response",
+                    "output",
+                ]
+                if row.get(col) is not None
+            ),
+            "N/A",
+        )
+
+        examples.append(
+            {
+                "id": row.get("id", "N/A"),
+                "model": row.get("model", "N/A"),
+                "prompt": prompt_val,
+                "response": response_val,
+                "property_description": row.get("property_description", "N/A"),
+                "score": row.get("score", "N/A"),
+                "fine_cluster_id": row.get("property_description_fine_cluster_id", "N/A"),
+                "fine_cluster_label": row.get("property_description_fine_cluster_label", "N/A"),
+                "coarse_cluster_id": row.get("property_description_coarse_cluster_id", "N/A"),
+                "coarse_cluster_label": row.get("property_description_coarse_cluster_label", "N/A"),
+                "category": row.get("category", "N/A"),
+                "type": row.get("type", "N/A"),
+                "impact": row.get("impact", "N/A"),
+                "reason": row.get("reason", "N/A"),
+                "evidence": row.get("evidence", "N/A"),
+                "user_preference_direction": row.get("user_preference_direction", "N/A"),
+                "raw_response": row.get("raw_response", "N/A"),
+                "contains_errors": row.get("contains_errors", "N/A"),
+                "unexpected_behavior": row.get("unexpected_behavior", "N/A"),
+            }
+        )
+
     return examples
+
+# ---------------------------------------------------------------------------
+# Back-compat to ensure moved helpers remain accessible
+# ---------------------------------------------------------------------------
+
+convert_to_openai_format = _convdisp.convert_to_openai_format  # type: ignore
+display_openai_conversation_html = _convdisp.display_openai_conversation_html  # type: ignore
+pretty_print_embedded_dicts = _convdisp.pretty_print_embedded_dicts  # type: ignore
 
 
 def format_examples_display(examples: List[Dict[str, Any]], 
