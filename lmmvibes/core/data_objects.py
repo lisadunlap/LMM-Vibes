@@ -64,7 +64,7 @@ def check_and_convert_to_oai_format(prompt: str, response: str) -> tuple[list, b
 @dataclass
 class ConversationRecord:
     """A single conversation with prompt, responses, and metadata."""
-    question_id: str
+    question_id: str 
     prompt: str
     model: str | List[str]  # model name(s) - single string or tuple for side-by-side comparisons
     responses: str | List[str] # {model_name: response}
@@ -164,6 +164,19 @@ class PropertyDataset:
     clusters: List[Cluster] = field(default_factory=list)
     model_stats: Dict[str, Any] = field(default_factory=dict)
     
+    def __str__(self) -> str:
+        """Return a readable string representation of the PropertyDataset."""
+        lines = [
+            "PropertyDataset:",
+            f"  conversations: List[ConversationRecord] ({len(self.conversations)} items)",
+            f"  all_models: List[str] ({len(self.all_models)} items) - {self.all_models}",
+            f"  properties: List[Property] ({len(self.properties)} items)",
+            f"  clusters: List[Cluster] ({len(self.clusters)} items)",
+            f"  model_stats: Dict[str, Any] ({len(self.model_stats)} entries)"
+        ]
+        
+        return "\n".join(lines)
+    
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, method: str = "single_model") -> "PropertyDataset":
         """
@@ -181,7 +194,7 @@ class PropertyDataset:
             all_models = list(set(df["model_a"].unique().tolist() + df["model_b"].unique().tolist()))
             # Expected columns: question_id, prompt, model_a, model_b, 
             # model_a_response, model_b_response, winner, etc.
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 prompt = str(row.get('prompt', row.get('user_prompt', '')))
                 model_a_response = row.get('model_a_response', '')
                 model_b_response = row.get('model_b_response', '')
@@ -191,7 +204,7 @@ class PropertyDataset:
                 oai_response_b, was_converted_b = check_and_convert_to_oai_format(prompt, model_b_response)
                 
                 conversation = ConversationRecord(
-                    question_id=str(row.get('question_id', row.name)),
+                    question_id=str(idx),  # Auto-generate as row index
                     prompt=prompt,
                     model=[row.get('model_a', 'model_a'), row.get('model_b', 'model_b')],
                     responses=[oai_response_a, oai_response_b],
@@ -205,7 +218,7 @@ class PropertyDataset:
         elif method == "single_model":
             all_models = df["model"].unique().tolist()
             # Expected columns: question_id, prompt, model, model_response, score, etc.
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 scores = row.get('score')
                 if scores is None:
                     scores = {'score': 0}
@@ -219,7 +232,7 @@ class PropertyDataset:
                 oai_response, was_converted = check_and_convert_to_oai_format(prompt, response)
                 
                 conversation = ConversationRecord(
-                    question_id=str(row.get('question_id', row.name)),
+                    question_id=str(idx),  # Auto-generate as row index
                     prompt=prompt,
                     model=str(row.get('model', 'model')),
                     responses=oai_response,

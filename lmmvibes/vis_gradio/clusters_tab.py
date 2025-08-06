@@ -46,6 +46,21 @@ def view_clusters_interactive(
             "<p style='color: #e74c3c; padding: 20px;'>❌ No cluster data available</p>"
         )
 
+    # Get additional metrics from cluster_scores
+    cluster_scores = app_state.get("metrics", {}).get("cluster_scores", {})
+    
+    # Calculate average quality scores and frequency
+    total_frequency = 0
+    quality_scores_list = []
+    
+    for cluster_name, cluster_data in cluster_scores.items():
+        total_frequency += cluster_data.get("proportion", 0) * 100
+        quality_scores = cluster_data.get("quality", {})
+        if quality_scores:
+            quality_scores_list.extend(quality_scores.values())
+    
+    avg_quality = sum(quality_scores_list) / len(quality_scores_list) if quality_scores_list else 0
+
     stats_html = f"""
     <div style="
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
@@ -64,6 +79,14 @@ def view_clusters_interactive(
             <div>
                 <div style="font-size: 24px; font-weight: bold;">{stats['total_models']}</div>
                 <div style="opacity: 0.9;">Models</div>
+            </div>
+            <div>
+                <div style="font-size: 24px; font-weight: bold;">{total_frequency:.1f}%</div>
+                <div style="opacity: 0.9;">Total Frequency</div>
+            </div>
+            <div>
+                <div style="font-size: 24px; font-weight: bold;">{avg_quality:.3f}</div>
+                <div style="opacity: 0.9;">Avg Quality Score</div>
             </div>
     """
 
@@ -94,6 +117,20 @@ def view_clusters_interactive(
         </div>
     </div>
     """
+    
+    # Add a note if coarse clusters were requested but not available
+    if cluster_level == "coarse" and "coarse_clusters" not in stats and "fine_clusters" in stats:
+        stats_html += """
+        <div style="
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        ">
+            ⚠️ <strong>Note:</strong> Coarse clusters not available in this dataset. Showing fine clusters instead.
+        </div>
+        """
 
     # Additional filter chips
     filter_info = ""

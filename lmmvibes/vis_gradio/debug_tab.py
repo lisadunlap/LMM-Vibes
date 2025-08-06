@@ -15,8 +15,11 @@ def debug_data_structure() -> str:
     n_rows = len(df)
     n_cols = len(df.columns)
 
-    has_fine_clusters = "property_description_fine_cluster_id" in df.columns
-    has_coarse_clusters = "property_description_coarse_cluster_id" in df.columns
+    # Check for both naming patterns
+    has_fine_clusters = ("property_description_fine_cluster_id" in df.columns or 
+                        "fine_cluster_id" in df.columns)
+    has_coarse_clusters = ("property_description_coarse_cluster_id" in df.columns or 
+                          "coarse_cluster_id" in df.columns)
 
     sample_rows = min(3, len(df))
     sample_data = df.head(sample_rows).to_html(

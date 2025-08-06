@@ -19,6 +19,7 @@ from .extractor_prompts import (
 
 # Import agent-specific prompts for agentic environments
 from .agents import (
+    agent_system_prompt,
     taubench_comparison_system_prompt,
     agentic_swe_system_prompt,
     agentic_tool_focused_prompt,
@@ -71,6 +72,7 @@ __all__ = [
     "single_model_no_score_system_prompt",
     "single_model_system_prompt",
     # Agent-specific prompts for agentic environments
+    "agent_system_prompt",
     "taubench_comparison_system_prompt",
     "agentic_swe_system_prompt",
     "agentic_tool_focused_prompt",

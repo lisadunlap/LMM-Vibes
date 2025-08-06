@@ -32,7 +32,8 @@ from .utils import (
     get_cluster_statistics,
     get_unique_values_for_dropdowns,
     get_example_data,
-    format_examples_display
+    format_examples_display,
+    get_total_clusters_count
 )
 
 # ---------------------------------------------------------------------------
@@ -54,14 +55,33 @@ from .examples_tab import (
     get_dropdown_choices,
     update_example_dropdowns,
     view_examples,
-    update_filter_dropdowns,
-    get_filter_options,
 )
 # Frequency and debug remain
 from .frequency_tab import create_frequency_comparison, create_frequency_plots
 from .debug_tab import debug_data_structure
+from .plots_tab import create_plots_tab, create_plot_with_toggle, update_quality_metric_dropdown, update_quality_metric_visibility
 
 # app_state and BASE_RESULTS_DIR now come from vis_gradio.state
+
+
+def update_top_n_slider_maximum():
+    """Update the top N slider maximum based on total clusters in loaded data."""
+    from .state import app_state
+    
+    if not app_state.get("metrics"):
+        return gr.Slider(minimum=1, maximum=10, value=3, step=1)
+    
+    total_clusters = get_total_clusters_count(app_state["metrics"])
+    max_value = max(10, total_clusters)  # At least 10, or total clusters if more
+    
+    return gr.Slider(
+        label="Top N Clusters per Model",
+        minimum=1, 
+        maximum=max_value, 
+        value=min(3, max_value), 
+        step=1,
+        info=f"Number of top clusters to show per model (max: {total_clusters})"
+    )
 
 
 def create_app() -> gr.Blocks:
@@ -83,7 +103,10 @@ def create_app() -> gr.Blocks:
                     gr.Markdown(f"**Base Results Directory:** `{BASE_RESULTS_DIR}`")
                     gr.Markdown("Select an experiment from the dropdown below to load its results.")
                 else:
-                    gr.Markdown("Provide the path to your pipeline results directory containing `model_stats.json` and `clustered_results.jsonl`")
+                    gr.Markdown("Provide the path to your pipeline results directory containing either:")
+                    gr.Markdown("• **Legacy format**: `model_stats.json` + `clustered_results.jsonl`")
+                    gr.Markdown("• **Functional format**: `model_cluster_scores.json` + `cluster_scores.json` + `model_scores.json` + `clustered_results.jsonl`")
+                    gr.Markdown("*The app will automatically detect which format you're using.*")
                 
                 with gr.Row():
                     with gr.Column(scale=3):
@@ -98,7 +121,7 @@ def create_app() -> gr.Blocks:
                             results_dir_input = gr.Textbox(
                                 label="Results Directory Path",
                                 placeholder="/path/to/your/results/directory",
-                                info="Directory containing model_stats.json and clustered_results.jsonl"
+                                info="Directory containing pipeline results (legacy or functional format)"
                             )
                     with gr.Column(scale=1):
                         load_btn = gr.Button("Load Data", variant="primary")
@@ -117,19 +140,11 @@ def create_app() -> gr.Blocks:
             # Tab 2: Overview
             with gr.TabItem("📊 Overview"):
                 with gr.Row():
-                    cluster_level = gr.Radio(
-                        label="Cluster Level",
-                        choices=["fine", "coarse"],
-                        value="fine",
-                        info="Fine: detailed clusters, Coarse: high-level categories"
+                    min_cluster_size = gr.Slider(
+                        label="Minimum Cluster Size",
+                        minimum=1, maximum=50, value=1, step=1,
+                        info="Hide clusters with fewer than this many examples"
                     )
-                    top_n_overview = gr.Slider(
-                        label="Top N Clusters per Model",
-                        minimum=1, maximum=10, value=3, step=1,
-                        info="Number of top clusters to show per model"
-                    )
-                
-                with gr.Row():
                     score_significant_only = gr.Checkbox(
                         label="Show Only Score Significant Clusters",
                         value=False,
@@ -152,8 +167,13 @@ def create_app() -> gr.Blocks:
                             ("Frequency (Descending)", "frequency_desc"),
                             ("Frequency (Ascending)", "frequency_asc")
                         ],
-                        value="score_desc",
+                        value="quality_asc",
                         info="How to sort clusters within each model card"
+                    )
+                    top_n_overview = gr.Slider(
+                        label="Top N Clusters per Model",
+                        minimum=1, maximum=10, value=3, step=1,
+                        info="Number of top clusters to show per model"
                     )
                 
                 overview_display = gr.HTML(label="Model Overview")
@@ -218,6 +238,11 @@ def create_app() -> gr.Blocks:
                         value=True,
                         info="Group system and info messages in collapsible sections"
                     )
+                    pretty_print_checkbox = gr.Checkbox(
+                        label="Pretty-print dictionaries",
+                        value=True,
+                        info="Format embedded dictionaries for readability"
+                    )
                     view_examples_btn = gr.Button("View Examples", variant="primary")
                 
                 examples_display = gr.HTML(
@@ -226,164 +251,60 @@ def create_app() -> gr.Blocks:
                 )
             
             # Tab 5: Frequency Comparison
-            with gr.TabItem("📈 Frequency Comparison"):
-                gr.Markdown("### Model Frequency Comparison")
-                gr.Markdown("Compare how frequently each model exhibits behaviors in different clusters")
+            with gr.TabItem("📈 Functional Metrics Tables"):
+                gr.Markdown("### Functional Metrics Tables")
+                gr.Markdown("View the three tables created by the functional metrics pipeline:")
+                gr.Markdown("• **Model-Cluster Scores**: Per model-cluster combination metrics")
+                gr.Markdown("• **Cluster Scores**: Per cluster metrics (aggregated across all models)")
+                gr.Markdown("• **Model Scores**: Per model metrics (aggregated across all clusters)")
                 
-                with gr.Row():
-                    cluster_level_freq = gr.Radio(
-                        label="Cluster Level",
-                        choices=["fine", "coarse"],
-                        value="fine"
-                    )
-                    top_n_freq = gr.Slider(
-                        label="Top N Clusters",
-                        minimum=5, maximum=200, value=50, step=5
-                    )
-                
-                with gr.Row():
-                    selected_model_filter = gr.Dropdown(
-                        label="Filter by Specific Model (Optional)",
-                        choices=["All Models"],
-                        value="All Models",
-                        info="Select a specific model to show only its data, or 'All Models' for aggregated view"
-                    )
-                    selected_quality_metric = gr.Dropdown(
-                        label="Filter by Quality Metric (Optional)",
-                        choices=["All Metrics"],
-                        value="All Metrics",
-                        info="Select a specific quality metric to show only its data, or 'All Metrics' for aggregated view"
-                    )
-                
-                refresh_freq_btn = gr.Button("Refresh Comparison", variant="primary")
+                refresh_freq_btn = gr.Button("Refresh Tables", variant="primary")
                 
                 frequency_table_info = gr.Markdown("")
                 
-                # Frequency table first
-                frequency_table = gr.Dataframe(
-                    label="Frequency Comparison Table",
+                # Three separate tables for the functional metrics
+                gr.Markdown("### Model-Cluster Scores")
+                gr.Markdown("Per model-cluster combination metrics")
+                model_cluster_table = gr.Dataframe(
+                    label="Model-Cluster Scores",
                     interactive=False,
                     wrap=True,
-                    max_height=800,
-                    elem_classes=["frequency-comparison-table"]
+                    max_height=600,
+                    elem_classes=["frequency-comparison-table"],
+                    show_search="search",
+                    pinned_columns=2
+                )
+                
+                gr.Markdown("### Cluster Scores") 
+                gr.Markdown("Per cluster metrics (aggregated across all models)")
+                cluster_table = gr.Dataframe(
+                    label="Cluster Scores",
+                    interactive=False,
+                    wrap=True,
+                    max_height=600,
+                    elem_classes=["frequency-comparison-table"],
+                    show_search="search",
+                    pinned_columns=2
+                )
+                
+                gr.Markdown("### Model Scores")
+                gr.Markdown("Per model metrics (aggregated across all clusters)")
+                model_table = gr.Dataframe(
+                    label="Model Scores",
+                    interactive=False,
+                    wrap=True,
+                    max_height=600,
+                    elem_classes=["frequency-comparison-table"],
+                    show_search="search"
                 )
                 
                 # Plots section has been removed
                 
-                # Add CSS styling for the frequency table
-                gr.HTML("""
-                <style>
-                /* Make the actual table use fixed layout to avoid reflow jitter */
-                .frequency-comparison-table table,
-                div[data-testid="dataframe"] table {
-                    table-layout: fixed !important;
-                    width: 100% !important;
-                    border-collapse: collapse !important;
-                }
-
-                .frequency-comparison-table th,
-                .frequency-comparison-table td {
-                    overflow: hidden !important;
-                    text-overflow: ellipsis !important;
-                    white-space: nowrap !important;
-                }
-                
-                /* Make cluster column (first column) wider with better text wrapping */
-                .frequency-comparison-table table th:first-child,
-                .frequency-comparison-table table td:first-child,
-                div[data-testid="dataframe"] table th:first-child,
-                div[data-testid="dataframe"] table td:first-child {
-                    min-width: 250px !important;
-                    max-width: 400px !important;
-                    white-space: normal !important;
-                    word-wrap: break-word !important;
-                    word-break: break-word !important;
-                    overflow-wrap: break-word !important;
-                }
-                
-                /* Ensure horizontal scrolling works properly for all table containers */
-                .frequency-comparison-table,
-                div[data-testid="dataframe"] {
-                    overflow: auto !important;
-                    max-height: 800px !important;
-                    border: 1px solid #ddd !important;
-                    border-radius: 4px !important;
-                    position: relative !important;
-                }
-                
-                /* Remove the scroll indicator which can cause jitter */
-                .frequency-comparison-table::after,
-                div[data-testid="dataframe"]::after {
-                    display: none !important;
-                }
-                
-                /* Ensure the dataframe component itself allows scrolling */
-                div[data-testid="dataframe"] {
-                    max-width: 100% !important;
-                    width: 100% !important;
-                }
-                
-                /* Override any Gradio default styles that might interfere */
-                .frequency-comparison-table *,
-                div[data-testid="dataframe"] * {
-                    box-sizing: border-box !important;
-                }
-                </style>
-                
-                <script>
-                // JavaScript to stabilize table layout and prevent jitter
-                function stabilizeTableLayout() {
-                    const tables = document.querySelectorAll('.frequency-comparison-table, div[data-testid="dataframe"]');
-                    
-                    tables.forEach(container => {
-                        const table = container.querySelector('table');
-                        if (!table) return;
-
-                        // Set a fixed table layout to prevent column widths from changing during scroll
-                        table.style.tableLayout = 'fixed';
-                        table.style.width = '100%';
-
-                        // Ensure the container is set to scroll
-                        container.style.overflow = 'auto';
-                    });
-                }
-                
-                // Run on initial load
-                document.addEventListener('DOMContentLoaded', stabilizeTableLayout);
-                
-                // Re-run whenever Gradio updates the component
-                const observer = new MutationObserver((mutations) => {
-                    for (const mutation of mutations) {
-                        if (mutation.type === 'childList' || mutation.type === 'subtree') {
-                            stabilizeTableLayout();
-                        }
-                    }
-                });
-
-                function setupObserver() {
-                    const tableContainer = document.querySelector('.frequency-comparison-table, div[data-testid="dataframe"]');
-                    if (tableContainer) {
-                        observer.observe(tableContainer, {
-                            childList: true,
-                            subtree: true,
-                        });
-                    }
-                }
-
-                document.addEventListener('DOMContentLoaded', setupObserver);
-
-                // Fallback interval to catch dynamic updates
-                setInterval(stabilizeTableLayout, 1000);
-                </script>
-                """)
-                
-                # Remove duplicate elements
-                # frequency_plots = gr.Plot(
-                #     label="Frequency Comparison Plots",
-                #     visible=False # Initially hidden
-                # )
-                # 
-                # refresh_freq_btn = gr.Button("Refresh Comparison")
+                # Remove all custom CSS styling - use Gradio defaults
+            
+            # Tab 6: Plots
+            with gr.TabItem("📊 Plots"):
+                plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown = create_plots_tab()
             
             # (Search Examples tab removed)
             # Tab 7: Debug Data
@@ -410,12 +331,19 @@ def create_app() -> gr.Blocks:
                     fn=update_example_dropdowns,
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=update_filter_dropdowns,
-                    outputs=[selected_model_filter, selected_quality_metric]
+                    fn=update_top_n_slider_maximum,
+                    outputs=[top_n_overview]
                 ).then(
                     fn=create_frequency_comparison,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric],
-                    outputs=[frequency_table, frequency_table_info]
+                    inputs=[selected_models],
+                    outputs=[model_cluster_table, cluster_table, model_table, frequency_table_info]
+                ).then(
+                    fn=create_plot_with_toggle,
+                    inputs=[plot_type_dropdown, quality_metric_dropdown, show_ci_checkbox],
+                    outputs=[plot_display, plot_info]
+                ).then(
+                    fn=update_quality_metric_dropdown,
+                    outputs=[quality_metric_dropdown]
                 ))
         else:
             # Use textbox for manual path entry
@@ -428,62 +356,65 @@ def create_app() -> gr.Blocks:
                     fn=update_example_dropdowns,
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=update_filter_dropdowns,
-                    outputs=[selected_model_filter, selected_quality_metric]
+                    fn=update_top_n_slider_maximum,
+                    outputs=[top_n_overview]
                 ).then(
                     fn=create_frequency_comparison,
-                    inputs=[selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric],
-                    outputs=[frequency_table, frequency_table_info]
+                    inputs=[selected_models],
+                    outputs=[model_cluster_table, cluster_table, model_table, frequency_table_info]
+                ).then(
+                    fn=create_plot_with_toggle,
+                    inputs=[plot_type_dropdown, quality_metric_dropdown, show_ci_checkbox],
+                    outputs=[plot_display, plot_info]
+                ).then(
+                    fn=update_quality_metric_dropdown,
+                    outputs=[quality_metric_dropdown]
                 ))
         
         refresh_overview_btn.click(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         refresh_clusters_btn.click(
             fn=view_clusters_interactive,
-            inputs=[selected_models, cluster_level, search_clusters],
+            inputs=[selected_models, search_clusters],
             outputs=[clusters_display]
         )
         
         # View Examples handlers
         view_examples_btn.click(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when dropdowns change
         example_prompt_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox],
             outputs=[examples_display]
         )
         
         example_model_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox],
             outputs=[examples_display]
         )
         
         example_property_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox],
             outputs=[examples_display]
         )
         
         # Frequency Tab Handlers
-        freq_inputs = [selected_models, cluster_level_freq, top_n_freq, selected_model_filter, selected_quality_metric]
-        freq_outputs = [frequency_table, frequency_table_info]
+        freq_inputs = [selected_models]
+        freq_outputs = [model_cluster_table, cluster_table, model_table, frequency_table_info]
 
         refresh_freq_btn.click(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
-        cluster_level_freq.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
-        top_n_freq.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
         selected_models.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
-        selected_model_filter.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
-        selected_quality_metric.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
         
         # (Search Examples tab removed – no search_btn handler required)
         
@@ -492,57 +423,89 @@ def create_app() -> gr.Blocks:
             outputs=[debug_display]
         )
         
+        # Plots Tab Handlers
+        show_ci_checkbox.change(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, show_ci_checkbox],
+            outputs=[plot_display, plot_info]
+        )
+        
+        # Quality metric dropdown handlers (only for quality plots)
+        quality_metric_dropdown.change(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, show_ci_checkbox],
+            outputs=[plot_display, plot_info]
+        )
+
+        # Update quality metric visibility and plot based on plot type
+        plot_type_dropdown.change(
+            fn=update_quality_metric_visibility,
+            inputs=[plot_type_dropdown],
+            outputs=[quality_metric_dropdown]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, show_ci_checkbox],
+            outputs=[plot_display, plot_info]
+        )
+        
         # Auto-refresh on model selection change
         selected_models.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         # Auto-refresh on significance filter changes
         score_significant_only.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         quality_significant_only.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         # Auto-refresh on sort dropdown change
         sort_by.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         # Auto-refresh on cluster level change
-        cluster_level.change(
-            fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
-            outputs=[overview_display]
-        )
+        # cluster_level.change(
+        #     fn=create_overview,
+        #     inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+        #     outputs=[overview_display]
+        # )
         
         # Auto-refresh on top N change
         top_n_overview.change(
             fn=create_overview,
-            inputs=[selected_models, cluster_level, top_n_overview, score_significant_only, quality_significant_only, sort_by],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            outputs=[overview_display]
+        )
+        
+        # Auto-refresh on minimum cluster size change
+        min_cluster_size.change(
+            fn=create_overview,
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
             outputs=[overview_display]
         )
         
         selected_models.change(
             fn=view_clusters_interactive,
-            inputs=[selected_models, cluster_level, search_clusters],
+            inputs=[selected_models, gr.State("fine"), search_clusters],
             outputs=[clusters_display]
         )
         
         # Auto-refresh clusters when search term changes (with debouncing)
         search_clusters.change(
             fn=view_clusters_interactive,
-            inputs=[selected_models, cluster_level, search_clusters],
+            inputs=[selected_models, gr.State("fine"), search_clusters],
             outputs=[clusters_display]
         )
     
@@ -588,9 +551,10 @@ def launch_app(results_dir: Optional[str] = None,
             # Auto-load the single experiment
             experiment_path = os.path.join(results_dir, experiments[0])
             try:
-                clustered_df, model_stats, results_path = load_pipeline_results(experiment_path)
+                clustered_df, model_stats, model_cluster_df, results_path = load_pipeline_results(experiment_path)
                 app_state['clustered_df'] = clustered_df
                 app_state['model_stats'] = model_stats
+                app_state['model_cluster_df'] = model_cluster_df
                 app_state['results_path'] = results_path
                 app_state['available_models'] = get_available_models(model_stats)
                 app_state['current_results_dir'] = experiment_path

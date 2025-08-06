@@ -55,6 +55,7 @@ def view_examples(
     selected_property: str,
     max_examples: int = 5,
     use_accordion: bool = True,
+    pretty_print_dicts: bool = True,
 ) -> str:
     if app_state["clustered_df"] is None:
         return (
@@ -76,6 +77,7 @@ def view_examples(
         selected_model,
         selected_property,
         use_accordion=use_accordion,
+        pretty_print_dicts=pretty_print_dicts,
     )
 
 

@@ -106,12 +106,13 @@ def convert_to_openai_format(response_data: Any):
 # HTML rendering
 # ---------------------------------------------------------------------------
 
-def _markdown(text: str) -> str:
-    """Render markdown after pretty-printing any embedded dicts."""
-    return markdown.markdown(pretty_print_embedded_dicts(text), extensions=["nl2br", "fenced_code"])
+def _markdown(text: str, *, pretty_print_dicts: bool = True) -> str:
+    """Render markdown, optionally pretty-printing any embedded dicts."""
+    processed = pretty_print_embedded_dicts(text) if pretty_print_dicts else html.escape(text)
+    return markdown.markdown(processed, extensions=["nl2br", "fenced_code"])
 
 
-def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *, use_accordion: bool = True) -> str:
+def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *, use_accordion: bool = True, pretty_print_dicts: bool = True) -> str:
     """Convert an OpenAI-style conversation list into styled HTML for Gradio."""
 
     if not conversation_data:
@@ -139,12 +140,15 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
     }
 
     def _format_msg(role: str, content: Any) -> str:
-        if isinstance(content, dict):
-            content_html = (
-                f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2)}</pre>"
-            )
+        if isinstance(content, dict) or (isinstance(content, list) and content and all(isinstance(d, dict) for d in content)):
+            if pretty_print_dicts:
+                content_html = (
+                    f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2, ensure_ascii=False)}</pre>"
+                )
+            else:
+                content_html = f"<code>{html.escape(json.dumps(content, ensure_ascii=False))}</code>"
         elif isinstance(content, str):
-            content_html = _markdown(content)
+            content_html = _markdown(content, pretty_print_dicts=pretty_print_dicts)
         elif content is None:
             content_html = "<em>(No content)</em>"
         else:
@@ -173,18 +177,21 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
             else:
                 other_msgs.append((role, content))
 
-        def _accordion(title: str, col: str, items: List):
+        def _accordion(title: str, items: List):
             if not items:
                 return ""
             inner = "".join(_format_msg(r, c) for r, c in items)
             return (
-                f"<details style='margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;'>"
-                f"<summary style='padding: 12px 15px; background: {col}; color: white; cursor: pointer; font-weight: 600; font-size: 14px; user-select: none; list-style: none;'>{title} ({len(items)})</summary>"
-                f"<div style='padding: 15px; background: #f8f9fa;'>{inner}</div></details>"
+                f"<details style='margin: 8px 0;'>"
+                f"<summary style='cursor: pointer; font-weight: 600;'>"
+                f"{html.escape(title)} ({len(items)})"  # e.g. "Click to see system messages (3)"
+                f"</summary>"
+                f"<div style='padding: 8px 15px;'>{inner}</div>"
+                "</details>"
             )
 
-        html_out += _accordion("🔧 System Messages", "linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)", system_msgs)
-        html_out += _accordion("ℹ️ Info Messages", "linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%)", info_msgs)
+        html_out += _accordion("Click to see system messages", system_msgs)
+        html_out += _accordion("Click to see info messages", info_msgs)
         for r, c in other_msgs:
             html_out += _format_msg(r, c)
     else:
@@ -201,9 +208,9 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
     # CSS for summary hover effects when accordion is enabled
     if use_accordion:
         html_out = (
-            "<style>details > summary {transition: all 0.3s ease;}"  # noqa: E501
-            "details > summary:hover {transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1);}"
-            "details > summary::-webkit-details-marker, details > summary::marker {display:none;}"
+            "<style>details > summary {list-style:none; cursor:pointer;}"  # Remove default bullet and keep pointer
+            "details > summary:hover {background-color:transparent; box-shadow:none; transform:none;}"  # No hover highlight or movement
+            "details > summary::-webkit-details-marker, details > summary::marker {display:none;}"  # Hide default disclosure triangle
             "</style>" + html_out
         )
 

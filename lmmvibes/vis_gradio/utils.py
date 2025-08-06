@@ -22,269 +22,231 @@ from .conversation_display import (
     pretty_print_embedded_dicts,
 )
 
+# NEW IMPLEMENTATION ---------------------------------------------------
+from .metrics_adapter import get_model_clusters, get_all_models
 
-def extract_quality_score(quality_score) -> float:
-    """
-    Extract a float quality score from quality_score field.
-    
-    Args:
-        quality_score: Either a float, int, dictionary, or nested structure with score keys
-        
-    Returns:
-        float: The quality score value, always guaranteed to be a float
-    """
-    if quality_score is None:
-        return 0.0
-    elif isinstance(quality_score, (int, float)):
-        return float(quality_score)
-    elif isinstance(quality_score, dict):
-        # Handle dictionary cases
-        if not quality_score:  # Empty dict
-            return 0.0
-        
-        # Try to extract a numeric value from the dictionary
-        for key, value in quality_score.items():
-            if isinstance(value, (int, float)):
-                return float(value)
-            elif isinstance(value, dict):
-                # Handle nested dictionaries recursively
-                nested_result = extract_quality_score(value)
-                if nested_result != 0.0:  # Found a valid value
-                    return nested_result
-        
-        # If no numeric values found, return 0.0
-        return 0.0
-    else:
-        # For any other type, try to convert to float, fallback to 0.0
-        try:
-            return float(quality_score)
-        except (ValueError, TypeError):
-            return 0.0
+# ---------------------------------------------------------------------------
+# NEW helper utilities for FunctionalMetrics format
+# ---------------------------------------------------------------------------
 
 
-def format_confidence_interval(score_ci: dict, confidence_level: float = 0.95) -> str:
-    """
-    Format confidence interval for display.
-    
-    Args:
-        score_ci: Dict with "lower" and "upper" keys, or None
-        confidence_level: Confidence level (e.g., 0.95 for 95%)
-        
-    Returns:
-        str: Formatted confidence interval string
-    """
-    if not score_ci or not isinstance(score_ci, dict):
+def format_confidence_interval(ci: dict | None, decimals: int = 3) -> str:
+    """Return a pretty string for a CI dict of the form {"lower": x, "upper": y}."""
+    if not ci or not isinstance(ci, dict):
         return "N/A"
-    
-    lower = score_ci.get("lower")
-    upper = score_ci.get("upper")
-    
+    lower, upper = ci.get("lower"), ci.get("upper")
     if lower is None or upper is None:
         return "N/A"
-    
-    ci_percent = int(confidence_level * 100)
-    return f"[{lower:.3f}, {upper:.3f}] ({ci_percent}% CI)"
+    return f"[{lower:.{decimals}f}, {upper:.{decimals}f}]"
 
 
-def has_confidence_intervals(cluster_stat: dict) -> bool:
-    """
-    Check if a cluster statistic has confidence intervals.
-    
-    Args:
-        cluster_stat: Cluster statistic dictionary
-        
-    Returns:
-        bool: True if confidence intervals are available
-    """
-    score_ci = cluster_stat.get('score_ci')
-    return (isinstance(score_ci, dict) and 
-            score_ci.get('lower') is not None and 
-            score_ci.get('upper') is not None)
-
-
-def get_confidence_interval_width(score_ci: dict) -> float:
-    """
-    Calculate the width of a confidence interval.
-    
-    Args:
-        score_ci: Dict with "lower" and "upper" keys
-        
-    Returns:
-        float: Width of the interval
-    """
-    if not score_ci or not isinstance(score_ci, dict):
-        return 0.0
-    
-    lower = score_ci.get("lower")
-    upper = score_ci.get("upper")
-    
+def get_confidence_interval_width(ci: dict | None) -> float | None:
+    """Return CI width (upper-lower) if possible."""
+    if not ci or not isinstance(ci, dict):
+        return None
+    lower, upper = ci.get("lower"), ci.get("upper")
     if lower is None or upper is None:
-        return 0.0
-        
+        return None
     return upper - lower
 
 
-def compute_model_rankings(model_stats: Dict[str, Any]) -> List[tuple]:
-    """Compute model rankings by average score"""
-    model_scores = {}
-    for model, stats in model_stats.items():
-        fine_scores = [stat['score'] for stat in stats.get('fine', [])]
-        if fine_scores:
-            model_scores[model] = {
-                'avg_score': np.mean(fine_scores),
-                'median_score': np.median(fine_scores),
-                'num_clusters': len(fine_scores),
-                'top_score': max(fine_scores),
-                'std_score': np.std(fine_scores)
-            }
-        else:
-            model_scores[model] = {
-                'avg_score': 0, 'median_score': 0, 'num_clusters': 0, 
-                'top_score': 0, 'std_score': 0
-            }
-    
-    return sorted(model_scores.items(), key=lambda x: x[1]['avg_score'], reverse=True)
+def has_confidence_intervals(record: dict | None) -> bool:
+    """Simple check whether any *_ci key with lower/upper exists in a metrics record."""
+    if not record or not isinstance(record, dict):
+        return False
+    for k, v in record.items():
+        if k.endswith("_ci") and isinstance(v, dict) and {"lower", "upper"}.issubset(v.keys()):
+            return True
+    return False
 
 
-def get_top_clusters_for_model(model_stats: Dict[str, Any], model_name: str, 
-                              level: str = 'fine', top_n: int = 10) -> List[Dict[str, Any]]:
-    """Get top N clusters for a specific model"""
-    model_data = model_stats.get(model_name, {})
-    clusters = model_data.get(level, [])
-    return sorted(clusters, key=lambda x: x['score'], reverse=True)[:top_n]
+def extract_quality_score(quality_field: Any) -> float | None:
+    """Given a quality field that may be a dict of metric values or a scalar, return its mean."""
+    if quality_field is None:
+        return None
+    if isinstance(quality_field, (int, float)):
+        return float(quality_field)
+    if isinstance(quality_field, dict) and quality_field:
+        return float(np.mean(list(quality_field.values())))
+    return None
+
+# ---------------------------------------------------------------------------
+# UPDATED: get_top_clusters_for_model for FunctionalMetrics format
+# ---------------------------------------------------------------------------
 
 
-def create_model_summary_card(model_name: str, model_stats: Dict[str, Any], 
-                             cluster_level: str = 'fine', top_n: int = 3,
-                             score_significant_only: bool = False, 
-                             quality_significant_only: bool = False,
-                             sort_by: str = "score_desc") -> str:
-    """Create HTML summary card for a model."""
-    # Get all clusters for this model
-    model_data = model_stats.get(model_name, {})
-    all_clusters = model_data.get(cluster_level, [])
-    
-    if not all_clusters:
-        return f"""
-        <div style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
-            <h3 style="margin: 0 0 10px 0; color: #333;">{model_name}</h3>
-            <p>No cluster data available</p>
-        </div>
-        """
-    
-    # Apply significance filters
-    filtered_clusters = []
-    for cluster in all_clusters:
-        # Check score significance filter
-        if score_significant_only:
-            score_sig = cluster.get('score_statistical_significance', False)
-            if not score_sig:
-                continue
-        
-        # Check quality significance filter
-        if quality_significant_only:
-            quality_sig_dict = cluster.get('quality_score_statistical_significance', {})
-            if isinstance(quality_sig_dict, dict):
-                quality_sig = any(quality_sig_dict.values())
-            else:
-                quality_sig = False
-            if not quality_sig:
-                continue
-        
-        filtered_clusters.append(cluster)
-    
-    if not filtered_clusters:
-        return f"""
-        <div style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
-            <h3 style="margin: 0 0 10px 0; color: #333;">{model_name}</h3>
-            <p>No clusters match the selected significance filters</p>
-        </div>
-        """
-    
-    # Apply sorting
-    if sort_by == "score_desc":
-        # Sort by distinctiveness score (descending)
-        filtered_clusters.sort(key=lambda x: x.get('score', 0), reverse=True)
-    elif sort_by == "score_asc":
-        # Sort by distinctiveness score (ascending)
-        filtered_clusters.sort(key=lambda x: x.get('score', 0), reverse=False)
-    elif sort_by == "quality_asc":
-        # Sort by quality score (ascending - low quality first)
-        filtered_clusters.sort(key=lambda x: extract_quality_score(x.get('quality_score', 0)), reverse=False)
-    elif sort_by == "quality_desc":
-        # Sort by quality score (descending - high quality first)
-        filtered_clusters.sort(key=lambda x: extract_quality_score(x.get('quality_score', 0)), reverse=True)
-    elif sort_by == "frequency_desc":
-        # Sort by frequency (descending)
-        filtered_clusters.sort(key=lambda x: x.get('proportion', 0), reverse=True)
-    elif sort_by == "frequency_asc":
-        # Sort by frequency (ascending)
-        filtered_clusters.sort(key=lambda x: x.get('proportion', 0), reverse=False)
-    
-    # Take top N clusters after filtering and sorting
-    top_clusters = filtered_clusters[:top_n]
-    
-    # Calculate total battles by summing cluster sizes
-    total_battles = sum(cluster.get('size', 0) for cluster in top_clusters)
-    
-    # Create cluster cards
-    cluster_cards = ""
-    for idx, cluster in enumerate(top_clusters):
-        cluster_desc = cluster['property_description']
-        frequency = cluster.get('proportion', 0) * 100  # Convert to percentage
-        cluster_size = cluster.get('size', 0)
-        # Total conversations for this model card (deduped count across clusters)
-        total_conversations = total_battles  # Already computed above using unique question_ids per cluster
-        quality_score = extract_quality_score(cluster.get('quality_score', 0))
-        distinctiveness = cluster.get('score', 1.0)
-        
-        # Get confidence intervals
-        score_ci = cluster.get('score_ci')
-        has_ci = has_confidence_intervals(cluster)
-        ci_display = ""
-        if has_ci:
-            ci_display = f"<br><span style='font-size: 12px; color: #666;'>CI: {format_confidence_interval(score_ci)}</span>"
-        
-        # Add significance indicators
-        significance_indicators = ""
-        if cluster.get('score_statistical_significance', False):
-            significance_indicators += '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-right: 5px;">Score Sig</span>'
-        
-        quality_sig_dict = cluster.get('quality_score_statistical_significance', {})
-        if isinstance(quality_sig_dict, dict) and any(quality_sig_dict.values()):
-            significance_indicators += '<span style="background: #007bff; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Quality Sig</span>'
-        
-        cluster_cards += f"""
-        <div style="margin: 8px 0; padding: 10px; border-left: 3px solid #3182ce; background-color: #f8f9fa; position: relative;">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 5px;">
-                {cluster_desc}
-            </div>
-            <div style="font-size: 13px; color: #666;">
-                <strong>{frequency:.1f}% frequency</strong> ({cluster_size} out of {total_conversations} conversations)
-            </div>
-            <div style="font-size: 12px; color: #3182ce;">
-                {distinctiveness:.1f}x more distinctive{ci_display}
-            </div>
-            <div style="position: absolute; bottom: 8px; right: 10px; font-size: 12px; font-weight: 600; color: {'#28a745' if quality_score >= 0 else '#dc3545'};">
-                Quality: {quality_score:.3f}
-            </div>
-            <div style="position: absolute; top: 8px; right: 10px;">
-                {significance_indicators}
-            </div>
-        </div>
-        """
-    
-    return f"""
-    <div style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0; background: white;">
-        <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
-            <h3 style="margin: 0; color: #1a202c; font-weight: 500;">{model_name}</h3>
-        </div>
-        <p style="margin: 0 0 10px 0; color: #666; font-size: 13px;">
-            {total_battles:,} battles • Top clusters by frequency ⬇️
-        </p>
-        {cluster_cards}
-    </div>
+def get_top_clusters_for_model(metrics: Dict[str, Any], model_name: str, top_n: int = 10) -> List[Tuple[str, Dict[str, Any]]]:
+    """Return the top N clusters (by salience) for a given model.
+
+    Args:
+        metrics: The FunctionalMetrics dictionary (3-file format) loaded via data_loader.
+        model_name: Name of the model to inspect.
+        top_n: Number of clusters to return.
+
+    Returns:
+        List of (cluster_name, cluster_dict) tuples sorted by descending proportion_delta.
     """
+    clusters_dict = get_model_clusters(metrics, model_name)
+    if not clusters_dict:
+        return []
+    sorted_items = sorted(
+        clusters_dict.items(), key=lambda kv: kv[1].get("proportion_delta", 0), reverse=True
+    )
+    return sorted_items[:top_n]
+
+
+def compute_model_rankings_new(metrics: Dict[str, Any]) -> List[tuple]:
+    """Compute rankings of models based on mean salience (proportion_delta).
+
+    Args:
+        metrics: The FunctionalMetrics dict loaded by data_loader.
+
+    Returns:
+        List[Tuple[str, Dict[str, float]]]: sorted list of (model_name, summary_dict)
+    """
+    model_scores: Dict[str, Dict[str, float]] = {}
+    for model in get_all_models(metrics):
+        clusters = get_model_clusters(metrics, model).values()
+        if not clusters:
+            continue
+        saliences = [c.get("proportion_delta", 0.0) for c in clusters]
+        model_scores[model] = {
+            "avg_salience": float(np.mean(saliences)),
+            "median_salience": float(np.median(saliences)),
+            "num_clusters": len(saliences),
+            "top_salience": float(max(saliences)),
+            "std_salience": float(np.std(saliences)),
+        }
+    return sorted(model_scores.items(), key=lambda x: x[1]["avg_salience"], reverse=True)
+
+
+def create_model_summary_card_new(
+    model_name: str,
+    metrics: Dict[str, Any],
+    top_n: int = 3,
+    score_significant_only: bool = False,
+    quality_significant_only: bool = False,
+    sort_by: str = "quality_asc",
+    min_cluster_size: int = 1,
+) -> str:
+    """Generate a **styled** HTML summary card for a single model.
+
+    The new implementation recreates the legacy card design the user prefers:
+    • Card header with battle count
+    • Each cluster displayed as a vertically-spaced block (NOT a table)
+    • Frequency, distinctiveness factor and CI inline; quality score right-aligned
+    """
+
+    clusters_dict = get_model_clusters(metrics, model_name)
+    if not clusters_dict:
+        return f"<div style='padding:20px'>No cluster data for {model_name}</div>"
+
+    # Filter clusters ----------------------------------------------------
+    all_clusters = [c for c in clusters_dict.values() if c.get("size", 0) >= min_cluster_size]
+
+    if score_significant_only:
+        if model_name == "all":
+            # For "all" model, we don't have proportion_delta_significant, so skip this filter
+            pass
+        else:
+            all_clusters = [c for c in all_clusters if c.get("proportion_delta_significant", False)]
+    if quality_significant_only:
+        all_clusters = [c for c in all_clusters if any(c.get("quality_delta_significant", {}).values())]
+
+    if not all_clusters:
+        return f"<div style='padding:20px'>No clusters pass filters for {model_name}</div>"
+
+    # Sort ---------------------------------------------------------------
+    def _mean_quality(c: dict[str, Any]) -> float:
+        vals = list(c.get("quality", {}).values())
+        return float(np.mean(vals)) if vals else 0.0
+
+    sort_key_map = {
+        "quality_asc": (_mean_quality, False),
+        "quality_desc": (_mean_quality, True),
+        "frequency_desc": (lambda c: c.get("proportion", 0), True),
+        "frequency_asc": (lambda c: c.get("proportion", 0), False),
+        "salience_desc": (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), True),
+        "salience_asc": (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), False),
+    }
+
+    key_fn, reverse = sort_key_map.get(sort_by, (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), True))
+    sorted_clusters = sorted(all_clusters, key=key_fn, reverse=reverse)[:top_n]
+
+    # Determine total conversations for this model ----------------
+    if model_name == "all":
+        # For "all" model, sum the individual model totals to avoid double-counting
+        model_scores = metrics.get("model_scores", {})
+        total_battles = sum(model_data.get("size", 0) for model_data in model_scores.values())
+    else:
+        model_scores_entry = metrics.get("model_scores", {}).get(model_name, {})
+        total_battles = model_scores_entry.get("size")
+        if total_battles is None:
+            # Fallback: deduplicate example IDs across clusters
+            total_battles = sum(c.get("size", 0) for c in clusters_dict.values())
+
+    # Card header --------------------------------------------------------
+    html_parts: list[str] = [f"""
+    <div style="padding: 20px; border:1px solid #e0e0e0; border-radius:8px; margin-bottom:25px;">
+      <h3 style="margin-top:0; font-size: 20px;">{html.escape(model_name)}</h3>
+      <p style="margin: 4px 0 18px 0; color:#555; font-size:13px;">
+        {total_battles} battles · Top clusters by frequency
+      </p>
+    """]
+
+    # Cluster blocks -----------------------------------------------------
+    for i, cluster in enumerate(sorted_clusters):
+        name = html.escape(next(k for k, v in clusters_dict.items() if v is cluster))
+        prop = cluster.get("proportion", 0)
+        freq_pct = prop * 100
+        size = cluster.get("size", 0)
+
+        # Distinctiveness factor heuristic
+        if model_name == "all":
+            # For "all" model, proportion_delta doesn't make sense, so show proportion instead
+            distinct_factor = prop
+            distinct_text = f"{freq_pct:.1f}% of all conversations"
+        else:
+            sal = cluster.get("proportion_delta", 0)
+            distinct_factor = 1 + (sal / prop) if prop else 1
+            distinct_text = f"{distinct_factor:.1f}× more distinctive"
+
+        # Confidence interval (frequency based)
+        ci = cluster.get("proportion_ci")
+        ci_str = format_confidence_interval(ci) if ci else "N/A"
+
+        # Quality delta – show each metric separately
+        quality_delta = cluster.get("quality_delta", {})
+        quality_delta_html = ""
+        
+        if quality_delta:
+            quality_delta_parts = []
+            for metric_name, delta_value in quality_delta.items():
+                color = "#28a745" if delta_value >= 0 else "#dc3545"
+                quality_delta_parts.append(f'<div style="color:{color}; font-weight:500;">{metric_name}: {delta_value:+.3f}</div>')
+            quality_delta_html = "".join(quality_delta_parts)
+        else:
+            quality_delta_html = '<span style="color:#666;">No quality data</span>'
+
+        # Get light color for this cluster
+        cluster_color = get_light_color_for_cluster(name, i)
+
+        html_parts.append(f"""
+        <div style="border-left: 4px solid #4c6ef5; padding: 12px 16px; margin-bottom: 10px; background:{cluster_color}; border-radius: 4px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="max-width:80%;">
+              <strong style="font-size:14px;">{name}</strong><br>
+              <span style="font-size:12px; color:#555;">{freq_pct:.1f}% frequency ({size} out of {total_battles} total) · {distinct_text}</span>
+            </div>
+            <div style="font-size:12px; font-weight:normal; white-space:nowrap; text-align:right;">{quality_delta_html}</div>
+          </div>
+        </div>
+        """)
+
+    # Close card div -----------------------------------------------------
+    html_parts.append("</div>")
+
+    return "\n".join(html_parts)
 
 
 def format_cluster_dataframe(clustered_df: pd.DataFrame, 
@@ -302,11 +264,26 @@ def format_cluster_dataframe(clustered_df: pd.DataFrame,
     if cluster_level == 'fine':
         id_col = 'property_description_fine_cluster_id'
         label_col = 'property_description_fine_cluster_label'
-        cols = ['question_id', 'model', 'property_description', id_col, label_col, 'score']
+        # Also check for alternative naming without prefix
+        alt_id_col = 'fine_cluster_id'
+        alt_label_col = 'fine_cluster_label'
     else:
         id_col = 'property_description_coarse_cluster_id'
         label_col = 'property_description_coarse_cluster_label'
+        # Also check for alternative naming without prefix
+        alt_id_col = 'coarse_cluster_id'
+        alt_label_col = 'coarse_cluster_label'
+    
+    # Try both naming patterns
+    if id_col in df.columns and label_col in df.columns:
+        # Use the expected naming pattern
         cols = ['question_id', 'model', 'property_description', id_col, label_col, 'score']
+    elif alt_id_col in df.columns and alt_label_col in df.columns:
+        # Use the alternative naming pattern
+        cols = ['question_id', 'model', 'property_description', alt_id_col, alt_label_col, 'score']
+    else:
+        # Fall back to basic columns if cluster columns are missing
+        cols = ['question_id', 'model', 'property_description', 'score']
     
     # Keep only existing columns
     available_cols = [col for col in cols if col in df.columns]
@@ -326,189 +303,124 @@ def truncate_cluster_name(cluster_desc: str, max_length: int = 50) -> str:
     return cluster_desc[:max_length-3] + "..."
 
 def create_frequency_comparison_table(model_stats: Dict[str, Any], 
-                                    selected_models: List[str],
-                                    cluster_level: str = 'fine',
-                                    top_n: int = 50,
-                                    selected_model: str = None,
-                                    selected_quality_metric: str = None) -> pd.DataFrame:
-    """Create a simplified comparison table with cluster, frequency, quality, and significance data."""
+                                     selected_models: List[str],
+                                     cluster_level: str = "fine",  # Ignored – kept for backward-compat
+                                     top_n: int = 50,
+                                     selected_model: str | None = None,
+                                     selected_quality_metric: str | None = None) -> pd.DataFrame:
+    """Create a comparison table for the new FunctionalMetrics format.
+
+    The old signature is kept (cluster_level arg is ignored) so that callers
+    can be updated incrementally.
+    """
+
     if not selected_models:
         return pd.DataFrame()
-    
-    # Collect all clusters across all models for the chart
-    all_clusters_data = []
-    for model_name, model_data in model_stats.items():
-        if model_name not in selected_models:
+
+    # ------------------------------------------------------------------
+    # 1. Collect per-model, per-cluster rows
+    # ------------------------------------------------------------------
+    all_rows: List[dict] = []
+    for model in selected_models:
+        model_clusters = get_model_clusters(model_stats, model)  # type: ignore[arg-type]
+        if not model_clusters:
             continue
-            
-        clusters = model_data.get(cluster_level, [])
-        for cluster in clusters:
-            # Get confidence intervals for quality scores if available
-            quality_score_ci = cluster.get('quality_score_ci', {})
-            has_quality_ci = bool(quality_score_ci)
-            
-            # Get distinctiveness score confidence intervals
-            score_ci = cluster.get('score_ci', {})
-            ci_lower = score_ci.get('lower') if score_ci else None
-            ci_upper = score_ci.get('upper') if score_ci else None
-            
-            all_clusters_data.append({
-                'property_description': cluster['property_description'],
-                'model': model_name,
-                'frequency': cluster.get('proportion', 0) * 100,  # Convert to percentage
-                'size': cluster.get('size', 0),
-                'cluster_size_global': cluster.get('cluster_size_global', 0),
-                'has_ci': has_confidence_intervals(cluster),
-                'ci_lower': ci_lower,
-                'ci_upper': ci_upper,
-                'has_quality_ci': has_quality_ci,
-                'quality_score': cluster.get('quality_score', {}),
-                'quality_score_ci': quality_score_ci,
-                # Significance flags from metrics computation
-                'score_significance': cluster.get('score_statistical_significance', False),
-                'quality_significance': any(cluster.get('quality_score_statistical_significance', {}).values()) if isinstance(cluster.get('quality_score_statistical_significance'), dict) else False
+
+        # Optional filter by a single model after the fact
+        if selected_model and model != selected_model:
+            continue
+
+        for cluster_name, cdata in model_clusters.items():
+            # Basic numbers
+            freq_pct = cdata.get("proportion", 0.0) * 100.0
+            prop_ci = cdata.get("proportion_ci")
+
+            # Quality per metric dicts ------------------------------------------------
+            quality_dict = cdata.get("quality", {}) or {}
+            quality_ci_dict = cdata.get("quality_ci", {}) or {}
+
+            # Significance flags
+            sal_sig = bool(cdata.get("proportion_delta_significant", False))
+            quality_sig_flags = cdata.get("quality_delta_significant", {}) or {}
+
+            all_rows.append({
+                "cluster": cluster_name,
+                "model": model,
+                "frequency": freq_pct,
+                "proportion_ci": prop_ci,
+                "quality": quality_dict,
+                "quality_ci": quality_ci_dict,
+                "score_significant": sal_sig,
+                "quality_significant_any": any(quality_sig_flags.values()),
+                "quality_significant_metric": quality_sig_flags.get(selected_quality_metric) if selected_quality_metric else None,
             })
-    
-    if not all_clusters_data:
+
+    if not all_rows:
         return pd.DataFrame()
-        
-    clusters_df = pd.DataFrame(all_clusters_data)
-    
-    # Get all unique clusters for the chart
-    all_unique_clusters = clusters_df['property_description'].unique()
-    total_clusters = len(all_unique_clusters)
-    
-    # Show all clusters by default
-    top_n_for_chart = min(top_n, total_clusters)
-    
-    # Calculate total frequency per cluster and get top clusters
-    cluster_totals = clusters_df.groupby('property_description')['frequency'].sum().sort_values(ascending=False)
-    top_clusters = cluster_totals.head(top_n_for_chart).index.tolist()
-    
-    # Get quality scores for the same clusters to sort by quality
-    quality_data_for_sorting = []
-    for model_name, model_data in model_stats.items():
-        if model_name not in selected_models:
-            continue
-        clusters = model_data.get(cluster_level, [])
-        for cluster in clusters:
-            if cluster['property_description'] in top_clusters:
-                quality_data_for_sorting.append({
-                    'property_description': cluster['property_description'],
-                    'quality_score': extract_quality_score(cluster.get('quality_score', 0))
-                })
-    
-    # Calculate average quality score per cluster and sort
-    if quality_data_for_sorting:
-        quality_df_for_sorting = pd.DataFrame(quality_data_for_sorting)
-        avg_quality_per_cluster = quality_df_for_sorting.groupby('property_description')['quality_score'].mean().sort_values(ascending=True)  # Low to high
-        top_clusters = avg_quality_per_cluster.index.tolist()
-        # Reverse the order so low quality appears at top of chart
-        top_clusters = top_clusters[::-1]
-    
-    # Filter data to only include top clusters
-    chart_data = clusters_df[clusters_df['property_description'].isin(top_clusters)]
-    
-    if chart_data.empty:
-        return pd.DataFrame()
-    
-    # Create a simplified table with the requested columns
-    table_data = []
-    for cluster_desc in top_clusters:
-        # Get frequency data for all models
-        cluster_freq_data = chart_data[chart_data['property_description'] == cluster_desc]
-        
-        # Calculate average frequency across all models
-        avg_frequency = cluster_freq_data['frequency'].mean()
-        
-        # Calculate average confidence intervals for frequency
-        freq_ci_lower = []
-        freq_ci_upper = []
-        for _, row in cluster_freq_data.iterrows():
-            if (row.get('has_ci', False) and 
-                row.get('ci_lower') is not None and 
-                row.get('ci_upper') is not None):
-                
-                # Convert distinctiveness score CIs to frequency uncertainty
-                distinctiveness_ci_width = row['ci_upper'] - row['ci_lower']
-                freq_uncertainty = distinctiveness_ci_width * row['frequency'] * 0.1
-                ci_lower = max(0, row['frequency'] - freq_uncertainty)
-                ci_upper = row['frequency'] + freq_uncertainty
-                freq_ci_lower.append(ci_lower)
-                freq_ci_upper.append(ci_upper)
-        
-        # Calculate average frequency CI
-        avg_freq_ci_lower = np.mean(freq_ci_lower) if freq_ci_lower else None
-        avg_freq_ci_upper = np.mean(freq_ci_upper) if freq_ci_upper else None
-        
-        # Initialize containers for quality metrics per cluster
-        cluster_quality_scores: Dict[str, List[float]] = {}
-        cluster_quality_cis: Dict[str, Dict[str, List[float]]] = {}
 
-        # Get quality score and confidence intervals for this cluster
-        quality_score = None
-        quality_ci = None
+    df_all = pd.DataFrame(all_rows)
 
-        if selected_quality_metric:
-            # A specific metric is selected
-            scores = cluster_quality_scores.get(selected_quality_metric, [])
-            if scores:
-                quality_score = np.mean(scores)
-            
-            ci_data = cluster_quality_cis.get(selected_quality_metric, {})
-            if ci_data.get('lower') and ci_data.get('upper'):
-                avg_lower = np.mean(ci_data['lower'])
-                avg_upper = np.mean(ci_data['upper'])
-                quality_ci = {'lower': avg_lower, 'upper': avg_upper}
-        else:
-            # "All Metrics" is selected - average across all available metric scores
-            all_scores = [score for scores in cluster_quality_scores.values() for score in scores]
-            if all_scores:
-                quality_score = np.mean(all_scores)
+    # Aggregate frequency across models ----------------------------------
+    freq_sum = df_all.groupby("cluster")["frequency"].sum().sort_values(ascending=False)
+    top_clusters = freq_sum.head(top_n).index.tolist()
 
-            # Average the CIs across all metrics
-            all_ci_lowers = [l for ci_data in cluster_quality_cis.values() for l in ci_data.get('lower', [])]
-            all_ci_uppers = [u for ci_data in cluster_quality_cis.values() for u in ci_data.get('upper', [])]
-            if all_ci_lowers and all_ci_uppers:
-                quality_ci = {'lower': np.mean(all_ci_lowers), 'upper': np.mean(all_ci_uppers)}
-        
-        # Get significance data, respecting the filter
-        score_significance = cluster_freq_data['score_significance'].any() if 'score_significance' in cluster_freq_data.columns else False
-        
-        quality_significance = False
-        if selected_quality_metric:
-            # Check significance for the specific metric across all models in this cluster
-            all_sigs = []
-            for _, row in cluster_freq_data.iterrows():
-                sig_dict = row.get('quality_score_statistical_significance', {})
-                if isinstance(sig_dict, dict):
-                    all_sigs.append(sig_dict.get(selected_quality_metric, False))
-            quality_significance = any(all_sigs)
-        else:
-            # For "All metrics", check if any metric is significant for any model
-            quality_significance = cluster_freq_data['quality_significance'].any() if 'quality_significance' in cluster_freq_data.columns else False
+    df_top = df_all[df_all["cluster"].isin(top_clusters)].copy()
 
-        # Create row with simplified structure
-        row = {
-            'Cluster': cluster_desc,
-            'Frequency (%)': f"{avg_frequency:.1f}",
-            'Freq CI': f"[{avg_freq_ci_lower:.1f}, {avg_freq_ci_upper:.1f}]" if avg_freq_ci_lower is not None and avg_freq_ci_upper is not None else "N/A",
-            'Quality': f"{quality_score:.3f}" if quality_score is not None else "N/A",
-            'Quality CI': f"[{quality_ci['lower']:.3f}, {quality_ci['upper']:.3f}]" if quality_ci else "N/A"
-        }
-        
-        # Add significance columns
-        row['Score Significance'] = "Yes" if score_significance else "No"
-        row['Quality Significance'] = "Yes" if quality_significance else "No"
-        
-        table_data.append(row)
-    
-    # Create DataFrame and return
-    if table_data:
-        table_df = pd.DataFrame(table_data)
-        return table_df
-    else:
-        return pd.DataFrame()
+    table_rows: List[dict] = []
+    for clu in top_clusters:
+        subset = df_top[df_top["cluster"] == clu]
+        avg_freq = subset["frequency"].mean()
+
+        # Aggregate CI (mean of bounds)
+        ci_lowers = [ci.get("lower") for ci in subset["proportion_ci"] if isinstance(ci, dict)]
+        ci_uppers = [ci.get("upper") for ci in subset["proportion_ci"] if isinstance(ci, dict)]
+        freq_ci = {
+            "lower": float(np.mean(ci_lowers)) if ci_lowers else None,
+            "upper": float(np.mean(ci_uppers)) if ci_uppers else None,
+        } if ci_lowers and ci_uppers else None
+
+        # Quality aggregation -----------------------------------------------------
+        q_vals: List[float] = []
+        q_ci_l: List[float] = []
+        q_ci_u: List[float] = []
+        quality_sig_any = False
+        for _, row in subset.iterrows():
+            q_dict = row["quality"]
+            if selected_quality_metric:
+                if selected_quality_metric in q_dict:
+                    q_vals.append(q_dict[selected_quality_metric])
+                ci_metric = row["quality_ci"].get(selected_quality_metric) if isinstance(row["quality_ci"], dict) else None
+                if ci_metric:
+                    q_ci_l.append(ci_metric.get("lower"))
+                    q_ci_u.append(ci_metric.get("upper"))
+                quality_sig_any = quality_sig_any or bool(row["quality_significant_metric"])
+            else:
+                q_vals.extend(q_dict.values())
+                for ci in row["quality_ci"].values():
+                    if isinstance(ci, dict):
+                        q_ci_l.append(ci.get("lower"))
+                        q_ci_u.append(ci.get("upper"))
+                quality_sig_any = quality_sig_any or row["quality_significant_any"]
+
+        quality_val = float(np.mean(q_vals)) if q_vals else None
+        quality_ci = {
+            "lower": float(np.mean(q_ci_l)),
+            "upper": float(np.mean(q_ci_u)),
+        } if q_ci_l and q_ci_u else None
+
+        score_sig = subset["score_significant"].any()
+
+        table_rows.append({
+            "Cluster": clu,
+            "Frequency (%)": f"{avg_freq:.1f}",
+            "Freq CI": format_confidence_interval(freq_ci),
+            "Quality": f"{quality_val:.3f}" if quality_val is not None else "N/A",
+            "Quality CI": format_confidence_interval(quality_ci) if quality_ci else "N/A",
+            "Score Significance": "Yes" if score_sig else "No",
+            "Quality Significance": "Yes" if quality_sig_any else "No",
+        })
+
+    return pd.DataFrame(table_rows)
 
 
 def create_frequency_comparison_plots(model_stats: Dict[str, Any], 
@@ -895,25 +807,77 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     if df.empty:
         return f"<p>No data found for selected models: {', '.join(selected_models or [])}</p>"
     
+    # Get cluster scores data for quality and frequency information
+    from .state import app_state
+    cluster_scores = app_state.get("metrics", {}).get("cluster_scores", {})
+    
     # Use the actual column names from the pipeline output (matching Streamlit version)
     if cluster_level == 'fine':
         id_col = 'property_description_fine_cluster_id'
         label_col = 'property_description_fine_cluster_label'
+        # Also check for alternative naming without prefix
+        alt_id_col = 'fine_cluster_id'
+        alt_label_col = 'fine_cluster_label'
     else:
         id_col = 'property_description_coarse_cluster_id'  
         label_col = 'property_description_coarse_cluster_label'
+        # Also check for alternative naming without prefix
+        alt_id_col = 'coarse_cluster_id'
+        alt_label_col = 'coarse_cluster_label'
+    
+    # Track if we fall back from coarse to fine
+    fell_back_to_fine = False
     
     # Check if required columns exist and provide helpful debug info
-    if id_col not in df.columns or label_col not in df.columns:
-        available_cols = list(df.columns)
-        return f"""
-        <div style="padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
-            <h4>❌ Missing {cluster_level} cluster columns in data</h4>
-            <p><strong>Expected:</strong> {id_col}, {label_col}</p>
-            <p><strong>Available columns:</strong> {', '.join(available_cols)}</p>
-            <p>Please ensure your data contains clustering results from the LMM-Vibes pipeline.</p>
-        </div>
-        """
+    # Try both naming patterns
+    if id_col in df.columns and label_col in df.columns:
+        # Use the expected naming pattern
+        pass
+    elif alt_id_col in df.columns and alt_label_col in df.columns:
+        # Use the alternative naming pattern
+        id_col = alt_id_col
+        label_col = alt_label_col
+    else:
+        # If coarse clusters are not available, try to fall back to fine clusters
+        if cluster_level == 'coarse':
+            # Check if fine clusters are available
+            fine_id_col = 'property_description_fine_cluster_id'
+            fine_label_col = 'property_description_fine_cluster_label'
+            fine_alt_id_col = 'fine_cluster_id'
+            fine_alt_label_col = 'fine_cluster_label'
+            
+            if (fine_id_col in df.columns and fine_label_col in df.columns) or (fine_alt_id_col in df.columns and fine_alt_label_col in df.columns):
+                # Fall back to fine clusters
+                if fine_id_col in df.columns and fine_label_col in df.columns:
+                    id_col = fine_id_col
+                    label_col = fine_label_col
+                else:
+                    id_col = fine_alt_id_col
+                    label_col = fine_alt_label_col
+                cluster_level = 'fine'  # Update the cluster level for display
+                fell_back_to_fine = True
+            else:
+                # No cluster columns available at all
+                available_cols = list(df.columns)
+                return f"""
+                <div style="padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
+                    <h4>❌ Missing cluster columns in data</h4>
+                    <p><strong>Expected:</strong> {id_col}, {label_col} OR {alt_id_col}, {alt_label_col}</p>
+                    <p><strong>Available columns:</strong> {', '.join(available_cols)}</p>
+                    <p>Please ensure your data contains clustering results from the LMM-Vibes pipeline.</p>
+                </div>
+                """
+        else:
+            # For fine clusters, show the original error
+            available_cols = list(df.columns)
+            return f"""
+            <div style="padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
+                <h4>❌ Missing {cluster_level} cluster columns in data</h4>
+                <p><strong>Expected:</strong> {id_col}, {label_col} OR {alt_id_col}, {alt_label_col}</p>
+                <p><strong>Available columns:</strong> {', '.join(available_cols)}</p>
+                <p>Please ensure your data contains clustering results from the LMM-Vibes pipeline.</p>
+            </div>
+            """
     
     # Group by cluster to get cluster information
     try:
@@ -957,6 +921,14 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
         </p>
     """
     
+    # Add a note if we fell back from coarse to fine clusters
+    if cluster_level == 'fine' and fell_back_to_fine:
+        html += """
+        <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; margin-bottom: 20px;">
+            <strong>Note:</strong> Coarse clusters not available in this dataset. Showing fine clusters instead.
+        </div>
+        """
+    
     for _, row in cluster_groups.iterrows():
         cluster_id = row[id_col]
         cluster_label = row[label_col]
@@ -964,106 +936,144 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
         property_descriptions = row['property_descriptions']
         models_in_cluster = row['models']
         
+        # Get quality and frequency information from cluster_scores
+        cluster_metrics = cluster_scores.get(cluster_label, {})
+        frequency_pct = cluster_metrics.get("proportion", 0) * 100 if cluster_metrics else 0
+        quality_scores = cluster_metrics.get("quality", {})
+        quality_delta = cluster_metrics.get("quality_delta", {})
+        
+        # Calculate average quality score for header display
+        avg_quality_score = 0
+        if quality_scores:
+            avg_quality_score = sum(quality_scores.values()) / len(quality_scores)
+        
+        # Calculate average quality delta for header display
+        avg_quality_delta = 0
+        if quality_delta:
+            avg_quality_delta = sum(quality_delta.values()) / len(quality_delta)
+        
+        # Format quality scores for detailed view
+        quality_html = ""
+        if quality_scores:
+            quality_parts = []
+            for metric_name, score in quality_scores.items():
+                color = "#28a745" if score >= 0 else "#dc3545"
+                quality_parts.append(f'<span style="color:{color}; font-weight:500;">{metric_name}: {score:.3f}</span>')
+            quality_html = " | ".join(quality_parts)
+        else:
+            quality_html = '<span style="color:#666;">No quality data</span>'
+        
+        # Format quality delta (relative to average)
+        quality_delta_html = ""
+        if quality_delta:
+            delta_parts = []
+            for metric_name, delta in quality_delta.items():
+                color = "#28a745" if delta >= 0 else "#dc3545"
+                sign = "+" if delta >= 0 else ""
+                delta_parts.append(f'<span style="color:{color}; font-weight:500;">{metric_name}: {sign}{delta:.3f}</span>')
+            quality_delta_html = " | ".join(delta_parts)
+        else:
+            quality_delta_html = '<span style="color:#666;">No delta data</span>'
+        
+        # Format header quality score with visual indicators
+        header_quality_text = f"{avg_quality_score:.3f}" if quality_scores else "N/A"
+        header_delta_text = f"{avg_quality_delta:+.3f}" if quality_delta else ""
+        
+        # Determine color for delta based on value
+        if avg_quality_delta > 0:
+            delta_color = "#28a745"  # Green for above average
+        elif avg_quality_delta < 0:
+            delta_color = "#dc3545"  # Red for below average
+        else:
+            delta_color = "#666666"  # Black/gray for neutral
+        
         # Create expandable cluster card
         html += f"""
         <details style="margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
             <summary style="
                 padding: 15px; 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white; 
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                color: #333; 
                 cursor: pointer; 
                 font-weight: 600;
                 font-size: 16px;
                 user-select: none;
                 list-style: none;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid #dee2e6;
             ">
-                📊 {cluster_label} 
-                <span style="
-                    background: rgba(255,255,255,0.2); 
-                    padding: 4px 8px; 
-                    border-radius: 12px; 
-                    font-size: 14px; 
-                    margin-left: 10px;
-                ">
-                    {cluster_size} properties
-                </span>
+                <div>
+                    {cluster_label} 
+                    <span style="
+                        background: #ffffff; 
+                        color: #495057;
+                        padding: 4px 8px; 
+                        border-radius: 12px; 
+                        font-size: 14px; 
+                        margin-left: 10px;
+                        border: 1px solid #dee2e6;
+                    ">
+                        {cluster_size} properties
+                    </span>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">
+                        <span style="background: #ffffff; color: #495057; padding: 4px 8px; border-radius: 12px; font-size: 14px; font-weight: bold; border: 1px solid #dee2e6;">
+                            {header_quality_text} <span style="color: {delta_color};">({header_delta_text})</span>
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: #6c757d;">
+                        {frequency_pct:.1f}% frequency
+                    </div>
+                </div>
             </summary>
             
             <div style="padding: 20px; background: #f8f9fa;">
                 <div style="margin-bottom: 15px;">
                     <strong>Cluster ID:</strong> {cluster_id}<br>
                     <strong>Size:</strong> {cluster_size} properties<br>
-                    <strong>Models:</strong> {', '.join(models_in_cluster)}
+                    <strong>Models:</strong> {', '.join(models_in_cluster)}<br>
+                    <strong>Frequency:</strong> {frequency_pct:.1f}% of all conversations<br>
+                    <strong>Quality Scores:</strong> {quality_html}<br>
+                    <strong>Quality vs Average:</strong> {quality_delta_html}
                 </div>
                 
                 <h4 style="color: #333; margin: 15px 0 10px 0;">
                     Property Descriptions ({len(property_descriptions)})
                 </h4>
+                
+                <div style="max-height: 300px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
         """
         
-        # Add property descriptions
+        # Display property descriptions
         for i, desc in enumerate(property_descriptions, 1):
             html += f"""
-            <div style="
-                margin: 8px 0;
-                padding: 12px;
-                background: white;
-                border-left: 4px solid #3182ce;
-                border-radius: 4px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            ">
-                <span style="
-                    display: inline-block;
-                    background: #3182ce;
-                    color: white;
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                    font-size: 12px;
-                    margin-right: 8px;
-                ">
-                    {i}
-                </span>
-                {desc}
-            </div>
+                    <div style="
+                        padding: 8px; 
+                        margin: 4px 0; 
+                        background: #f8f9fa; 
+                        border-left: 3px solid #667eea;
+                        border-radius: 2px;
+                    ">
+                        <strong>{i}.</strong> {desc}
+                    </div>
             """
         
         html += """
+                </div>
             </div>
         </details>
         """
     
     html += "</div>"
-    
-    # Add CSS for better interactivity
-    html = f"""
-    <style>
-    details > summary {{
-        transition: all 0.3s ease;
-    }}
-    details > summary:hover {{
-        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }}
-    details[open] > summary {{
-        background: linear-gradient(135deg, #4c51bf 0%, #553c9a 100%) !important;
-    }}
-    details > summary::-webkit-details-marker {{
-        display: none;
-    }}
-    details > summary::marker {{
-        display: none;
-    }}
-    </style>
-    {html}
-    """
-    
     return html
 
 
 def get_cluster_statistics(clustered_df: pd.DataFrame, 
                          selected_models: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Get statistics about clusters for display."""
+    """Get cluster statistics for display."""
     if clustered_df.empty:
         return {}
     
@@ -1078,25 +1088,41 @@ def get_cluster_statistics(clustered_df: pd.DataFrame,
         'total_models': df['model'].nunique() if 'model' in df.columns else 0,
     }
     
-    # Fine cluster statistics using correct column names from pipeline
+    # Fine cluster statistics - try both naming patterns
     fine_id_col = 'property_description_fine_cluster_id'
+    alt_fine_id_col = 'fine_cluster_id'
+    
     if fine_id_col in df.columns:
         stats['fine_clusters'] = df[fine_id_col].nunique()
         cluster_sizes = df.groupby(fine_id_col).size()
         stats['min_properties_per_fine_cluster'] = cluster_sizes.min() if not cluster_sizes.empty else 0
         stats['max_properties_per_fine_cluster'] = cluster_sizes.max() if not cluster_sizes.empty else 0
         stats['avg_properties_per_fine_cluster'] = cluster_sizes.mean() if not cluster_sizes.empty else 0
+    elif alt_fine_id_col in df.columns:
+        stats['fine_clusters'] = df[alt_fine_id_col].nunique()
+        cluster_sizes = df.groupby(alt_fine_id_col).size()
+        stats['min_properties_per_fine_cluster'] = cluster_sizes.min() if not cluster_sizes.empty else 0
+        stats['max_properties_per_fine_cluster'] = cluster_sizes.max() if not cluster_sizes.empty else 0
+        stats['avg_properties_per_fine_cluster'] = cluster_sizes.mean() if not cluster_sizes.empty else 0
     
-    # Coarse cluster statistics using correct column names from pipeline
+    # Coarse cluster statistics - try both naming patterns
     coarse_id_col = 'property_description_coarse_cluster_id'
+    alt_coarse_id_col = 'coarse_cluster_id'
+    
     if coarse_id_col in df.columns:
         stats['coarse_clusters'] = df[coarse_id_col].nunique()
         cluster_sizes = df.groupby(coarse_id_col).size()
         stats['min_properties_per_coarse_cluster'] = cluster_sizes.min() if not cluster_sizes.empty else 0
         stats['max_properties_per_coarse_cluster'] = cluster_sizes.max() if not cluster_sizes.empty else 0
         stats['avg_properties_per_coarse_cluster'] = cluster_sizes.mean() if not cluster_sizes.empty else 0
+    elif alt_coarse_id_col in df.columns:
+        stats['coarse_clusters'] = df[alt_coarse_id_col].nunique()
+        cluster_sizes = df.groupby(alt_coarse_id_col).size()
+        stats['min_properties_per_coarse_cluster'] = cluster_sizes.min() if not cluster_sizes.empty else 0
+        stats['max_properties_per_coarse_cluster'] = cluster_sizes.max() if not cluster_sizes.empty else 0
+        stats['avg_properties_per_coarse_cluster'] = cluster_sizes.mean() if not cluster_sizes.empty else 0
     
-    return stats 
+    return stats
 
 
 def get_unique_values_for_dropdowns(clustered_df: pd.DataFrame) -> Dict[str, List[str]]:
@@ -1123,10 +1149,16 @@ def get_unique_values_for_dropdowns(clustered_df: pd.DataFrame) -> Dict[str, Lis
     if 'model' in clustered_df.columns:
         models = sorted(clustered_df['model'].dropna().unique().tolist())
     
-    # Use fine cluster labels instead of property descriptions
+    # Use fine cluster labels instead of property descriptions - try both naming patterns
     properties = []
-    if 'property_description_fine_cluster_label' in clustered_df.columns:
-        unique_properties = clustered_df['property_description_fine_cluster_label'].dropna().unique().tolist()
+    fine_label_col = 'property_description_fine_cluster_label'
+    alt_fine_label_col = 'fine_cluster_label'
+    
+    if fine_label_col in clustered_df.columns:
+        unique_properties = clustered_df[fine_label_col].dropna().unique().tolist()
+        properties = [prop[:100] + "..." if len(prop) > 100 else prop for prop in sorted(unique_properties)]
+    elif alt_fine_label_col in clustered_df.columns:
+        unique_properties = clustered_df[alt_fine_label_col].dropna().unique().tolist()
         properties = [prop[:100] + "..." if len(prop) > 100 else prop for prop in sorted(unique_properties)]
     elif 'property_description' in clustered_df.columns:
         # Fallback to property descriptions if cluster labels not available
@@ -1183,7 +1215,15 @@ def get_example_data(
 
     # Apply property filter (fine cluster label preferred)
     if selected_property and selected_property != "All Clusters":
-        label_col = "property_description_fine_cluster_label" if "property_description_fine_cluster_label" in df.columns else "property_description"
+        # Try both naming patterns for fine cluster labels
+        label_col = None
+        if "property_description_fine_cluster_label" in df.columns:
+            label_col = "property_description_fine_cluster_label"
+        elif "fine_cluster_label" in df.columns:
+            label_col = "fine_cluster_label"
+        else:
+            label_col = "property_description"
+            
         if selected_property.endswith("..."):
             df = df[df[label_col].str.startswith(selected_property[:-3], na=False)]
         else:
@@ -1215,6 +1255,12 @@ def get_example_data(
             "N/A",
         )
 
+        # Try both naming patterns for cluster data
+        fine_cluster_id = row.get("property_description_fine_cluster_id", row.get("fine_cluster_id", "N/A"))
+        fine_cluster_label = row.get("property_description_fine_cluster_label", row.get("fine_cluster_label", "N/A"))
+        coarse_cluster_id = row.get("property_description_coarse_cluster_id", row.get("coarse_cluster_id", "N/A"))
+        coarse_cluster_label = row.get("property_description_coarse_cluster_label", row.get("coarse_cluster_label", "N/A"))
+
         examples.append(
             {
                 "id": row.get("id", "N/A"),
@@ -1223,10 +1269,10 @@ def get_example_data(
                 "response": response_val,
                 "property_description": row.get("property_description", "N/A"),
                 "score": row.get("score", "N/A"),
-                "fine_cluster_id": row.get("property_description_fine_cluster_id", "N/A"),
-                "fine_cluster_label": row.get("property_description_fine_cluster_label", "N/A"),
-                "coarse_cluster_id": row.get("property_description_coarse_cluster_id", "N/A"),
-                "coarse_cluster_label": row.get("property_description_coarse_cluster_label", "N/A"),
+                "fine_cluster_id": fine_cluster_id,
+                "fine_cluster_label": fine_cluster_label,
+                "coarse_cluster_id": coarse_cluster_id,
+                "coarse_cluster_label": coarse_cluster_label,
                 "category": row.get("category", "N/A"),
                 "type": row.get("type", "N/A"),
                 "impact": row.get("impact", "N/A"),
@@ -1254,7 +1300,8 @@ def format_examples_display(examples: List[Dict[str, Any]],
                           selected_prompt: str = None,
                           selected_model: str = None,
                           selected_property: str = None,
-                          use_accordion: bool = True) -> str:
+                          use_accordion: bool = True,
+                          pretty_print_dicts: bool = True) -> str:
     """Format examples for HTML display with proper conversation rendering.
     
     Args:
@@ -1311,7 +1358,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
         response_data = example['response']
         if response_data != 'N/A':
             openai_conversation = convert_to_openai_format(response_data)
-            conversation_html = display_openai_conversation_html(openai_conversation, use_accordion=use_accordion)
+            conversation_html = display_openai_conversation_html(openai_conversation, use_accordion=use_accordion, pretty_print_dicts=pretty_print_dicts)
         else:
             conversation_html = "<p style='color: #dc3545; font-style: italic;'>No response data available</p>"
         
@@ -1438,3 +1485,56 @@ def format_examples_display(examples: List[Dict[str, Any]],
     
     html += "</div>"
     return html 
+
+# ---------------------------------------------------------------------------
+# Legacy function aliases (backward compatibility)
+# ---------------------------------------------------------------------------
+
+def compute_model_rankings(*args, **kwargs):
+    """Legacy alias → forwards to compute_model_rankings_new."""
+    return compute_model_rankings_new(*args, **kwargs)
+
+
+def create_model_summary_card(*args, **kwargs):
+    """Legacy alias → forwards to create_model_summary_card_new."""
+    return create_model_summary_card_new(*args, **kwargs) 
+
+
+def get_total_clusters_count(metrics: Dict[str, Any]) -> int:
+    """Get the total number of clusters from the metrics data."""
+    cluster_scores = metrics.get("cluster_scores", {})
+    return len(cluster_scores)
+
+
+def get_light_color_for_cluster(cluster_name: str, index: int) -> str:
+    """Generate a light dusty blue background for cluster boxes.
+    
+    Returns a consistent light dusty blue color for all clusters.
+    """
+    return "#f0f4f8"  # Very light dusty blue 
+
+__all__ = [
+    "get_model_clusters",
+    "get_all_models", 
+    "get_all_clusters",
+    "format_confidence_interval",
+    "get_confidence_interval_width",
+    "has_confidence_intervals",
+    "extract_quality_score",
+    "get_top_clusters_for_model",
+    "compute_model_rankings_new",
+    "create_model_summary_card_new",
+    "format_cluster_dataframe",
+    "truncate_cluster_name",
+    "create_frequency_comparison_table",
+    "create_frequency_comparison_plots",
+    "search_clusters_by_text",
+    "create_interactive_cluster_viewer",
+    "get_cluster_statistics",
+    "get_unique_values_for_dropdowns",
+    "get_example_data",
+    "format_examples_display",
+    "compute_model_rankings",
+    "create_model_summary_card",
+    "get_total_clusters_count",
+] 

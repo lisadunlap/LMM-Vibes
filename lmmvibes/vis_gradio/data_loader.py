@@ -1,18 +1,22 @@
 """
-Data loading utilities for Gradio pipeline results app.
+Data loading functionality for the LMM-Vibes Gradio app.
 
-This module contains functions for loading pipeline results data without Streamlit dependencies.
+This module handles loading pipeline results and converting them to formats
+suitable for the Gradio interface.
 """
 
-import pandas as pd
 import json
+import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from functools import lru_cache
+from typing import Dict, List, Any, Tuple, Optional
+import os
+
+from .state import app_state
+from lmmvibes.metrics.plotting import create_model_cluster_dataframe
 
 
 class DataCache:
-    """Simple caching mechanism for data loading."""
+    """Simple cache for loaded data to avoid re-loading."""
     _cache = {}
     
     @classmethod
@@ -20,7 +24,7 @@ class DataCache:
         return cls._cache.get(key)
     
     @classmethod
-    def set(cls, key: str, value):
+    def set(cls, key: str, value: Any):
         cls._cache[key] = value
     
     @classmethod
@@ -28,36 +32,131 @@ class DataCache:
         cls._cache.clear()
 
 
-def load_pipeline_results(results_dir: str) -> Tuple[pd.DataFrame, Dict[str, Any], Path]:
-    """Load pipeline outputs optimized for large datasets"""
+def scan_for_result_subfolders(base_dir: str) -> List[str]:
+    """Scan for subfolders that might contain pipeline results."""
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        return []
+    
+    # Look for subfolders that contain the required files
+    subfolders = []
+    for item in base_path.iterdir():
+        if item.is_dir():
+            # Check if this subfolder contains pipeline results
+            required_files = [
+                "model_cluster_scores.json",
+                "cluster_scores.json", 
+                "model_scores.json",
+                "clustered_results.jsonl"
+            ]
+            if all((item / f).exists() for f in required_files):
+                subfolders.append(item.name)
+    
+    return subfolders
+
+
+def validate_results_directory(results_dir: str) -> Tuple[bool, str]:
+    """Validate that the results directory contains the expected files."""
+    results_path = Path(results_dir)
+    
+    if not results_path.exists():
+        return False, f"Directory does not exist: {results_dir}"
+    
+    if not results_path.is_dir():
+        return False, f"Path is not a directory: {results_dir}"
+    
+    # Check for FunctionalMetrics format files
+    required_files = [
+        "model_cluster_scores.json",
+        "cluster_scores.json",
+        "model_scores.json",
+        "clustered_results.jsonl"
+    ]
+    
+    missing_files = []
+    for filename in required_files:
+        if not (results_path / filename).exists():
+            missing_files.append(filename)
+    
+    if missing_files:
+        return False, f"Missing required files: {', '.join(missing_files)}"
+    
+    return True, ""
+
+
+def get_available_models(metrics: Dict[str, Any]) -> List[str]:
+    """Extract available models from metrics data."""
+    model_cluster_scores = metrics.get("model_cluster_scores", {})
+    return list(model_cluster_scores.keys())
+
+
+def get_all_models(metrics: Dict[str, Any]) -> List[str]:
+    """Get all available models from metrics data."""
+    return get_available_models(metrics)
+
+
+def load_pipeline_results(results_dir: str) -> Tuple[pd.DataFrame, Dict[str, Any], pd.DataFrame, Path]:
+    """Load pipeline outputs (FunctionalMetrics format only).
+    Returns:
+        clustered_df: DataFrame of per-conversation data loaded from clustered_results.jsonl
+        metrics: Dict containing the three FunctionalMetrics score dictionaries
+        model_cluster_df: DataFrame created from model_cluster_scores for plotting/analysis
+        results_path: Path to the results directory
+    """
     cache_key = f"pipeline_results_{results_dir}"
     cached = DataCache.get(cache_key)
     if cached:
         return cached
     
     results_path = Path(results_dir)
+    if not results_path.exists():
+        raise FileNotFoundError(f"Results directory does not exist: {results_dir}")
     
-    # Load model statistics
-    model_stats_path = results_path / "model_stats.json"
-    if not model_stats_path.exists():
-        raise FileNotFoundError(f"model_stats.json not found in {results_dir}")
-        
-    with open(model_stats_path) as f:
-        model_stats = json.load(f)
+    # ------------------------------------------------------------------
+    # 1. Load FunctionalMetrics score files (must ALL be present)
+    # ------------------------------------------------------------------
+    required_files = [
+        "model_cluster_scores.json",
+        "cluster_scores.json",
+        "model_scores.json",
+    ]
+    missing = [f for f in required_files if not (results_path / f).exists()]
+    if missing:
+        raise FileNotFoundError(
+            f"Missing required metrics files in {results_dir}: {', '.join(missing)}"
+        )
     
-    # Load clustered results
+    with open(results_path / "model_cluster_scores.json") as f:
+        model_cluster_scores = json.load(f)
+    with open(results_path / "cluster_scores.json") as f:
+        cluster_scores = json.load(f)
+    with open(results_path / "model_scores.json") as f:
+        model_scores = json.load(f)
+    
+    metrics = {
+        "model_cluster_scores": model_cluster_scores,
+        "cluster_scores": cluster_scores,
+        "model_scores": model_scores,
+    }
+    
+    # ------------------------------------------------------------------
+    # 2. Load clustered conversation data (JSON-Lines)
+    # ------------------------------------------------------------------
     clustered_path = results_path / "clustered_results.jsonl"
-    
     if not clustered_path.exists():
         raise FileNotFoundError(f"clustered_results.jsonl not found in {results_dir}")
     
-    # Load essential columns for performance
     try:
         clustered_df = pd.read_json(clustered_path, lines=True)
     except Exception as e:
         raise ValueError(f"Could not load clustered results: {e}")
     
-    result = (clustered_df, model_stats, results_path)
+    # ------------------------------------------------------------------
+    # 3. Create model_cluster_df from metrics for plotting/analysis
+    # ------------------------------------------------------------------
+    model_cluster_df = create_model_cluster_dataframe(model_cluster_scores)
+    
+    result = (clustered_df, metrics, model_cluster_df, results_path)
     DataCache.set(cache_key, result)
     return result
 
@@ -84,66 +183,4 @@ def load_property_examples(results_path: Path, property_ids: List[str]) -> pd.Da
         DataCache.set(cache_key, result)
         return result
     except Exception as e:
-        raise ValueError(f"Failed to load examples: {e}")
-
-
-def scan_for_result_subfolders(base_dir: str) -> List[str]:
-    """Scan a directory for subfolders containing pipeline results"""
-    base_path = Path(base_dir)
-    if not base_path.exists() or not base_path.is_dir():
-        return []
-    
-    valid_subfolders = []
-    
-    # Check if the base directory itself contains results
-    if (base_path / "model_stats.json").exists() or (base_path / "clustered_results.jsonl").exists():
-        valid_subfolders.append(".")  # Current directory
-    
-    # Check subdirectories
-    try:
-        for item in base_path.iterdir():
-            if item.is_dir():
-                # Check if this subdirectory contains pipeline results
-                has_model_stats = (item / "model_stats.json").exists()
-                has_clustered_results = (item / "clustered_results.jsonl").exists()
-                
-                if has_model_stats or has_clustered_results:
-                    valid_subfolders.append(item.name)
-    except PermissionError:
-        pass  # Skip directories we can't read
-    
-    return sorted(valid_subfolders)
-
-
-def get_available_models(model_stats: Dict[str, Any]) -> List[str]:
-    """Get list of available models from model stats."""
-    return list(model_stats.keys())
-
-
-def validate_results_directory(results_dir: str) -> Tuple[bool, str]:
-    """Validate if a directory contains valid pipeline results.
-    
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    if not results_dir:
-        return False, "Please provide a results directory"
-    
-    results_path = Path(results_dir)
-    if not results_path.exists():
-        return False, f"Directory does not exist: {results_dir}"
-    
-    if not results_path.is_dir():
-        return False, f"Path is not a directory: {results_dir}"
-    
-    # Check for required files
-    model_stats_path = results_path / "model_stats.json"
-    clustered_path = results_path / "clustered_results.jsonl"
-    
-    if not model_stats_path.exists() and not clustered_path.exists():
-        # Check for subfolders
-        subfolders = scan_for_result_subfolders(results_dir)
-        if not subfolders:
-            return False, f"No pipeline results found in {results_dir}. Expected model_stats.json and clustered_results.jsonl"
-    
-    return True, "" 
+        raise ValueError(f"Failed to load examples: {e}") 

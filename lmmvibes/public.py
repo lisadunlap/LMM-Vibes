@@ -433,6 +433,10 @@ def _build_default_pipeline(
     metrics_kwargs = {
         'method': method,
         'output_dir': metrics_output,
+        'compute_bootstrap': metrics_kwargs.get('compute_confidence_intervals', False) if metrics_kwargs else False,
+        'bootstrap_samples': metrics_kwargs.get('bootstrap_samples', 100) if metrics_kwargs else 100,
+        'log_to_wandb': use_wandb,
+        'generate_plots': True,
         **(metrics_kwargs or {}),
         **common_config
     }
@@ -483,104 +487,56 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
                     wandb.run.summary[f"final_{level}_outliers"] = n_outliers
                     wandb.run.summary[f"final_{level}_outlier_rate"] = n_outliers / len(df) if len(df) > 0 else 0
 
-        # # Log model statistics as tables - one table per model
-        # if model_stats:
-        #     if wandb.run is not None:
-        #         wandb.run.summary["final_models_analyzed"] = len(model_stats)
-            
-        #     # Create detailed tables for each model
-        #     for model_name, stats in model_stats.items():
-        #         # Log fine-grained clusters table
-        #         if "fine" in stats and len(stats["fine"]) > 0:
-        #             fine_table_data = []
-        #             for stat in stats["fine"]:
-        #                 row = stat.to_dict()
-        #                 # Add examples_count for convenience
-        #                 row["examples_count"] = len(stat.examples) if stat.examples else 0
-        #                 # Rename property_description to cluster_label for consistency
-        #                 row["cluster_label"] = row.pop("property_description")
-        #                 fine_table_data.append(row)
-                    
-        #             # Create and log the fine-grained table
-        #             fine_table = wandb.Table(columns=list(fine_table_data[0].keys()), data=[list(row.values()) for row in fine_table_data])
-        #             wandb.log({f"Metrics/model_stats_{model_name}_fine_clusters": fine_table})
-                
-        #         # Log coarse-grained clusters table if available
-        #         if "coarse" in stats and len(stats["coarse"]) > 0:
-        #             coarse_table_data = []
-        #             for stat in stats["coarse"]:
-        #                 row = stat.to_dict()
-        #                 # Add examples_count for convenience
-        #                 row["examples_count"] = len(stat.examples) if stat.examples else 0
-        #                 # Rename property_description to cluster_label for consistency
-        #                 row["cluster_label"] = row.pop("property_description")
-        #                 coarse_table_data.append(row)
-                    
-        #             # Create and log the coarse-grained table
-        #             coarse_table = wandb.Table(columns=list(coarse_table_data[0].keys()), data=[list(row.values()) for row in coarse_table_data])
-        #             wandb.log({f"Metrics/model_stats_{model_name}_coarse_clusters": coarse_table})
-                
-        #         # Log model summary statistics as summary metrics
-        #         if "fine" in stats and wandb.run is not None:
-        #             fine_stats = stats["fine"]
-        #             avg_score = sum(stat.score for stat in fine_stats) / len(fine_stats)
-        #             # avg_quality_score = sum(stat.quality_score for stat in fine_stats) / len(fine_stats)
-        #             total_size = sum(stat.size for stat in fine_stats)
-                    
-        #             # Log summary statistics for this model as summary metrics
-        #             wandb.run.summary[f"model_{model_name}_fine_clusters_count"] = len(fine_stats)
-        #             wandb.run.summary[f"model_{model_name}_avg_score"] = avg_score
-        #             # wandb.run.summary[f"model_{model_name}_avg_quality_score"] = avg_quality_score
-        #             wandb.run.summary[f"model_{model_name}_total_size"] = total_size
-        #             wandb.run.summary[f"model_{model_name}_max_score"] = max(stat.score for stat in fine_stats)
-        #             wandb.run.summary[f"model_{model_name}_min_score"] = min(stat.score for stat in fine_stats)
-        #             for key in fine_stats[0].quality_score.keys():
-        #                 # Check if quality_score[key] is a scalar or dict
-        #                 first_quality_value = fine_stats[0].quality_score[key]
-        #                 if isinstance(first_quality_value, (int, float)):
-        #                     # Handle scalar quality scores
-        #                     wandb.run.summary[f"model_{model_name}_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in fine_stats)
-        #                     wandb.run.summary[f"model_{model_name}_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in fine_stats)
-        #                 elif isinstance(first_quality_value, dict):
-        #                     # Handle nested dictionary quality scores
-        #                     for sub_key in first_quality_value.keys():
-        #                         try:
-        #                             sub_values = [stat.quality_score[key][sub_key] for stat in fine_stats if sub_key in stat.quality_score[key]]
-        #                             if sub_values and all(isinstance(v, (int, float)) for v in sub_values):
-        #                                 wandb.run.summary[f"model_{model_name}_max_quality_score_{key}_{sub_key}"] = max(sub_values)
-        #                                 wandb.run.summary[f"model_{model_name}_min_quality_score_{key}_{sub_key}"] = min(sub_values)
-        #                         except (KeyError, TypeError):
-        #                             continue  # Skip if there are issues with this sub_key
-                    
-        #             if "coarse" in stats:
-        #                 coarse_stats = stats["coarse"]
-        #                 # coarse_avg_quality_score = sum(stat.quality_score for stat in coarse_stats) / len(coarse_stats)
-        #                 wandb.run.summary[f"model_{model_name}_coarse_clusters_count"] = len(coarse_stats)
-        #                 wandb.run.summary[f"model_{model_name}_coarse_avg_score"] = sum(stat.score for stat in coarse_stats) / len(coarse_stats)
-        #                 # wandb.run.summary[f"model_{model_name}_coarse_avg_quality_score"] = coarse_avg_quality_score
-        #                 for key in coarse_stats[0].quality_score.keys():
-        #                     # Check if quality_score[key] is a scalar or dict
-        #                     first_quality_value = coarse_stats[0].quality_score[key]
-        #                     if isinstance(first_quality_value, (int, float)):
-        #                         # Handle scalar quality scores
-        #                         wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}"] = max(stat.quality_score[key] for stat in coarse_stats)
-        #                         wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}"] = min(stat.quality_score[key] for stat in coarse_stats)
-        #                     elif isinstance(first_quality_value, dict):
-        #                         # Handle nested dictionary quality scores
-        #                         for sub_key in first_quality_value.keys():
-        #                             try:
-        #                                 sub_values = [stat.quality_score[key][sub_key] for stat in coarse_stats if sub_key in stat.quality_score[key]]
-        #                                 if sub_values and all(isinstance(v, (int, float)) for v in sub_values):
-        #                                     wandb.run.summary[f"model_{model_name}_coarse_max_quality_score_{key}_{sub_key}"] = max(sub_values)
-        #                                     wandb.run.summary[f"model_{model_name}_coarse_min_quality_score_{key}_{sub_key}"] = min(sub_values)
-        #                             except (KeyError, TypeError):
-        #                                 continue  # Skip if there are issues with this sub_key
+    # Handle new functional metrics format
+    if model_stats and "functional_metrics" in model_stats:
+        functional_metrics = model_stats["functional_metrics"]
         
-        print("✅ Successfully logged detailed model statistics to wandb")
+        # Log summary statistics for functional metrics
+        if wandb.run is not None:
+            model_cluster_scores = functional_metrics.get("model_cluster_scores", {})
+            cluster_scores = functional_metrics.get("cluster_scores", {})
+            model_scores = functional_metrics.get("model_scores", {})
+            
+            wandb.run.summary["final_models_analyzed"] = len(model_scores)
+            wandb.run.summary["final_clusters_analyzed"] = len(cluster_scores)
+            
+            # Log model-level summary statistics
+            for model_name, model_data in model_scores.items():
+                if isinstance(model_data, dict):
+                    size = model_data.get("size", 0)
+                    quality = model_data.get("quality", {})
+                    
+                    wandb.run.summary[f"model_{model_name}_total_size"] = size
+                    
+                    # Log quality metrics
+                    for metric_name, metric_value in quality.items():
+                        if isinstance(metric_value, (int, float)):
+                            wandb.run.summary[f"model_{model_name}_avg_{metric_name}"] = metric_value
+            
+            # Log cluster-level summary statistics
+            for cluster_name, cluster_data in cluster_scores.items():
+                if isinstance(cluster_data, dict):
+                    size = cluster_data.get("size", 0)
+                    quality = cluster_data.get("quality", {})
+                    
+                    wandb.run.summary[f"cluster_{cluster_name}_total_size"] = size
+                    
+                    # Log quality metrics
+                    for metric_name, metric_value in quality.items():
+                        if isinstance(metric_value, (int, float)):
+                            wandb.run.summary[f"cluster_{cluster_name}_avg_{metric_name}"] = metric_value
+        
+        print("✅ Successfully logged functional metrics to wandb")
         print(f"   • Dataset summary metrics")
         print(f"   • Clustering results")
-        print(f"   • Model statistics tables: {len(model_stats)} models")
+        print(f"   • Functional metrics: {len(model_scores) if 'model_scores' in functional_metrics else 0} models, {len(cluster_scores) if 'cluster_scores' in functional_metrics else 0} clusters")
         print(f"   • Summary metrics logged to run summary")
+    
+    # Handle legacy format for backward compatibility (commented out but kept for reference)
+    # if model_stats:
+    #     if wandb.run is not None:
+    #         wandb.run.summary["final_models_analyzed"] = len(model_stats)
+    #     # ... rest of legacy logging code ...
 
 
 def _save_final_summary(
@@ -630,17 +586,36 @@ def _save_final_summary(
         f.write(f"  - embeddings.parquet: Embeddings data\n")
         f.write(f"  - clustered_results_lightweight.jsonl: Data without embeddings\n")
         f.write(f"  - summary_table.jsonl: Clustering summary\n")
-        f.write(f"  - model_stats.json: Combined model statistics and rankings\n")
+        f.write(f"  - model_cluster_scores.json: Per model-cluster combination metrics\n")
+        f.write(f"  - cluster_scores.json: Per cluster metrics (aggregated across models)\n")
+        f.write(f"  - model_scores.json: Per model metrics (aggregated across clusters)\n")
         f.write(f"  - full_dataset.json: Complete PropertyDataset (JSON format)\n")
         f.write(f"  - full_dataset.parquet: Complete PropertyDataset (parquet format, or .jsonl if mixed data types)\n")
         
-        # Model rankings
-        f.write(f"\nModel Rankings (by average score):\n")
+        # Model rankings - handle both new functional metrics and legacy format
+        f.write(f"\nModel Rankings (by average quality score):\n")
         model_avg_scores = {}
-        for model_name, stats in model_stats.items():
-            if "fine" in stats and len(stats["fine"]) > 0:
-                avg_score = sum(stat.score for stat in stats["fine"]) / len(stats["fine"])
-                model_avg_scores[model_name] = avg_score
+        
+        # Check for new functional metrics format
+        if model_stats and "functional_metrics" in model_stats:
+            functional_metrics = model_stats["functional_metrics"]
+            model_scores = functional_metrics.get("model_scores", {})
+            
+            for model_name, model_data in model_scores.items():
+                if isinstance(model_data, dict):
+                    quality = model_data.get("quality", {})
+                    if quality:
+                        # Use the first quality metric as the ranking score
+                        first_metric_value = next(iter(quality.values()))
+                        if isinstance(first_metric_value, (int, float)):
+                            model_avg_scores[model_name] = first_metric_value
+        
+        # Fallback to legacy format if functional metrics not available
+        else:
+            for model_name, stats in model_stats.items():
+                if "fine" in stats and len(stats["fine"]) > 0:
+                    avg_score = sum(stat.score for stat in stats["fine"]) / len(stats["fine"])
+                    model_avg_scores[model_name] = avg_score
         
         for i, (model_name, avg_score) in enumerate(sorted(model_avg_scores.items(), key=lambda x: x[1], reverse=True)):
             f.write(f"  {i+1}. {model_name}: {avg_score:.3f}\n")
@@ -1012,9 +987,34 @@ def compute_metrics_only(
         if verbose:
             print(f"\n📊 Metrics Summary:")
             print(f"  - Models analyzed: {len(model_stats)}")
-            for model_name, stats in model_stats.items():
-                print(f"  - {model_name}: {len(stats['fine'])} fine clusters")
-                if 'coarse' in stats:
-                    print(f"    {len(stats['coarse'])} coarse clusters")
+            
+            # Handle new functional metrics format
+            if model_stats and "functional_metrics" in model_stats:
+                functional_metrics = model_stats["functional_metrics"]
+                model_scores = functional_metrics.get("model_scores", {})
+                cluster_scores = functional_metrics.get("cluster_scores", {})
+                
+                print(f"  - Functional metrics computed:")
+                print(f"    • Model scores: {len(model_scores)} models")
+                print(f"    • Cluster scores: {len(cluster_scores)} clusters")
+                
+                # Print model-level summary
+                for model_name, model_data in model_scores.items():
+                    if isinstance(model_data, dict):
+                        size = model_data.get("size", 0)
+                        quality = model_data.get("quality", {})
+                        print(f"    • {model_name}: {size} conversations")
+                        if quality:
+                            for metric_name, metric_value in quality.items():
+                                if isinstance(metric_value, (int, float)):
+                                    print(f"      - {metric_name}: {metric_value:.3f}")
+            
+            # Handle legacy format for backward compatibility
+            else:
+                for model_name, stats in model_stats.items():
+                    if "fine" in stats:
+                        print(f"  - {model_name}: {len(stats['fine'])} fine clusters")
+                    if "coarse" in stats:
+                        print(f"    {len(stats['coarse'])} coarse clusters")
     
     return clustered_df, model_stats 

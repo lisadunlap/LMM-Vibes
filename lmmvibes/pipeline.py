@@ -131,9 +131,10 @@ class Pipeline(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin):
                 Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
                 # File name pattern: full_dataset_after_<idx>_<stage>.json
-                snapshot_name = (
-                    f"full_dataset_after_{i+1}_{stage.name.replace(' ', '_').lower()}.json"
-                )
+                # snapshot_name = (
+                #     f"full_dataset_after_{i+1}_{stage.name.replace(' ', '_').lower()}.json"
+                # )
+                snapshot_name = f"full_dataset.json"
                 snapshot_path = os.path.join(self.output_dir, snapshot_name)
 
                 # Persist using the JSON format for maximum portability

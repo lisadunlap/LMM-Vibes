@@ -9,6 +9,9 @@ from typing import Any, Dict, Optional
 # Global runtime state – mutable and shared across all tabs
 app_state: Dict[str, Any] = {
     "clustered_df": None,
+    # NEW canonical key for the FunctionalMetrics dict
+    "metrics": None,
+    # DEPRECATED alias kept temporarily so that untouched modules continue to work
     "model_stats": None,
     "results_path": None,
     "available_models": [],

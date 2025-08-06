@@ -10,13 +10,19 @@ from typing import List, Tuple
 
 import gradio as gr
 
+# ---------------------------------------------------------------------------
+# Loading utilities updated for FunctionalMetrics
+# ---------------------------------------------------------------------------
+
 from .state import app_state, BASE_RESULTS_DIR
 from .data_loader import (
     load_pipeline_results,
     scan_for_result_subfolders,
     validate_results_directory,
-    get_available_models,
 )
+
+# Metrics helpers
+from .metrics_adapter import get_all_models
 
 __all__ = [
     "load_data",
@@ -45,17 +51,20 @@ def load_data(results_dir: str) -> Tuple[str, str, str]:
             final_dir = str(Path(results_dir) / subfolders[0])
 
         # 3. Load results into memory
-        clustered_df, model_stats, results_path = load_pipeline_results(final_dir)
+        clustered_df, metrics, model_cluster_df, results_path = load_pipeline_results(final_dir)
 
         # 4. Stash in global state so other tabs can use it
         app_state["clustered_df"] = clustered_df
-        app_state["model_stats"] = model_stats
+        app_state["metrics"] = metrics
+        app_state["model_cluster_df"] = model_cluster_df
+        # Temporary alias for legacy modules
+        app_state["model_stats"] = metrics
         app_state["results_path"] = results_path
-        app_state["available_models"] = get_available_models(model_stats)
+        app_state["available_models"] = get_all_models(metrics)
         app_state["current_results_dir"] = final_dir
 
         # 5. Compose status messages
-        n_models = len(model_stats)
+        n_models = len(metrics.get("model_cluster_scores", {}))
         n_properties = len(clustered_df)
 
         summary = f"""
@@ -66,11 +75,20 @@ def load_data(results_dir: str) -> Tuple[str, str, str]:
         - **Properties:** {n_properties:,}
         - **Results Directory:** {Path(final_dir).name}
         """
-        if "fine_cluster_id" in clustered_df.columns:
-            n_fine_clusters = clustered_df["fine_cluster_id"].nunique()
+        # Check for both naming patterns for fine clusters
+        if ("fine_cluster_id" in clustered_df.columns or 
+            "property_description_fine_cluster_id" in clustered_df.columns):
+            fine_id_col = ("fine_cluster_id" if "fine_cluster_id" in clustered_df.columns 
+                          else "property_description_fine_cluster_id")
+            n_fine_clusters = clustered_df[fine_id_col].nunique()
             summary += f"\n- **Fine Clusters:** {n_fine_clusters}"
-        if "coarse_cluster_id" in clustered_df.columns:
-            n_coarse_clusters = clustered_df["coarse_cluster_id"].nunique()
+        
+        # Check for both naming patterns for coarse clusters
+        if ("coarse_cluster_id" in clustered_df.columns or 
+            "property_description_coarse_cluster_id" in clustered_df.columns):
+            coarse_id_col = ("coarse_cluster_id" if "coarse_cluster_id" in clustered_df.columns 
+                            else "property_description_coarse_cluster_id")
+            n_coarse_clusters = clustered_df[coarse_id_col].nunique()
             summary += f"\n- **Coarse Clusters:** {n_coarse_clusters}"
 
         model_choices = app_state["available_models"]

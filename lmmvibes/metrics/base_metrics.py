@@ -77,7 +77,7 @@ from .helpers import score_keys, sanitize_cluster_column
 class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
     """Base class for metrics computation with shared functionality."""
 
-    def __init__(self, output_dir: str | Path | None = None, compute_confidence_intervals: bool = False, bootstrap_samples: int = 1000, **kwargs):
+    def __init__(self, output_dir: str | Path | None = None, compute_confidence_intervals: bool = False, bootstrap_samples: int = 100, **kwargs):
         super().__init__(**kwargs)
         self.output_dir = Path(output_dir) if output_dir else None
         self.compute_confidence_intervals = compute_confidence_intervals
@@ -451,7 +451,8 @@ class BaseMetrics(PipelineStage, LoggingMixin, TimingMixin, ABC):
                 if model not in global_stats:
                     global_stats[model] = {}
                 global_stats[model][key] = model_means[model]
-        
+                global_stats[model]["num_samples"] = len(scores_series[scores_series.index == model])
+
         return global_stats
 
     def _bootstrap_whole_dataset_confidence_intervals(
