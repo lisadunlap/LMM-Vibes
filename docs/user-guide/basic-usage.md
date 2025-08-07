@@ -24,21 +24,29 @@ from lmmvibes import explain
 # Load your conversation data
 df = pd.read_csv("model_conversations.csv")
 
-# Analyze side-by-side comparisons
-clustered_df, model_stats = explain(
-    df,
-    method="side_by_side",
-    min_cluster_size=30,
-    output_dir="results/"
-)
-
-# Analyze single model responses
+# Single model analysis: Understand what behavioral patterns a model exhibits
 clustered_df, model_stats = explain(
     df,
     method="single_model", 
-    min_cluster_size=20,
+    min_cluster_size=10,        # Minimum conversations per behavior cluster
+    output_dir="results/"       # Saves all analysis files here
+)
+# This will: 1) Extract behavioral properties from each response
+#          2) Group similar behaviors into clusters  
+#          3) Calculate performance metrics per cluster
+#          4) Save comprehensive results
+
+# Side-by-side comparison: Compare two models to find behavioral differences  
+clustered_df, model_stats = explain(
+    df,
+    method="side_by_side",
+    min_cluster_size=30,        # Larger datasets need bigger clusters
     output_dir="results/"
 )
+# This will: 1) Find behavioral differences between model pairs
+#          2) Cluster similar difference patterns
+#          3) Show which model excels at which behaviors
+#          4) Provide statistical significance testing
 ```
 
 ### Parameters
@@ -50,20 +58,21 @@ clustered_df, model_stats = explain(
 - `output_dir`: Directory to save results
 
 **Extraction Parameters:**
-- `model_name`: LLM for property extraction (default: `"gpt-4o"`)
-- `temperature`: Temperature for LLM calls (default: `0.7`)
-- `max_workers`: Parallel workers for API calls (default: `16`)
+- `model_name`: LLM for property extraction (default: `"gpt-4o"`) - This model analyzes responses to find behavioral patterns
+- `temperature`: Temperature for LLM calls (default: `0.7`) - Higher values = more creative property extraction
+- `max_workers`: Parallel workers for API calls (default: `16`) - Speed up analysis with concurrent requests
 
-**Clustering Parameters:**
-- `clusterer`: Clustering method (`"hdbscan"`, `"hierarchical"`)
-- `min_cluster_size`: Minimum cluster size (default: `30`)
-- `embedding_model`: `"openai"` or sentence-transformer model
-- `hierarchical`: Create both fine and coarse clusters (default: `False`)
+**Clustering Parameters:**  
+- `clusterer`: Clustering method (`"hdbscan"`, `"hierarchical"`) - Algorithm to group similar behaviors
+- `min_cluster_size`: Minimum cluster size (default: `30`) - Smaller = more granular clusters, larger = broader patterns
+- `embedding_model`: `"openai"` or sentence-transformer model - How to convert properties to vectors for clustering
+- `hierarchical`: Create both fine and coarse clusters (default: `False`) - Get both detailed and high-level behavior groups
 
 ### Examples
 
 **Custom System Prompt:**
 ```python
+# Define what behavioral aspects you want the LLM to focus on
 custom_prompt = """
 Analyze this conversation and identify behavioral differences.
 Focus on: reasoning approach, factual accuracy, response style.
@@ -73,8 +82,10 @@ Return a JSON object with 'property_description' and 'property_evidence'.
 clustered_df, model_stats = explain(
     df,
     method="side_by_side",
-    system_prompt=custom_prompt
+    system_prompt=custom_prompt  # This overrides the default extraction prompt
 )
+# The LLM will now focus specifically on reasoning, accuracy, and style
+# instead of using the general-purpose default prompt
 ```
 
 **Hierarchical Clustering:**
@@ -82,10 +93,14 @@ clustered_df, model_stats = explain(
 clustered_df, model_stats = explain(
     df,
     method="side_by_side",
-    hierarchical=True,
-    max_coarse_clusters=15,
-    min_cluster_size=20
+    hierarchical=True,          # Create both fine and coarse clusters
+    max_coarse_clusters=15,     # Limit high-level categories to 15
+    min_cluster_size=20         # Each behavior cluster needs 20+ examples
 )
+# This creates two levels:
+# - Fine clusters: "Uses step-by-step reasoning", "Shows mathematical work"  
+# - Coarse clusters: "Reasoning Transparency" (contains both fine clusters)
+# You get columns for both: *_fine_cluster_label and *_coarse_cluster_label
 ```
 
 ## The `label()` Function
@@ -148,53 +163,78 @@ clustered_df, model_stats = label(
 
 ## Data Formats
 
-### Side-by-side Format (for `explain()` only)
+### Side-by-side Format (for comparing two models)
+
+**Required columns:**
+- `prompt` - The question or prompt given to both models
+- `model_a`, `model_b` - Names of the models being compared  
+- `model_a_response`, `model_b_response` - Complete responses from each model
+
+**Optional columns:**
+- `score` - Dictionary with winner and metrics
 
 ```python
-df = pd.DataFrame([
-    {
-        "question_id": "q1",
-        "model_a": "gpt-4",
-        "model_b": "claude-3", 
-        "model_a_response": "Response from model A...",
-        "model_b_response": "Response from model B...",
-        "winner": "tie"  # optional: "model_a", "model_b", or "tie"
-    }
-])
+df = pd.DataFrame({
+    "prompt": ["What is machine learning?", "Explain quantum computing"], 
+    "model_a": ["gpt-4", "gpt-4"],
+    "model_b": ["claude-3", "claude-3"],
+    "model_a_response": ["ML is a subset of AI...", "Quantum computing uses..."],
+    "model_b_response": ["Machine learning involves...", "QC leverages quantum..."],
+    "score": [{"winner": "gpt-4", "helpfulness": 4.2}, {"winner": "claude-3", "helpfulness": 3.8}]
+})
 ```
 
-### Single Model Format (for both functions)
+### Single Model Format (for analyzing individual models)
+
+**Required columns:**
+- `prompt` - The question given to the model (used for visualization)
+- `model` - Name of the model being analyzed
+- `model_response` - The model's complete response
+
+**Optional columns:**  
+- `score` - Dictionary of evaluation metrics
 
 ```python
-df = pd.DataFrame([
-    {
-        "question_id": "q1",
-        "model": "gpt-4",
-        "model_response": "The model's response...",
-        "score": 8.5  # optional: numeric quality score
-    }
-])
+df = pd.DataFrame({
+    "prompt": ["What is machine learning?", "Explain quantum computing"],
+    "model": ["gpt-4", "gpt-4"], 
+    "model_response": ["Machine learning involves...", "QC leverages quantum..."],
+    "score": [{"accuracy": 1, "helpfulness": 4.2}, {"accuracy": 0, "helpfulness": 3.8}]
+})
 ```
+
+**Note:** Both string responses and OpenAI conversation format are supported. Simple strings are automatically converted to conversation format internally.
 
 ## Understanding Results
 
 ### Output DataFrames
 
-Both functions return a DataFrame with added columns:
+Both functions return your original data enriched with extracted behavioral properties:
 
 ```python
-# Original columns plus:
 print(clustered_df.columns)
-# ['question_id', 'model', 'model_response', 
-#  'property_description', 'property_evidence',
-#  'property_description_cluster_id', 'property_description_cluster_label']
+# Original columns plus new analysis columns:
+# 'property_description' - Natural language description of behavior (e.g., "Provides step-by-step reasoning")  
+# 'property_evidence' - Evidence from the response supporting this property
+# 'category' - Higher-level grouping (e.g., "Reasoning", "Creativity")
+# 'impact' - Estimated effect ("positive", "negative", or numeric score)
+# 'type' - Kind of property ("format", "content", "style")
+# 'property_description_fine_cluster_label' - Human-readable cluster name
+# 'property_description_coarse_cluster_label' - High-level cluster (if hierarchical=True)
 ```
 
-### Model Statistics
+### Model Statistics  
+
+The `model_stats` contains per-model behavioral analysis:
 
 ```python
-print(model_stats.keys())
-# Contains performance metrics, cluster distributions, and rankings
+# For each model, you get statistics about behavioral patterns
+for model_name, stats in model_stats.items():
+    print(f"{model_name} behavioral analysis:")
+    # Which behaviors this model exhibits most/least frequently
+    # Relative scores for different behavioral clusters  
+    # Example responses for each behavior cluster
+    # Quality scores showing how well the model performs within each behavior type
 ```
 
 ### Saved Files
