@@ -240,8 +240,7 @@ def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness",
 
 def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, gr.Dropdown]:
     """Create the plots tab interface with a toggle between frequency and quality plots."""
-    gr.Markdown("### Model-Cluster Analysis Plot")
-    gr.Markdown("Interactive grouped bar plot showing either frequency (proportion) or quality metrics by property and model.")
+    gr.Markdown("Interactive grouped bar plot showing either frequency (proportion) or quality metrics by property and model. **If the plot looks wonky, just unclick and reclic the signifigance checkbox to have it resize**")
     
     # Plot controls in a row
     with gr.Row():

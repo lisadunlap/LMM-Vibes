@@ -121,12 +121,12 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
     # Collapsed raw JSON section for debugging
     raw_json = json.dumps(conversation_data, indent=2, ensure_ascii=False)
     html_out = f"""
-    <details style="margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-        <summary style="padding: 12px 15px; background: linear-gradient(135deg, #757575 0%, #616161 100%); color: white; cursor: pointer; font-weight: 600; font-size: 14px; user-select: none; list-style: none;">
-            📄 Raw Response (JSON)
+    <details style="margin: 8px 0;">
+        <summary style="cursor: pointer; font-weight: 600;">
+            Click to see raw response ({len(conversation_data)})
         </summary>
-        <div style="padding: 15px; background: #f8f9fa; max-height: 400px; overflow-y: auto;">
-            <pre style="white-space: pre-wrap; word-wrap: break-word;">{raw_json}</pre>
+        <div style="padding: 8px 15px;">
+            <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;">{raw_json}</pre>
         </div>
     </details>
     """

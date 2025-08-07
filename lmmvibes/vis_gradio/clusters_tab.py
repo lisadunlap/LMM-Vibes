@@ -81,10 +81,6 @@ def view_clusters_interactive(
                 <div style="opacity: 0.9;">Models</div>
             </div>
             <div>
-                <div style="font-size: 24px; font-weight: bold;">{total_frequency:.1f}%</div>
-                <div style="opacity: 0.9;">Total Frequency</div>
-            </div>
-            <div>
                 <div style="font-size: 24px; font-weight: bold;">{avg_quality:.3f}</div>
                 <div style="opacity: 0.9;">Avg Quality Score</div>
             </div>

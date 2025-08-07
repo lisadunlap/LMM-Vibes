@@ -39,7 +39,6 @@ def create_overview(
     # 2. Assemble HTML
     overview_html = """
     <div style="max-width: 1200px; margin: 0 auto;">
-        <h2>🔍 Model Performance Overview</h2>
         <p style="color: #666; margin-bottom: 10px;">
             Top distinctive clusters where each model shows unique behavioural patterns.
             Frequency shows what percentage of a model's battles resulted in that behavioural pattern.

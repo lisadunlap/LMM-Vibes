@@ -189,7 +189,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
     def __init__(
         self,
         output_dir: str | Path | None = None,
-        compute_bootstrap: bool = False,
+        compute_bootstrap: bool = True,
         bootstrap_samples: int = 1000,
         log_to_wandb: bool = True,
         generate_plots: bool = True,

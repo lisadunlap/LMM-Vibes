@@ -89,7 +89,6 @@ def create_app() -> gr.Blocks:
     
     with gr.Blocks(title="LMM-Vibes Pipeline Results Explorer", theme=gr.themes.Soft()) as app:
         gr.Markdown("""
-        # 🔍 LMM-Vibes Pipeline Results Explorer
         **Comprehensive analysis of model behavioral properties and performance**
         
         Upload your pipeline results directory to explore model performance, cluster analysis, and detailed examples.
@@ -201,8 +200,8 @@ def create_app() -> gr.Blocks:
             
             # Tab 4: View Examples
             with gr.TabItem("📋 View Examples"):
-                gr.Markdown("### Individual Example Viewer")
-                gr.Markdown("Explore individual examples with full prompts, model responses, and property information. Click on examples to expand and view full details.")
+                # gr.Markdown("### Individual Example Viewer")
+                # gr.Markdown("Explore individual examples with full prompts, model responses, and property information. Click on examples to expand and view full details.")
                 
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -252,13 +251,10 @@ def create_app() -> gr.Blocks:
             
             # Tab 5: Frequency Comparison
             with gr.TabItem("📈 Functional Metrics Tables"):
-                gr.Markdown("### Functional Metrics Tables")
                 gr.Markdown("View the three tables created by the functional metrics pipeline:")
                 gr.Markdown("• **Model-Cluster Scores**: Per model-cluster combination metrics")
                 gr.Markdown("• **Cluster Scores**: Per cluster metrics (aggregated across all models)")
                 gr.Markdown("• **Model Scores**: Per model metrics (aggregated across all clusters)")
-                
-                refresh_freq_btn = gr.Button("Refresh Tables", variant="primary")
                 
                 frequency_table_info = gr.Markdown("")
                 
@@ -413,7 +409,6 @@ def create_app() -> gr.Blocks:
         freq_inputs = [selected_models]
         freq_outputs = [model_cluster_table, cluster_table, model_table, frequency_table_info]
 
-        refresh_freq_btn.click(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
         selected_models.change(fn=create_frequency_comparison, inputs=freq_inputs, outputs=freq_outputs)
         
         # (Search Examples tab removed – no search_btn handler required)

@@ -44,7 +44,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -60,7 +60,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -110,7 +110,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -126,7 +126,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -175,7 +175,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -191,7 +191,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -239,7 +239,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -255,7 +255,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```
@@ -273,7 +273,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "Medium",
     "user_preference_direction": "Capability-focused",
     "contains_errors": "False",
-    "unexpected_behavior": "False"
+    "unusual_behavior": "False"
   },
   {
     "model": "{{Model B Name}}",
@@ -285,7 +285,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "Medium",
     "user_preference_direction": "Capability-focused",
     "contains_errors": "False",
-    "unexpected_behavior": "False"
+    "unusual_behavior": "False"
   },
   {
     "model": "{{Model A Name}}",
@@ -297,7 +297,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "High",
     "user_preference_direction": "Negative",
     "contains_errors": "True",
-    "unexpected_behavior": "False"
+    "unusual_behavior": "False"
   },
   {
     "model": "{{Model A Name}}",
@@ -309,7 +309,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "High",
     "user_preference_direction": "Experience-focused",
     "contains_errors": "False",
-    "unexpected_behavior": "False"
+    "unusual_behavior": "False"
   },
   {
     "model": "{{Model B Name}}",
@@ -321,7 +321,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "High",
     "user_preference_direction": "Experience-focused",
     "contains_errors": "False",
-    "unexpected_behavior": "False"
+    "unusual_behavior": "False"
   }
 ]
 ```"""
@@ -370,7 +370,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -386,7 +386,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -432,7 +432,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
+*   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
     *   *Think:* Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or unwanted behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -447,7 +447,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -496,7 +496,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
+*   **Unusual Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -511,7 +511,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -559,7 +559,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
+*   **Unusual Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -574,7 +574,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""
@@ -618,7 +618,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
+*   **Unusual Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -687,7 +687,7 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     "impact": "Low|Medium|High",
     "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
     "contains_errors": "True|False",
-    "unexpected_behavior": "True|False"
+    "unusual_behavior": "True|False"
   }
 ]
 ```"""

@@ -156,6 +156,20 @@ def create_model_summary_card_new(
     if not all_clusters:
         return f"<div style='padding:20px'>No clusters pass filters for {model_name}</div>"
 
+    # Count significant properties ---------------------------------------
+    significant_frequency_count = 0
+    significant_quality_count = 0
+    
+    for cluster in clusters_dict.values():
+        if cluster.get("size", 0) >= min_cluster_size:
+            # Count frequency significance
+            if model_name != "all" and cluster.get("proportion_delta_significant", False):
+                significant_frequency_count += 1
+            
+            # Count quality significance (sum across all metrics)
+            quality_delta_significant = cluster.get("quality_delta_significant", {})
+            significant_quality_count += sum(quality_delta_significant.values())
+
     # Sort ---------------------------------------------------------------
     def _mean_quality(c: dict[str, Any]) -> float:
         vals = list(c.get("quality", {}).values())
@@ -189,8 +203,11 @@ def create_model_summary_card_new(
     html_parts: list[str] = [f"""
     <div style="padding: 20px; border:1px solid #e0e0e0; border-radius:8px; margin-bottom:25px;">
       <h3 style="margin-top:0; font-size: 20px;">{html.escape(model_name)}</h3>
-      <p style="margin: 4px 0 18px 0; color:#555; font-size:13px;">
+      <p style="margin: 4px 0 8px 0; color:#555; font-size:13px;">
         {total_battles} battles · Top clusters by frequency
+      </p>
+      <p style="margin: 0 0 18px 0; color:#666; font-size:12px;">
+        📊 {significant_frequency_count} significant frequency properties · {significant_quality_count} significant quality properties
       </p>
     """]
 
@@ -200,6 +217,23 @@ def create_model_summary_card_new(
         prop = cluster.get("proportion", 0)
         freq_pct = prop * 100
         size = cluster.get("size", 0)
+
+        # Check significance flags
+        is_proportion_significant = False
+        if model_name != "all":
+            is_proportion_significant = cluster.get("proportion_delta_significant", False)
+        
+        quality_delta_significant = cluster.get("quality_delta_significant", {})
+        is_quality_significant = any(quality_delta_significant.values())
+
+        # Create significance indicators
+        significance_indicators = []
+        if is_proportion_significant:
+            significance_indicators.append('<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">FREQ</span>')
+        if is_quality_significant:
+            significance_indicators.append('<span style="background: #007bff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">QUAL</span>')
+        
+        significance_html = " ".join(significance_indicators) if significance_indicators else ""
 
         # Distinctiveness factor heuristic
         if model_name == "all":
@@ -235,7 +269,10 @@ def create_model_summary_card_new(
         <div style="border-left: 4px solid #4c6ef5; padding: 12px 16px; margin-bottom: 10px; background:{cluster_color}; border-radius: 4px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div style="max-width:80%;">
-              <strong style="font-size:14px;">{name}</strong><br>
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <strong style="font-size:14px;">{name}</strong>
+                {significance_html}
+              </div>
               <span style="font-size:12px; color:#555;">{freq_pct:.1f}% frequency ({size} out of {total_battles} total) · {distinct_text}</span>
             </div>
             <div style="font-size:12px; font-weight:normal; white-space:nowrap; text-align:right;">{quality_delta_html}</div>
@@ -1436,12 +1473,6 @@ def format_examples_display(examples: List[Dict[str, Any]],
                     {f' | <strong>Score:</strong> {example["score"]}' if example["score"] not in ["N/A", "None"] else ""}
                 </div>
                 
-                <div style="margin-bottom: 15px;">
-                    <div style="border-radius: 6px; font-size: 13px; line-height: 1.5;">
-                        {conversation_html}
-                    </div>
-                </div>
-                
                 <div style="margin-bottom: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">🏷️ Property Description</h5>
                     <div style="
@@ -1477,6 +1508,13 @@ def format_examples_display(examples: List[Dict[str, Any]],
                         </div>
                         {f'<div style="margin-top: 10px;"><strong>Reason:</strong> {example["reason"]}</div>' if example["reason"] not in ["N/A", "None"] else ""}
                         {f'<div style="margin-top: 10px;"><strong>Evidence:</strong> {example["evidence"]}</div>' if example["evidence"] not in ["N/A", "None"] else ""}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">💬 Conversation</h5>
+                    <div style="border-radius: 6px; font-size: 13px; line-height: 1.5;">
+                        {conversation_html}
                     </div>
                 </div>
             </div>

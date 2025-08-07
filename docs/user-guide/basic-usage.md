@@ -1,172 +1,226 @@
-# Basic Usage
+# Explain and Label Functions
 
-Learn the fundamentals of using LMM-Vibes for model evaluation and analysis.
+Learn how to use the two main functions in LMM-Vibes for analyzing model behavior.
 
-## Core Concepts
+## Core Functions
 
-LMM-Vibes is built around a few key concepts:
+LMM-Vibes provides two primary functions:
 
-- **Datasets**: Your input data containing questions, answers, and model outputs
-- **Metrics**: Evaluation measures like accuracy, BLEU, ROUGE, etc.
-- **Results**: Structured output containing evaluation scores and metadata
-- **Visualizations**: Charts and plots for analyzing results
+- **`explain()`**: Discovers behavioral patterns through clustering 
+- **`label()`**: Classifies behavior using predefined taxonomies
 
-## Data Format
+Both functions analyze conversation data and return clustered results with model statistics.
 
-LMM-Vibes expects data in a specific format:
+## The `explain()` Function
+
+The `explain()` function automatically discovers behavioral patterns in model responses through property extraction and clustering.
+
+### Basic Usage
 
 ```python
-# Each item should be a dictionary with these keys:
-{
-    "question": "What is the capital of France?",
-    "answer": "Paris",
-    "model_output": "The capital of France is Paris.",
-    "metadata": {
-        "category": "geography",
-        "difficulty": "easy"
-    }
+import pandas as pd
+from lmmvibes import explain
+
+# Load your conversation data
+df = pd.read_csv("model_conversations.csv")
+
+# Analyze side-by-side comparisons
+clustered_df, model_stats = explain(
+    df,
+    method="side_by_side",
+    min_cluster_size=30,
+    output_dir="results/"
+)
+
+# Analyze single model responses
+clustered_df, model_stats = explain(
+    df,
+    method="single_model", 
+    min_cluster_size=20,
+    output_dir="results/"
+)
+```
+
+### Parameters
+
+**Core Parameters:**
+- `df`: Input DataFrame with conversation data
+- `method`: `"side_by_side"` or `"single_model"`
+- `system_prompt`: Custom prompt for property extraction (optional)
+- `output_dir`: Directory to save results
+
+**Extraction Parameters:**
+- `model_name`: LLM for property extraction (default: `"gpt-4o"`)
+- `temperature`: Temperature for LLM calls (default: `0.7`)
+- `max_workers`: Parallel workers for API calls (default: `16`)
+
+**Clustering Parameters:**
+- `clusterer`: Clustering method (`"hdbscan"`, `"hierarchical"`)
+- `min_cluster_size`: Minimum cluster size (default: `30`)
+- `embedding_model`: `"openai"` or sentence-transformer model
+- `hierarchical`: Create both fine and coarse clusters (default: `False`)
+
+### Examples
+
+**Custom System Prompt:**
+```python
+custom_prompt = """
+Analyze this conversation and identify behavioral differences.
+Focus on: reasoning approach, factual accuracy, response style.
+Return a JSON object with 'property_description' and 'property_evidence'.
+"""
+
+clustered_df, model_stats = explain(
+    df,
+    method="side_by_side",
+    system_prompt=custom_prompt
+)
+```
+
+**Hierarchical Clustering:**
+```python
+clustered_df, model_stats = explain(
+    df,
+    method="side_by_side",
+    hierarchical=True,
+    max_coarse_clusters=15,
+    min_cluster_size=20
+)
+```
+
+## The `label()` Function
+
+The `label()` function classifies model behavior using a predefined taxonomy rather than discovering patterns.
+
+### Basic Usage
+
+```python
+from lmmvibes import label
+
+# Define your evaluation taxonomy
+taxonomy = {
+    "accuracy": "Is the response factually correct?",
+    "helpfulness": "Does the response address the user's needs?", 
+    "clarity": "Is the response clear and well-structured?",
+    "safety": "Does the response avoid harmful content?"
 }
-```
 
-## Basic Evaluation
-
-### Simple Evaluation
-
-```python
-from lmmvibes.evaluation import evaluate_model
-
-# Load your data
-data = load_dataset("your_data.jsonl")
-
-# Run evaluation
-results = evaluate_model(
-    data=data,
-    metrics=["accuracy", "bleu", "rouge"]
-)
-
-print(results)
-```
-
-### Evaluation with Configuration
-
-```python
-from lmmvibes.config import EvaluationConfig
-
-config = EvaluationConfig(
-    metrics=["accuracy", "bleu", "rouge"],
-    batch_size=32,
-    save_results=True,
-    output_dir="./results"
-)
-
-results = evaluate_model(data=data, config=config)
-```
-
-## Working with Results
-
-### Accessing Results
-
-```python
-# Get specific metrics
-accuracy = results["accuracy"]
-bleu_score = results["bleu"]
-
-# Get detailed breakdown
-detailed_results = results["detailed"]
-per_item_scores = detailed_results["per_item"]
-```
-
-### Saving and Loading Results
-
-```python
-from lmmvibes.utils import save_results, load_results
-
-# Save results
-save_results(results, "my_evaluation_results.json")
-
-# Load results
-loaded_results = load_results("my_evaluation_results.json")
-```
-
-## Visualization
-
-### Basic Plots
-
-```python
-from lmmvibes.visualization import plot_metrics, plot_comparison
-
-# Plot single model results
-plot_metrics(results, title="Model Performance")
-
-# Compare multiple models
-plot_comparison([results1, results2], labels=["Model A", "Model B"])
-```
-
-### Interactive Dashboards
-
-```python
-from lmmvibes.visualization import create_dashboard
-
-# Create an interactive dashboard
-dashboard = create_dashboard(results)
-dashboard.show()
-```
-
-## Advanced Features
-
-### Custom Metrics
-
-```python
-from lmmvibes.metrics import Metric
-
-class CustomMetric(Metric):
-    def compute(self, predictions, references):
-        # Your custom computation logic
-        return score
-
-# Use custom metric
-results = evaluate_model(
-    data=data,
-    metrics=["accuracy", CustomMetric()]
+# Classify responses
+clustered_df, model_stats = label(
+    df,
+    taxonomy=taxonomy,
+    model_name="gpt-4o-mini",
+    output_dir="results/"
 )
 ```
 
-### Batch Processing
+### Parameters
 
+**Core Parameters:**
+- `df`: Input DataFrame (must be single-model format)
+- `taxonomy`: Dictionary mapping labels to descriptions
+- `model_name`: LLM for classification (default: `"gpt-4o-mini"`)
+- `output_dir`: Directory to save results
+
+**Other Parameters:**
+- `temperature`: Temperature for classification (default: `0.0`)
+- `max_workers`: Parallel workers (default: `8`)
+- `verbose`: Print progress information (default: `True`)
+
+### Example
+
+**Quality Assessment:**
 ```python
-from lmmvibes.evaluation import batch_evaluate
+quality_taxonomy = {
+    "excellent": "Response is comprehensive, accurate, and well-structured",
+    "good": "Response is mostly accurate with minor issues",
+    "fair": "Response has some accuracy or clarity problems", 
+    "poor": "Response has significant issues or inaccuracies"
+}
 
-# Evaluate multiple models
-models = ["gpt-3.5", "gpt-4", "claude"]
-all_results = batch_evaluate(
-    data=data,
-    models=models,
-    metrics=["accuracy", "bleu"]
+clustered_df, model_stats = label(
+    df,
+    taxonomy=quality_taxonomy,
+    temperature=0.0,  # Deterministic classification
+    output_dir="quality_results/"
 )
 ```
 
-## Error Handling
+## Data Formats
+
+### Side-by-side Format (for `explain()` only)
 
 ```python
-from lmmvibes.exceptions import EvaluationError
-
-try:
-    results = evaluate_model(data=data)
-except EvaluationError as e:
-    print(f"Evaluation failed: {e}")
-    # Handle the error appropriately
+df = pd.DataFrame([
+    {
+        "question_id": "q1",
+        "model_a": "gpt-4",
+        "model_b": "claude-3", 
+        "model_a_response": "Response from model A...",
+        "model_b_response": "Response from model B...",
+        "winner": "tie"  # optional: "model_a", "model_b", or "tie"
+    }
+])
 ```
 
-## Best Practices
+### Single Model Format (for both functions)
 
-1. **Data Validation**: Always validate your input data format
-2. **Error Handling**: Use try-catch blocks for robust evaluation
-3. **Configuration**: Use configuration files for reproducible experiments
-4. **Documentation**: Document your evaluation setup and parameters
-5. **Versioning**: Keep track of model versions and evaluation parameters
+```python
+df = pd.DataFrame([
+    {
+        "question_id": "q1",
+        "model": "gpt-4",
+        "model_response": "The model's response...",
+        "score": 8.5  # optional: numeric quality score
+    }
+])
+```
+
+## Understanding Results
+
+### Output DataFrames
+
+Both functions return a DataFrame with added columns:
+
+```python
+# Original columns plus:
+print(clustered_df.columns)
+# ['question_id', 'model', 'model_response', 
+#  'property_description', 'property_evidence',
+#  'property_description_cluster_id', 'property_description_cluster_label']
+```
+
+### Model Statistics
+
+```python
+print(model_stats.keys())
+# Contains performance metrics, cluster distributions, and rankings
+```
+
+### Saved Files
+
+When `output_dir` is specified, both functions save:
+- `clustered_results.parquet` - Complete results with clusters
+- `model_stats.json` - Model performance statistics
+- `full_dataset.json` - Complete dataset for reanalysis  
+- `summary.txt` - Human-readable summary
+
+## When to Use Each Function
+
+**Use `explain()` when:**
+- You want to discover unknown behavioral patterns
+- You're comparing multiple models
+- You need flexible, data-driven analysis
+- You want to understand what makes models different
+
+**Use `label()` when:**
+- You have specific criteria to evaluate
+- You need consistent scoring across datasets
+- You're building evaluation pipelines  
+- You want controlled, taxonomy-based analysis
 
 ## Next Steps
 
-- Learn about [Configuration](configuration.md) options
-- Explore the [API Reference](../api/core.md) for detailed function documentation
-- Check out [Contributing](../development/contributing.md) guidelines 
+- Understand the [output files](configuration.md) in detail
+- Explore [configuration options](configuration.md)
+- Learn about the [pipeline architecture](../api/core.md) 
