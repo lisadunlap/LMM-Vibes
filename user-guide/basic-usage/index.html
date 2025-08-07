@@ -693,18 +693,18 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#side-by-side-format-for-explain-only" class="md-nav__link">
+  <a href="#side-by-side-format-for-comparing-two-models" class="md-nav__link">
     <span class="md-ellipsis">
-      Side-by-side Format (for explain() only)
+      Side-by-side Format (for comparing two models)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#single-model-format-for-both-functions" class="md-nav__link">
+  <a href="#single-model-format-for-analyzing-individual-models" class="md-nav__link">
     <span class="md-ellipsis">
-      Single Model Format (for both functions)
+      Single Model Format (for analyzing individual models)
     </span>
   </a>
   
@@ -1140,18 +1140,18 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#side-by-side-format-for-explain-only" class="md-nav__link">
+  <a href="#side-by-side-format-for-comparing-two-models" class="md-nav__link">
     <span class="md-ellipsis">
-      Side-by-side Format (for explain() only)
+      Side-by-side Format (for comparing two models)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#single-model-format-for-both-functions" class="md-nav__link">
+  <a href="#single-model-format-for-analyzing-individual-models" class="md-nav__link">
     <span class="md-ellipsis">
-      Single Model Format (for both functions)
+      Single Model Format (for analyzing individual models)
     </span>
   </a>
   
@@ -1259,21 +1259,29 @@ from lmmvibes import explain
 # Load your conversation data
 df = pd.read_csv(&quot;model_conversations.csv&quot;)
 
-# Analyze side-by-side comparisons
-clustered_df, model_stats = explain(
-    df,
-    method=&quot;side_by_side&quot;,
-    min_cluster_size=30,
-    output_dir=&quot;results/&quot;
-)
-
-# Analyze single model responses
+# Single model analysis: Understand what behavioral patterns a model exhibits
 clustered_df, model_stats = explain(
     df,
     method=&quot;single_model&quot;, 
-    min_cluster_size=20,
+    min_cluster_size=10,        # Minimum conversations per behavior cluster
+    output_dir=&quot;results/&quot;       # Saves all analysis files here
+)
+# This will: 1) Extract behavioral properties from each response
+#          2) Group similar behaviors into clusters  
+#          3) Calculate performance metrics per cluster
+#          4) Save comprehensive results
+
+# Side-by-side comparison: Compare two models to find behavioral differences  
+clustered_df, model_stats = explain(
+    df,
+    method=&quot;side_by_side&quot;,
+    min_cluster_size=30,        # Larger datasets need bigger clusters
     output_dir=&quot;results/&quot;
 )
+# This will: 1) Find behavioral differences between model pairs
+#          2) Cluster similar difference patterns
+#          3) Show which model excels at which behaviors
+#          4) Provide statistical significance testing
 </code></pre>
 <h3 id="parameters">Parameters</h3>
 <p><strong>Core Parameters:</strong>
@@ -1282,17 +1290,18 @@ clustered_df, model_stats = explain(
 - <code>system_prompt</code>: Custom prompt for property extraction (optional)
 - <code>output_dir</code>: Directory to save results</p>
 <p><strong>Extraction Parameters:</strong>
-- <code>model_name</code>: LLM for property extraction (default: <code>"gpt-4o"</code>)
-- <code>temperature</code>: Temperature for LLM calls (default: <code>0.7</code>)
-- <code>max_workers</code>: Parallel workers for API calls (default: <code>16</code>)</p>
-<p><strong>Clustering Parameters:</strong>
-- <code>clusterer</code>: Clustering method (<code>"hdbscan"</code>, <code>"hierarchical"</code>)
-- <code>min_cluster_size</code>: Minimum cluster size (default: <code>30</code>)
-- <code>embedding_model</code>: <code>"openai"</code> or sentence-transformer model
-- <code>hierarchical</code>: Create both fine and coarse clusters (default: <code>False</code>)</p>
+- <code>model_name</code>: LLM for property extraction (default: <code>"gpt-4o"</code>) - This model analyzes responses to find behavioral patterns
+- <code>temperature</code>: Temperature for LLM calls (default: <code>0.7</code>) - Higher values = more creative property extraction
+- <code>max_workers</code>: Parallel workers for API calls (default: <code>16</code>) - Speed up analysis with concurrent requests</p>
+<p><strong>Clustering Parameters:</strong><br />
+- <code>clusterer</code>: Clustering method (<code>"hdbscan"</code>, <code>"hierarchical"</code>) - Algorithm to group similar behaviors
+- <code>min_cluster_size</code>: Minimum cluster size (default: <code>30</code>) - Smaller = more granular clusters, larger = broader patterns
+- <code>embedding_model</code>: <code>"openai"</code> or sentence-transformer model - How to convert properties to vectors for clustering
+- <code>hierarchical</code>: Create both fine and coarse clusters (default: <code>False</code>) - Get both detailed and high-level behavior groups</p>
 <h3 id="examples">Examples</h3>
 <p><strong>Custom System Prompt:</strong></p>
-<pre><code class="language-python">custom_prompt = &quot;&quot;&quot;
+<pre><code class="language-python"># Define what behavioral aspects you want the LLM to focus on
+custom_prompt = &quot;&quot;&quot;
 Analyze this conversation and identify behavioral differences.
 Focus on: reasoning approach, factual accuracy, response style.
 Return a JSON object with 'property_description' and 'property_evidence'.
@@ -1301,17 +1310,23 @@ Return a JSON object with 'property_description' and 'property_evidence'.
 clustered_df, model_stats = explain(
     df,
     method=&quot;side_by_side&quot;,
-    system_prompt=custom_prompt
+    system_prompt=custom_prompt  # This overrides the default extraction prompt
 )
+# The LLM will now focus specifically on reasoning, accuracy, and style
+# instead of using the general-purpose default prompt
 </code></pre>
 <p><strong>Hierarchical Clustering:</strong></p>
 <pre><code class="language-python">clustered_df, model_stats = explain(
     df,
     method=&quot;side_by_side&quot;,
-    hierarchical=True,
-    max_coarse_clusters=15,
-    min_cluster_size=20
+    hierarchical=True,          # Create both fine and coarse clusters
+    max_coarse_clusters=15,     # Limit high-level categories to 15
+    min_cluster_size=20         # Each behavior cluster needs 20+ examples
 )
+# This creates two levels:
+# - Fine clusters: &quot;Uses step-by-step reasoning&quot;, &quot;Shows mathematical work&quot;  
+# - Coarse clusters: &quot;Reasoning Transparency&quot; (contains both fine clusters)
+# You get columns for both: *_fine_cluster_label and *_coarse_cluster_label
 </code></pre>
 <h2 id="the-label-function">The <code>label()</code> Function</h2>
 <p>The <code>label()</code> function classifies model behavior using a predefined taxonomy rather than discovering patterns.</p>
@@ -1361,40 +1376,59 @@ clustered_df, model_stats = label(
 )
 </code></pre>
 <h2 id="data-formats">Data Formats</h2>
-<h3 id="side-by-side-format-for-explain-only">Side-by-side Format (for <code>explain()</code> only)</h3>
-<pre><code class="language-python">df = pd.DataFrame([
-    {
-        &quot;question_id&quot;: &quot;q1&quot;,
-        &quot;model_a&quot;: &quot;gpt-4&quot;,
-        &quot;model_b&quot;: &quot;claude-3&quot;, 
-        &quot;model_a_response&quot;: &quot;Response from model A...&quot;,
-        &quot;model_b_response&quot;: &quot;Response from model B...&quot;,
-        &quot;winner&quot;: &quot;tie&quot;  # optional: &quot;model_a&quot;, &quot;model_b&quot;, or &quot;tie&quot;
-    }
-])
+<h3 id="side-by-side-format-for-comparing-two-models">Side-by-side Format (for comparing two models)</h3>
+<p><strong>Required columns:</strong>
+- <code>prompt</code> - The question or prompt given to both models
+- <code>model_a</code>, <code>model_b</code> - Names of the models being compared<br />
+- <code>model_a_response</code>, <code>model_b_response</code> - Complete responses from each model</p>
+<p><strong>Optional columns:</strong>
+- <code>score</code> - Dictionary with winner and metrics</p>
+<pre><code class="language-python">df = pd.DataFrame({
+    &quot;prompt&quot;: [&quot;What is machine learning?&quot;, &quot;Explain quantum computing&quot;], 
+    &quot;model_a&quot;: [&quot;gpt-4&quot;, &quot;gpt-4&quot;],
+    &quot;model_b&quot;: [&quot;claude-3&quot;, &quot;claude-3&quot;],
+    &quot;model_a_response&quot;: [&quot;ML is a subset of AI...&quot;, &quot;Quantum computing uses...&quot;],
+    &quot;model_b_response&quot;: [&quot;Machine learning involves...&quot;, &quot;QC leverages quantum...&quot;],
+    &quot;score&quot;: [{&quot;winner&quot;: &quot;gpt-4&quot;, &quot;helpfulness&quot;: 4.2}, {&quot;winner&quot;: &quot;claude-3&quot;, &quot;helpfulness&quot;: 3.8}]
+})
 </code></pre>
-<h3 id="single-model-format-for-both-functions">Single Model Format (for both functions)</h3>
-<pre><code class="language-python">df = pd.DataFrame([
-    {
-        &quot;question_id&quot;: &quot;q1&quot;,
-        &quot;model&quot;: &quot;gpt-4&quot;,
-        &quot;model_response&quot;: &quot;The model's response...&quot;,
-        &quot;score&quot;: 8.5  # optional: numeric quality score
-    }
-])
+<h3 id="single-model-format-for-analyzing-individual-models">Single Model Format (for analyzing individual models)</h3>
+<p><strong>Required columns:</strong>
+- <code>prompt</code> - The question given to the model (used for visualization)
+- <code>model</code> - Name of the model being analyzed
+- <code>model_response</code> - The model's complete response</p>
+<p><strong>Optional columns:</strong><br />
+- <code>score</code> - Dictionary of evaluation metrics</p>
+<pre><code class="language-python">df = pd.DataFrame({
+    &quot;prompt&quot;: [&quot;What is machine learning?&quot;, &quot;Explain quantum computing&quot;],
+    &quot;model&quot;: [&quot;gpt-4&quot;, &quot;gpt-4&quot;], 
+    &quot;model_response&quot;: [&quot;Machine learning involves...&quot;, &quot;QC leverages quantum...&quot;],
+    &quot;score&quot;: [{&quot;accuracy&quot;: 1, &quot;helpfulness&quot;: 4.2}, {&quot;accuracy&quot;: 0, &quot;helpfulness&quot;: 3.8}]
+})
 </code></pre>
+<p><strong>Note:</strong> Both string responses and OpenAI conversation format are supported. Simple strings are automatically converted to conversation format internally.</p>
 <h2 id="understanding-results">Understanding Results</h2>
 <h3 id="output-dataframes">Output DataFrames</h3>
-<p>Both functions return a DataFrame with added columns:</p>
-<pre><code class="language-python"># Original columns plus:
-print(clustered_df.columns)
-# ['question_id', 'model', 'model_response', 
-#  'property_description', 'property_evidence',
-#  'property_description_cluster_id', 'property_description_cluster_label']
+<p>Both functions return your original data enriched with extracted behavioral properties:</p>
+<pre><code class="language-python">print(clustered_df.columns)
+# Original columns plus new analysis columns:
+# 'property_description' - Natural language description of behavior (e.g., &quot;Provides step-by-step reasoning&quot;)  
+# 'property_evidence' - Evidence from the response supporting this property
+# 'category' - Higher-level grouping (e.g., &quot;Reasoning&quot;, &quot;Creativity&quot;)
+# 'impact' - Estimated effect (&quot;positive&quot;, &quot;negative&quot;, or numeric score)
+# 'type' - Kind of property (&quot;format&quot;, &quot;content&quot;, &quot;style&quot;)
+# 'property_description_fine_cluster_label' - Human-readable cluster name
+# 'property_description_coarse_cluster_label' - High-level cluster (if hierarchical=True)
 </code></pre>
 <h3 id="model-statistics">Model Statistics</h3>
-<pre><code class="language-python">print(model_stats.keys())
-# Contains performance metrics, cluster distributions, and rankings
+<p>The <code>model_stats</code> contains per-model behavioral analysis:</p>
+<pre><code class="language-python"># For each model, you get statistics about behavioral patterns
+for model_name, stats in model_stats.items():
+    print(f&quot;{model_name} behavioral analysis:&quot;)
+    # Which behaviors this model exhibits most/least frequently
+    # Relative scores for different behavioral clusters  
+    # Example responses for each behavior cluster
+    # Quality scores showing how well the model performs within each behavior type
 </code></pre>
 <h3 id="saved-files">Saved Files</h3>
 <p>When <code>output_dir</code> is specified, both functions save:

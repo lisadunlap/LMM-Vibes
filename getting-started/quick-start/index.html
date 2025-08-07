@@ -1178,10 +1178,15 @@
 <h1 id="quick-start">Quick Start</h1>
 <p>Get up and running with LMM-Vibes in minutes.</p>
 <h2 id="installation">Installation</h2>
-<pre><code class="language-bash">pip install lmm-vibes
-# or for development
-pip install -e .
+<pre><code class="language-bash"># Basic installation
+pip install lmmvibes
+
+# With optional dependencies for better performance
+pip install lmmvibes[full]  # includes sentence-transformers, wandb
 </code></pre>
+<p><strong>Requirements:</strong>
+- Python 3.8+
+- OpenAI API key for property extraction and embeddings</p>
 <p>Set up your OpenAI API key:</p>
 <pre><code class="language-bash">export OPENAI_API_KEY=&quot;your-api-key-here&quot;
 </code></pre>
@@ -1191,55 +1196,81 @@ pip install -e .
 from lmmvibes import explain
 </code></pre>
 <h3 id="2-prepare-your-data">2. Prepare Your Data</h3>
-<p><strong>Side-by-side comparison format:</strong></p>
-<pre><code class="language-python">df = pd.DataFrame([
-    {
-        &quot;question_id&quot;: &quot;q1&quot;,
-        &quot;model_a&quot;: &quot;gpt-4&quot;, 
-        &quot;model_b&quot;: &quot;claude-3&quot;,
-        &quot;model_a_response&quot;: &quot;The answer is 4.&quot;,
-        &quot;model_b_response&quot;: &quot;2 + 2 equals 4.&quot;,
-        &quot;winner&quot;: &quot;tie&quot;  # optional
-    }
-])
+<p>LMM-Vibes analyzes model conversations to extract behavioral properties. You need either single model responses or side-by-side comparisons.</p>
+<p><strong>Single model format (for analyzing individual model behavior):</strong></p>
+<pre><code class="language-python">df = pd.DataFrame({
+    &quot;prompt&quot;: [&quot;What is machine learning?&quot;, &quot;Explain quantum computing&quot;, &quot;Write a poem about AI&quot;],
+    &quot;model&quot;: [&quot;gpt-4&quot;, &quot;gpt-4&quot;, &quot;gpt-4&quot;],
+    &quot;model_response&quot;: [&quot;Machine learning involves...&quot;, &quot;QC leverages quantum...&quot;, &quot;Silicon dreams awaken...&quot;],
+    &quot;score&quot;: [{&quot;accuracy&quot;: 1, &quot;helpfulness&quot;: 4.2}, {&quot;accuracy&quot;: 0, &quot;helpfulness&quot;: 3.8}, {&quot;accuracy&quot;: 1, &quot;helpfulness&quot;: 4.5}]
+})
 </code></pre>
-<p><strong>Single model format:</strong></p>
-<pre><code class="language-python">df = pd.DataFrame([
-    {
-        &quot;question_id&quot;: &quot;q1&quot;,
-        &quot;model&quot;: &quot;gpt-4&quot;,
-        &quot;model_response&quot;: &quot;The answer is 4.&quot;,
-        &quot;score&quot;: 8.5  # optional
-    }
-])
+<p><strong>Side-by-side comparison format (for comparing two models):</strong></p>
+<pre><code class="language-python">df = pd.DataFrame({
+    &quot;prompt&quot;: [&quot;What is machine learning?&quot;, &quot;Explain quantum computing&quot;, &quot;Write a poem about AI&quot;],
+    &quot;model_a&quot;: [&quot;gpt-4&quot;, &quot;gpt-4&quot;, &quot;gpt-4&quot;],
+    &quot;model_b&quot;: [&quot;claude-3&quot;, &quot;claude-3&quot;, &quot;claude-3&quot;],
+    &quot;model_a_response&quot;: [&quot;ML is a subset of AI...&quot;, &quot;Quantum computing uses...&quot;, &quot;In circuits of light...&quot;],
+    &quot;model_b_response&quot;: [&quot;Machine learning involves...&quot;, &quot;QC leverages quantum...&quot;, &quot;Silicon dreams awaken...&quot;],
+    &quot;score&quot;: [{&quot;winner&quot;: &quot;gpt-4&quot;, &quot;helpfulness&quot;: 4.2}, {&quot;winner&quot;: &quot;gpt-4&quot;, &quot;helpfulness&quot;: 3.8}, {&quot;winner&quot;: &quot;claude-3&quot;, &quot;helpfulness&quot;: 4.5}]
+})
 </code></pre>
+<p>The <code>score</code> column is optional but helps provide context for behavioral analysis.</p>
 <h3 id="3-analyze-model-behavior">3. Analyze Model Behavior</h3>
-<pre><code class="language-python"># Side-by-side comparison
-clustered_df, model_stats = explain(
-    df,
-    method=&quot;side_by_side&quot;,
-    min_cluster_size=30,
-    output_dir=&quot;results/&quot;
-)
-
-# Single model analysis  
+<p>The <code>explain()</code> function runs a 4-stage pipeline: <strong>Property Extraction</strong> → <strong>Post-processing</strong> → <strong>Clustering</strong> → <strong>Metrics &amp; Analysis</strong></p>
+<pre><code class="language-python"># For single model analysis
 clustered_df, model_stats = explain(
     df,
     method=&quot;single_model&quot;,
-    min_cluster_size=20,
-    output_dir=&quot;results/&quot;
+    min_cluster_size=10,  # Minimum size for behavior clusters
+    output_dir=&quot;results/test&quot;  # Save all results here
+)
+
+# For side-by-side comparison
+clustered_df, model_stats = explain(
+    df,
+    method=&quot;side_by_side&quot;,
+    min_cluster_size=10,
+    output_dir=&quot;results/test&quot;
 )
 </code></pre>
+<p><strong>What happens during analysis:</strong></p>
+<ol>
+<li>
+<p><strong>Property Extraction</strong>: GPT-4 analyzes each response and extracts behavioral properties like "Provides step-by-step reasoning" or "Uses creative examples"</p>
+</li>
+<li>
+<p><strong>Clustering</strong>: Similar properties are grouped together using embeddings (e.g., "explains clearly" and "shows work" → "Reasoning Transparency" cluster)</p>
+</li>
+<li>
+<p><strong>Metrics Calculation</strong>: Computes which models excel at which behavioral patterns, with quality scores and statistical significance</p>
+</li>
+<li>
+<p><strong>Results Saving</strong>: All intermediate and final results are saved to your output directory</p>
+</li>
+</ol>
 <h3 id="4-explore-results">4. Explore Results</h3>
-<pre><code class="language-python"># View behavioral clusters
-print(clustered_df[['property_description', 'property_description_coarse_cluster_label']].head())
+<pre><code class="language-python"># View the extracted behavioral properties and their clusters
+print(&quot;Sample behavioral properties found:&quot;)
+print(clustered_df[['property_description', 'property_description_fine_cluster_label']].head())
 
-# Check model rankings
-print(model_stats)
+# Check which behaviors each model excels at
+for model, stats in model_stats.items():
+    print(f&quot;\n{model} excels at:&quot;)
+    # Show top behavioral clusters for this model
+    for behavior in stats[&quot;fine&quot;][:3]:  # top 3 behaviors
+        print(f&quot;  • {behavior.property_description} (score: {behavior.score:.2f})&quot;)
 </code></pre>
 <h3 id="5-interactive-visualization">5. Interactive Visualization</h3>
-<pre><code class="language-bash">streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
+<p>Launch the Gradio web interface to explore your results interactively:</p>
+<pre><code class="language-bash"># View clusters, examples, and metrics in a web interface
+python -m lmmvibes.vis_gradio.launcher --share
 </code></pre>
+<p>This opens a web interface where you can:
+- Browse behavioral clusters and their examples
+- Compare model performance across different behaviors<br />
+- Explore the extracted properties and metrics
+- Visualize model rankings and statistical analysis</p>
 <h2 id="advanced-usage">Advanced Usage</h2>
 <h3 id="custom-prompts">Custom Prompts</h3>
 <pre><code class="language-python">custom_prompt = &quot;&quot;&quot;
