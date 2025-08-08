@@ -24,7 +24,7 @@ import wandb
 import numpy as np
 import litellm  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
-from .clustering_prompts import clustering_systems_prompt, coarse_clustering_systems_prompt
+from .clustering_prompts import clustering_systems_prompt, coarse_clustering_systems_prompt, deduplication_clustering_systems_prompt
 from ..core.caching import LMDBCache
 
 # Global cache instance
@@ -242,94 +242,123 @@ def _clean_list_item(text: str) -> str:
     return cleaned.strip()
 
 
-def llm_coarse_cluster_with_centers(
+def generate_coarse_labels(
     fine_cluster_names: List[str],
-    max_coarse_clusters: int = 15,
+    max_coarse_clusters: int,
+    *,
+    systems_prompt: str = deduplication_clustering_systems_prompt,
+    model: str = "gpt-4.1",
     verbose: bool = True,
-    model: str = "o3",
-    cluster_assignment_model: str = "gpt-4.1-mini",
-) -> Tuple[Dict[str, str], List[str]]:
-    """Use an LLM to create coarse-grained cluster centers from fine-grained clusters."""
+) -> List[str]:
+    """Return a cleaned list of coarse-grained labels created by an LLM.
+
+    This function is *pure* w.r.t. its inputs: it never mutates global
+    state other than consulting / writing to the LMDB cache.
+    """
     valid_fine_names = [n for n in fine_cluster_names if n != "Outliers"]
-    
+    if max_coarse_clusters and len(valid_fine_names) > max_coarse_clusters:
+        systems_prompt = systems_prompt.format(max_coarse_clusters=max_coarse_clusters)
+
     if not valid_fine_names:
-        logger.warning("No valid fine-grained cluster names found (all outliers)")
-        return {}, ["Outliers"]
-    
-    if len(valid_fine_names) <= max_coarse_clusters:
-        # If we already have few enough clusters, return them as-is
-        fine_to_coarse = {name: name for name in valid_fine_names}
-        return fine_to_coarse, valid_fine_names
-    
-    fine_cluster_text = "\n".join(valid_fine_names)
-    
-    system_prompt = f"""You are a machine learning expert specializing in the behavior of large language models. 
+        return ["Outliers"]
 
-I will provide you with a list of fine-grained properties describing model behavior. Your task is to create {max_coarse_clusters} broader property names that capture the high-level themes across these properties.
+    # If the list is already small, just return it unchanged.
+    if max_coarse_clusters and len(valid_fine_names) <= max_coarse_clusters:
+        return valid_fine_names
 
-Instructions:
-1. Analyze all the fine-grained properties
-2. Identify {max_coarse_clusters} major properties
-3. Create clear, descriptive names for each property
-4. Each property should be a short sentence or two that captures the essence of that property
-5. Output ONLY the property names, one per line
-6. Do NOT include numbering, bullets, or other formatting - just the plain property names
+    user_prompt = f"Fine-grained properties:\n\n" + "\n".join(valid_fine_names)
 
-Focus on creating properties that are:
-- Distinct from each other
-- Broad enough to encompass multiple fine-grained properties
-- Descriptive and meaningful for understanding model behavior"""
-    
-    user_prompt = f"Fine-grained properties:\n\n{fine_cluster_text}\n\nGenerate {max_coarse_clusters} coarse-grained property names:"
-    
-    # Use caching mechanism
     request_data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": coarse_clustering_systems_prompt.format(max_properties=max_coarse_clusters)},
+            {"role": "system", "content": systems_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "max_completion_tokens": 1000,
+        "max_completion_tokens": 2000,
     }
 
-    # Check cache first
-    cached_response = _cache.get_completion(request_data)
-    cached_response = None
-    if cached_response is not None:
-        content = cached_response["choices"][0]["message"]["content"]
+    # Try cache first
+    cached = _cache.get_completion(request_data)
+    if cached is not None:
+        content = cached["choices"][0]["message"]["content"]
         if verbose:
-            logger.info("Cache hit for coarse cluster generation!")
+            logger.info("Cache hit for coarse label generation!")
     else:
         if verbose:
-            logger.info(f"Generating coarse cluster centers using {model}...")
-        response = litellm.completion(**request_data, caching=False)
-        content = response.choices[0].message.content
-        
-        # Cache the response
-        response_dict = {
-            "choices": [{
-                "message": {
-                    "content": content
-                }
-            }]
-        }
-        _cache.set_completion(request_data, response_dict)
+            logger.info(f"Generating {max_coarse_clusters} coarse labels using {model}…")
+        resp = litellm.completion(**request_data, caching=False)
+        content = resp.choices[0].message.content
+        # Store in cache
+        _cache.set_completion(request_data, {
+            "choices": [{"message": {"content": content}}]
+        })
 
-    logger.info(content)
-    
-    # Parse and clean the cluster names, removing any list formatting
-    raw_names = [n.strip() for n in content.strip().split("\n") if n.strip()]
-    coarse_cluster_names = [_clean_list_item(name) for name in raw_names if _clean_list_item(name)]
-    
+    # Clean and split response into individual labels
+    raw_names = [line.strip() for line in content.split("\n") if line.strip()]
+    coarse_labels = [_clean_list_item(name) for name in raw_names if _clean_list_item(name)]
+
     if verbose:
-        logger.info("Generated concept centres:")
-        for i, name in enumerate(coarse_cluster_names):
-            logger.info(f"  {i}: {name}")
+        logger.info("Generated coarse labels:")
+        for i, lbl in enumerate(coarse_labels):
+            logger.info(f"  {i}: {lbl}")
 
-    # Embeddings for similarity matching
-    fine_to_coarse = llm_match(valid_fine_names, coarse_cluster_names, model=cluster_assignment_model)
+    return coarse_labels
 
-    return fine_to_coarse, coarse_cluster_names
+
+def assign_fine_to_coarse(
+    fine_cluster_names: List[str],
+    coarse_cluster_names: List[str],
+    *,
+    model: str = "gpt-4.1-mini",
+    strategy: str = "llm",
+    verbose: bool = True,
+) -> Dict[str, str]:
+    """Assign each fine cluster name to one of the coarse cluster names.
+
+    Parameters
+    ----------
+    strategy : "llm" | "embedding"
+        • "llm" – use chat-based matching (thread-pooled, relies on litellm).
+        • "embedding" – cosine-similarity in embedding space (fast, no chat calls).
+    """
+    if strategy == "embedding":
+        return embedding_match(fine_cluster_names, coarse_cluster_names)
+    elif strategy == "llm":
+        return llm_match(fine_cluster_names, coarse_cluster_names, model=model)
+    else:
+        raise ValueError(f"Unknown assignment strategy: {strategy}")
+
+
+def llm_coarse_cluster_with_centers(
+    fine_cluster_names: List[str],
+    max_coarse_clusters: int,
+    verbose: bool = True,
+    model: str = "gpt-4.1",
+    cluster_assignment_model: str = "gpt-4.1-mini",
+    systems_prompt: str = deduplication_clustering_systems_prompt,
+) -> Tuple[Dict[str, str], List[str]]:
+    """High-level convenience wrapper that returns both mapping and centres."""
+    valid_fine_names = [n for n in fine_cluster_names if n != "Outliers"]
+    if not valid_fine_names:
+        return {}, ["Outliers"]
+
+    coarse_labels = generate_coarse_labels(
+        valid_fine_names,
+        max_coarse_clusters=max_coarse_clusters,
+        systems_prompt=systems_prompt,
+        model=model,
+        verbose=verbose,
+    )
+
+    fine_to_coarse = assign_fine_to_coarse(
+        valid_fine_names,
+        coarse_labels,
+        model=cluster_assignment_model,
+        strategy="llm",
+        verbose=verbose,
+    )
+
+    return fine_to_coarse, coarse_labels
 
 def embedding_match(fine_cluster_names, coarse_cluster_names):
     """Match fine-grained cluster names to coarse-grained cluster names using embeddings."""
@@ -400,7 +429,7 @@ def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10, model="g
                     logger.warning(f"Failed to match fine grained property {fine_name} after {retries} attempts, setting to 'Outliers'")
                     return fine_name, "Outliers"
                 else:
-                    logger.warning(f"Error matching fine grained property to coarse grained property: {e}\n\nLabel: {coarse_label}\n\nCoarse names: {coarse_cluster_names}")
+                    logger.warning(f"Error matching fine grained property to coarse grained property: {e}\n\nLabel: {coarse_label}")
    
         return fine_name, "Outliers"
     
@@ -541,12 +570,8 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
             df[col] = df[col].astype(str)
     
     # 1. Save clustered results as JSON (preserves all data structures)
-    clustered_json_path = os.path.join(save_dir, "clustered_results.jsonl")
-    try:
-        df.to_json(clustered_json_path, orient='records', lines=True, force_ascii=False)
-        logger.info(f"Saved clustered results (JSONL): {clustered_json_path}")
-    except Exception as e:
-        logger.error(f"Failed to save JSONL: {e}")
+    df.to_json(f"{save_dir}/clustered_results.jsonl", orient='records', lines=True)
+    logger.info(f"Saved clustered results (JSON): {save_dir}/clustered_results.jsonl")
     
     # 2. Save embeddings separately if they exist
     embedding_cols = [col for col in df.columns if 'embedding' in col.lower()]
@@ -562,60 +587,34 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
         
         # Save embeddings as parquet (more efficient for large arrays)
         embeddings_path = os.path.join(save_dir, "embeddings.parquet")
-        try:
-            embedding_df.to_parquet(embeddings_path, compression='snappy')
-            logger.info(f"Saved embeddings: {embeddings_path}")
-            
-            # Also save as JSON for compatibility
-            embeddings_json_path = os.path.join(save_dir, "embeddings.jsonl")
-            embedding_df.to_json(embeddings_json_path, orient='records', lines=True, force_ascii=False)
-            logger.info(f"Saved embeddings (JSONL): {embeddings_json_path}")
-        except Exception as e:
-            logger.error(f"Failed to save embeddings: {e}")
+        embedding_df.to_parquet(embeddings_path, compression='snappy')
+        logger.info(f"Saved embeddings: {embeddings_path}")
+        
+        # Also save as JSON for compatibility
+        embedding_df.to_json(f"{save_dir}/embeddings.jsonl", orient='records', lines=True, force_ascii=False)
+        logger.info(f"Saved embeddings (JSON): {save_dir}/embeddings.jsonl")
     
     # 3. Save lightweight version without embeddings
     df_light = df.drop(columns=embedding_cols) if embedding_cols else df
     
     # Save lightweight as json
-    light_json_path = os.path.join(save_dir, "clustered_results_lightweight.jsonl")
-    try:
-        df_light.to_json(light_json_path, orient='records', lines=True, force_ascii=False)
-        logger.info(f"Saved lightweight results (JSONL): {light_json_path}")
-    except Exception as e:
-        logger.error(f"Failed to save lightweight JSONL: {e}")
+    df_light.to_json(f"{save_dir}/clustered_results_lightweight.jsonl", orient='records', lines=True)
+    logger.info(f"Saved lightweight results (JSON): {save_dir}/clustered_results_lightweight.jsonl")
     
     # 4. Create and save summary table
-    try:
-        summary_table = create_summary_table(df_light, config)
-        summary_table_path = os.path.join(save_dir, "summary_table.jsonl")
-        summary_table.to_json(summary_table_path, orient='records', lines=True)
-        logger.info(f"Saved summary table: {summary_table_path}")
-    except Exception as e:
-        logger.error(f"Failed to save summary table: {e}")
-    
-    # 5. Print file sizes
-    try:
-        if os.path.exists(clustered_json_path):
-            json_size = os.path.getsize(clustered_json_path) / (1024**2)
-            logger.info(f"  Clustered results (JSONL): {json_size:.1f} MB")
-        
-        if embedding_cols and include_embeddings and os.path.exists(embeddings_path):
-            emb_size = os.path.getsize(embeddings_path) / (1024**2)
-            logger.info(f"  Embeddings (parquet): {emb_size:.1f} MB")
-    except Exception as e:
-        logger.warning(f"Could not calculate file sizes: {e}")
+    summary_table = create_summary_table(df_light, config)
+    summary_table.to_json(f"{save_dir}/summary_table.jsonl", orient='records', lines=True)
+    logger.info(f"Saved summary table: {save_dir}/summary_table.jsonl")
 
     # 6. Log to wandb if enabled
     if config and config.use_wandb:
-        try:
-            log_results_to_wandb(df_light, light_json_path, base_filename, config)
-        except Exception as e:
-            logger.error(f"Failed to log to wandb: {e}")
+        log_results_to_wandb(df_light, f"{save_dir}/clustered_results_lightweight.jsonl", base_filename, config)
+        logger.info(f"Logged results to wandb")
     
     return {
-        'clustered_json': clustered_json_path,
-        'embeddings_parquet': embeddings_path if embedding_cols and include_embeddings else None,
-        'summary_table': summary_table_path
+        'clustered_json': f"{save_dir}/clustered_results.jsonl",
+        'embeddings_parquet': f"{save_dir}/embeddings.parquet" if embedding_cols and include_embeddings else None,
+        'summary_table': f"{save_dir}/summary_table.jsonl"
     }
 
 
@@ -628,88 +627,84 @@ def log_results_to_wandb(df_light, light_json_path, base_filename, config):
     
     logger.info("📊 Logging results to wandb...")
     
-    try:
-        # Log the lightweight CSV file
-        artifact = wandb.Artifact(
-            name=f"{base_filename}_clustered_data",
-            type="clustered_dataset",
-            description=f"Clustered dataset without embeddings - {base_filename}"
-        )
-        artifact.add_file(light_json_path)
-        wandb.log_artifact(artifact)
+    # Log the lightweight CSV file
+    artifact = wandb.Artifact(
+        name=f"{base_filename}_clustered_data",
+        type="clustered_dataset",
+        description=f"Clustered dataset without embeddings - {base_filename}"
+    )
+    artifact.add_file(light_json_path)
+    wandb.log_artifact(artifact)
+    
+    # Log the actual clustering results as a table
+    # Find the original column that was clustered
+    original_col = None
+    for col in df_light.columns:
+        if not any(suffix in col for suffix in ['_cluster', '_embedding']):
+            # This is likely the original column
+            original_col = col
+            break
+    
+    if original_col:
+        # Create a table with the key clustering results
+        cluster_cols = [col for col in df_light.columns if 'cluster' in col.lower()]
+        table_cols = [original_col] + cluster_cols
         
-        # Log the actual clustering results as a table
-        # Find the original column that was clustered
-        original_col = None
-        for col in df_light.columns:
-            if not any(suffix in col for suffix in ['_cluster', '_embedding']):
-                # This is likely the original column
-                original_col = col
-                break
+        # Sample the data if it's too large (wandb has limits)
+        sample_size = min(100, len(df_light))
+        if len(df_light) > sample_size:
+            df_sample = df_light[table_cols].sample(n=sample_size, random_state=42)
+            logger.info(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
+        else:
+            df_sample = df_light[table_cols]
+            logger.info(f"📋 Logging all {len(df_sample)} rows")
         
-        if original_col:
-            # Create a table with the key clustering results
-            cluster_cols = [col for col in df_light.columns if 'cluster' in col.lower()]
-            table_cols = [original_col] + cluster_cols
-            
-            # Sample the data if it's too large (wandb has limits)
-            sample_size = min(100, len(df_light))
-            if len(df_light) > sample_size:
-                df_sample = df_light[table_cols].sample(n=sample_size, random_state=42)
-                logger.info(f"📋 Logging sample of {sample_size} rows (out of {len(df_light)} total)")
-            else:
-                df_sample = df_light[table_cols]
-                logger.info(f"📋 Logging all {len(df_sample)} rows")
-            
-            # Convert to string to handle any non-serializable data
-            df_sample_str = df_sample.astype(str)
-            wandb.log({f"{base_filename}_clustering_results": wandb.Table(dataframe=df_sample_str)})
+        # Convert to string to handle any non-serializable data
+        df_sample_str = df_sample.astype(str)
+        wandb.log({f"{base_filename}_clustering_results": wandb.Table(dataframe=df_sample_str)})
+    
+    # Calculate clustering metrics
+    cluster_cols = [col for col in df_light.columns if 'cluster_id' in col.lower()]
+    metrics = {"clustering_dataset_size": len(df_light)}
+    
+    for col in cluster_cols:
+        cluster_ids = df_light[col].values
+        n_clusters = len(set(cluster_ids)) - (1 if -1 in cluster_ids else 0)
+        n_outliers = list(cluster_ids).count(-1)
         
-        # Calculate clustering metrics
-        cluster_cols = [col for col in df_light.columns if 'cluster_id' in col.lower()]
-        metrics = {"clustering_dataset_size": len(df_light)}
+        level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
+        metrics[f"clustering_{level}_clusters"] = n_clusters
+        metrics[f"clustering_{level}_outliers"] = n_outliers
+        metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
         
-        for col in cluster_cols:
-            cluster_ids = df_light[col].values
-            n_clusters = len(set(cluster_ids)) - (1 if -1 in cluster_ids else 0)
-            n_outliers = list(cluster_ids).count(-1)
-            
-            level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
-            metrics[f"clustering_{level}_clusters"] = n_clusters
-            metrics[f"clustering_{level}_outliers"] = n_outliers
-            metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
-            
-            # Calculate cluster size distribution
-            cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
-            if cluster_sizes:
-                metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
-                metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)
-                metrics[f"clustering_{level}_max_cluster_size"] = max(cluster_sizes)
-        
-        # Log clustering configuration
-        config_dict = {
-            "clustering_min_cluster_size": config.min_cluster_size,
-            "clustering_embedding_model": config.embedding_model,
-            "clustering_hierarchical": config.hierarchical,
-            "clustering_assign_outliers": config.assign_outliers,
-            "clustering_disable_dim_reduction": config.disable_dim_reduction,
-            "clustering_min_samples": config.min_samples,
-            "clustering_cluster_selection_epsilon": config.cluster_selection_epsilon
-        }
-        
-        # Log all metrics as summary metrics (not regular metrics)
-        # Note: This function doesn't have access to WandbMixin, so we'll log directly to wandb.run.summary
-        all_metrics = {**metrics, **config_dict}
-        for key, value in all_metrics.items():
-            wandb.run.summary[key] = value
-        
-        logger.info(f"✅ Logged clustering results to wandb")
-        logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
-        logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
-        logger.info(f"   - Summary metrics: {list(all_metrics.keys())}")
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to log to wandb: {e}")
+        # Calculate cluster size distribution
+        cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
+        if cluster_sizes:
+            metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
+            metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)
+            metrics[f"clustering_{level}_max_cluster_size"] = max(cluster_sizes)
+    
+    # Log clustering configuration
+    config_dict = {
+        "clustering_min_cluster_size": config.min_cluster_size,
+        "clustering_embedding_model": config.embedding_model,
+        "clustering_hierarchical": config.hierarchical,
+        "clustering_assign_outliers": config.assign_outliers,
+        "clustering_disable_dim_reduction": config.disable_dim_reduction,
+        "clustering_min_samples": config.min_samples,
+        "clustering_cluster_selection_epsilon": config.cluster_selection_epsilon
+    }
+    
+    # Log all metrics as summary metrics (not regular metrics)
+    # Note: This function doesn't have access to WandbMixin, so we'll log directly to wandb.run.summary
+    all_metrics = {**metrics, **config_dict}
+    for key, value in all_metrics.items():
+        wandb.run.summary[key] = value
+    
+    logger.info(f"✅ Logged clustering results to wandb")
+    logger.info(f"   - Dataset artifact: {base_filename}_clustered_data")
+    logger.info(f"   - Clustering results table: {base_filename}_clustering_results")
+    logger.info(f"   - Summary metrics: {list(all_metrics.keys())}")
 
 
 def initialize_wandb(config, method_name, input_file):
@@ -824,12 +819,6 @@ def load_precomputed_embeddings(embeddings_path, verbose=True):
 
 def create_summary_table(df, config=None, **kwargs):
     labels = df.property_description_fine_cluster_label.value_counts()
-    # cols = ['model_1_name', 'model_2_name', 'winner',
-    #     'question_id', 'prompt', 'model_1_response',
-    #     'model_2_response', 'differences', 'model',
-    #     'property_description', 'category', 'evidence', 'type', 'reason',
-    #     'impact', 'contains_errors', 'unexpected_behavior'
-    #     ]
     cols = [
         'property_description',
         ]
@@ -846,7 +835,6 @@ def create_summary_table(df, config=None, **kwargs):
         }
         res = {
             "fine_label": label,
-            "coarse_label": df_label.property_description_coarse_cluster_label.value_counts().idxmax(),
             "count": df_label.shape[0],
             "percent": df_label.shape[0] / len(df),
             "model_counts": df_label.model.value_counts().to_dict(),
@@ -856,6 +844,8 @@ def create_summary_table(df, config=None, **kwargs):
             },
             "examples": examples,
         }
+        if "property_description_coarse_cluster_label" in df_label.columns:
+            res["coarse_label"] = df_label.property_description_coarse_cluster_label.value_counts().idxmax()
         results.append(res)
 
     results = pd.DataFrame(results)

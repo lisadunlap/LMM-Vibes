@@ -83,7 +83,7 @@ def main():
         clustered_df = None
         
         # First try JSON format for clustered DataFrame (preserves nested data)
-        clustered_json_path = os.path.join(args.output_dir, "clustered_results.json")
+        clustered_json_path = os.path.join(args.output_dir, "clustered_results.jsonl")
         full_dataset_json_path = os.path.join(args.output_dir, "full_dataset.json")
         parquet_path = os.path.join(args.output_dir, "clustered_results.parquet")
         
@@ -92,9 +92,9 @@ def main():
             print(f"Loading clustered data from: {clustered_json_path}")
             try:
                 clustered_df = pd.read_json(clustered_json_path, lines=True, orient='records')
-                print("✅ Successfully loaded clustered DataFrame from JSON")
+                print("✅ Successfully loaded clustered DataFrame from JSONL")
             except Exception as e:
-                print(f"❌ Failed to load clustered DataFrame JSON: {e}")
+                print(f"❌ Failed to load clustered DataFrame JSONL: {e}")
         
         # Option 2: Load from full PropertyDataset JSON (fallback)
         if clustered_df is None and os.path.exists(full_dataset_json_path):

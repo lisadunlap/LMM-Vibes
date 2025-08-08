@@ -38,6 +38,10 @@ def get_metrics(method: str, **kwargs) -> "PipelineStage":
     Returns:
         Configured metrics stage
     """
+    # Remap legacy flag name for wandb to the functional parameter
+    if "use_wandb" in kwargs and "log_to_wandb" not in kwargs:
+        kwargs["log_to_wandb"] = kwargs.pop("use_wandb")
+
     if method == "side_by_side":
         return SideBySideMetrics(**kwargs)
     elif method == "single_model":

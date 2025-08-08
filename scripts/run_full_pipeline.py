@@ -28,6 +28,9 @@ def load_dataset(data_path, method="single_model"):
     # Load the dataset
     df = pd.read_json(data_path, lines=True)
     
+    # Attach the filename to the DataFrame for wandb naming
+    df.name = os.path.basename(data_path)
+    
     # Verify required columns
     if method == "single_model":
         required_cols = {"prompt", "model", "model_response"}
@@ -162,8 +165,31 @@ def run_pipeline(
     print(f"\nSample model stats:")
     for model_name, stats in list(model_stats.items())[:3]:
         print(f"  {model_name}:")
-        for stat in stats["fine"][:2]:
-            print(f"    • {stat.property_description[:50]}... (score: {stat.score:.2f})")
+        
+        # Handle new functional metrics format
+        if isinstance(stats, dict) and "functional_metrics" in stats:
+            functional_metrics = stats["functional_metrics"]
+            model_scores = functional_metrics.get("model_scores", {})
+            
+            if model_name in model_scores:
+                model_data = model_scores[model_name]
+                if isinstance(model_data, dict):
+                    quality = model_data.get("quality", {})
+                    if quality:
+                        for metric_name, metric_value in quality.items():
+                            if isinstance(metric_value, (int, float)):
+                                print(f"    • {metric_name}: {metric_value:.3f}")
+        
+        # Handle legacy format
+        elif isinstance(stats, dict) and "fine" in stats:
+            for stat in stats["fine"][:2]:
+                print(f"    • {stat.property_description[:50]}... (score: {stat.score:.2f})")
+        
+        # Handle other formats
+        else:
+            print(f"    • Stats format: {type(stats)}")
+            if isinstance(stats, dict):
+                print(f"    • Available keys: {list(stats.keys())}")
     
     print("="*60)
     print("✅ Full pipeline completed successfully!")

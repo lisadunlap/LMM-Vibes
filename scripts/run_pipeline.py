@@ -36,8 +36,8 @@ def main():
                         help="Minimum cluster size (default: 8)")
     parser.add_argument("--max_coarse_clusters", type=int, default=12,
                         help="Maximum number of coarse clusters (default: 12)")
-    parser.add_argument("--max_workers", type=int, default=64,
-                        help="Maximum number of workers (default: 64)")
+    parser.add_argument("--max_workers", type=int, default=16,
+                        help="Maximum number of workers (default: 16)")
     
     # Flags
     parser.add_argument("--hierarchical", action="store_true",
@@ -88,18 +88,45 @@ def main():
             print("  - A directory: results/previous_run/")
             return
         
-        # Run metrics-only computation
-        clustered_df, model_stats = compute_metrics_only(
-            input_path=data_path,
-            method=args.method,
-            output_dir=args.output_dir,
-            use_wandb=args.use_wandb,
-            verbose=not args.quiet,
-            metrics_kwargs={"compute_confidence_intervals": True}
-        )
-        
-        print(f"\n🎉 Metrics computation completed! Results saved to: {args.output_dir}")
-        return
+        try:
+            # Run metrics-only computation
+            clustered_df, model_stats = compute_metrics_only(
+                input_path=data_path,
+                method=args.method,
+                output_dir=args.output_dir,
+                use_wandb=args.use_wandb,
+                verbose=not args.quiet
+            )
+            # save_examples(args.output_dir, args.method)
+            # # Convert ModelStats objects to dictionaries for JSON serialization
+            # stats_for_json = {}
+            # for model_name, stats in model_stats.items():
+            #     print(stats)
+            #     stats_for_json[str(model_name)] = {
+            #         "fine": [stat.to_dict() for stat in stats["fine"]]
+            #     }
+            #     if "coarse" in stats:
+            #         stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
+            #     assert "stats" in stats, "stats should be in the model stats"
+            #     if "stats" in stats:
+            #         print(stats["stats"])
+            #         stats_for_json[str(model_name)]["stats"] = stats["stats"]
+            
+            # with open(f"{args.output_dir}/model_stats.json", 'w') as f:
+            #     json.dump(stats_for_json, f, indent=2)
+            print(f"  ✓ Saved model statistics (JSON): {args.output_dir}/model_stats.json")
+            
+            print(f"\n🎉 Metrics computation completed! Results saved to: {args.output_dir}")
+            return
+            
+        except Exception as e:
+            print(f"\n❌ Error during metrics computation: {e}")
+            print("\nThis could be because:")
+            print("1. The input path doesn't contain valid pipeline results")
+            print("2. The results don't have the required clustering data")
+            print("3. The data format is incompatible")
+            print("\nTry running the full pipeline first to generate the required data.")
+            raise
     
     # Run pipeline with webdev-optimized parameters
     clustered_df, model_stats = run_pipeline(
@@ -111,15 +138,46 @@ def main():
         min_cluster_size=args.min_cluster_size,
         max_coarse_clusters=args.max_coarse_clusters,
         embedding_model="openai",
-        hierarchical=False,
+        hierarchical=args.hierarchical,
         max_workers=args.max_workers,
         use_wandb=args.use_wandb,
         verbose=not args.quiet,
-        sample_size=args.sample_size,
-        metrics_kwargs={"compute_confidence_intervals": True}
+        sample_size=args.sample_size
     )
+    # save_examples(args.output_dir, args.method)
     
-    print(f"\n🎉 WebDev pipeline completed! Results saved to: {args.output_dir}")
+    print(f"\n🎉 Pipeline completed! Results saved to: {args.output_dir}")
+
+def save_examples(output_dir, method):
+    dataset = "koala"
+
+    with open(f"{output_dir}/model_stats.json", "r") as f:
+        data = json.load(f)
+    all_examples = []
+    for model in data:
+        for example in data[model]['fine']:
+            all_examples.extend(example['examples'][:1])
+    print(len(set(all_examples)))
+    if method == "single_model":
+        selected_columns = ['question_id', 'prompt', 'model_response', 'score', 'property_description',
+            'category', 'type', 'impact', 'reason', 'evidence',
+            'user_preference_direction', 'raw_response', 'contains_errors',
+            'unexpected_behavior', 'model', 'property_description_fine_cluster_label','property_description_coarse_cluster_label']
+    elif method == "side_by_side":
+        selected_columns = ['question_id', 'prompt', 'model_a_response', 'model_b_response', 'score', 'property_description',
+            'category', 'type', 'impact', 'reason', 'evidence',
+            'user_preference_direction', 'raw_response', 'contains_errors',
+            'unexpected_behavior', 'model_a', 'model_b', 'property_description_fine_cluster_label','property_description_coarse_cluster_label']
+    else:
+        raise ValueError(f"Invalid method: {method}")
+    
+    with open(f"{output_dir}/full_dataset.json", "r") as f:
+        data = json.load(f)
+    pd.DataFrame(data['clusters']).to_json(f"{output_dir}/clusters.json", orient="records", lines=True)
+
+    df = pd.read_json(f"{output_dir}/clustered_results.jsonl", lines=True)
+    print(df.columns)
+    df[df.id.isin(all_examples)][selected_columns].to_json(f"{output_dir}/clustered_results_examples.json", lines=True, orient="records")
 
 
 if __name__ == "__main__":

@@ -68,7 +68,7 @@ Prioritize properties that are relevant to agent performance, which could includ
   {
     "property_description": "Description of the unique agentic property observed (max 2 sentences)",
     "category": "one of the following: Tool Usage, Reasoning Quality, Task Understanding, Error Recovery, Policy Compliance, or Efficiency. If there is no clear category, use Other. If there is more than one category, use a comma separated list.",
-    "evidence": "Direct quote/tool calls/actions from the conversation trajectory or actions taken",
+    "evidence": "Direct quote/tool calls/actions from the conversation trajectory or actions taken, wrapped in double quotes",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable for agent evaluation (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -135,7 +135,7 @@ Prioritize properties that are relevant to agent performance:
     "agent": "Agent A|Agent B",
     "property_description": "Brief description of the unique agentic property observed in this agent (max 2 sentences)",
     "category": "1-4 word category (e.g., 'Tool Usage', 'Reasoning', 'Error Recovery')",
-    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote.",
+    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote. Wrap in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other agent (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -196,7 +196,7 @@ Produce a JSON list of objects focusing on software engineering agent behaviors.
   {
     "property_description": "Brief description of the software engineering property observed (max 2 sentences)",
     "category": "1-4 word category (e.g., 'Code Quality', 'Debugging', 'Testing')",
-    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote.",
+    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote. Wrap in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable for SWE agent evaluation (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -239,7 +239,7 @@ Analyze tool usage patterns and identify properties that distinguish effective t
   {
     "property_description": "Brief description of the tool usage property (max 2 sentences)",
     "category": "Tool Usage",
-    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote.",
+    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote. Wrap in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Why this tool usage pattern is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -281,7 +281,7 @@ Analyze reasoning patterns and identify properties that distinguish strong reaso
   {
     "property_description": "Brief description of the reasoning property (max 2 sentences)",
     "category": "Reasoning",
-    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote.",
+    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote. Wrap in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Why this reasoning pattern is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -323,7 +323,7 @@ Identify potential reward hacking behaviors and alignment issues that suggest th
   {
     "property_description": "Brief description of the potential reward hacking behavior (max 2 sentences)",
     "category": "Reward Hacking",
-    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote.",
+    "evidence": "Direct quote/tool calls/actions from the specified agent's conversation trajectory or actions taken. This is for localizing the property for visualization purposes so make sure to include an exact quote. Wrap in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Why this behavior suggests reward hacking rather than genuine problem-solving (max 2 sentences)",
     "impact": "Low|Medium|High",

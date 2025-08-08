@@ -166,9 +166,34 @@ def explain(
         print()
     
     # 2️⃣  Initialize wandb if enabled
-    wandb_run_name = f"explain_{method}_{int(time.time())}"
+    # Create run name based on input filename if available
     if use_wandb:
         import wandb
+        import os
+        
+        # Try to get input filename from the DataFrame or use a default
+        input_filename = "unknown_dataset"
+        if hasattr(df, 'name') and df.name:
+            input_filename = df.name
+        elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
+            input_filename = df._metadata['filename']
+        else:
+            # Try to infer from the DataFrame source if it has a path attribute
+            # This is a fallback for when we can't determine the filename
+            input_filename = f"dataset_{len(df)}_rows"
+        
+        # Clean the filename for wandb (remove extension, replace spaces/special chars)
+        if isinstance(input_filename, str):
+            # Remove file extension and clean up the name
+            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+            # Replace spaces and special characters with underscores
+            input_filename = input_filename.replace(' ', '_').replace('-', '_')
+            # Remove any remaining special characters
+            import re
+            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+        
+        wandb_run_name = f"{input_filename}_{method}"
+        
         wandb.init(
             project=wandb_project or "lmm-vibes",
             name=wandb_run_name,
@@ -433,7 +458,7 @@ def _build_default_pipeline(
     metrics_kwargs = {
         'method': method,
         'output_dir': metrics_output,
-        'compute_bootstrap': metrics_kwargs.get('compute_confidence_intervals', False) if metrics_kwargs else False,
+        'compute_bootstrap': metrics_kwargs.get('compute_confidence_intervals', True) if metrics_kwargs else True,
         'bootstrap_samples': metrics_kwargs.get('bootstrap_samples', 100) if metrics_kwargs else 100,
         'log_to_wandb': use_wandb,
         'generate_plots': True,
@@ -727,6 +752,51 @@ def label(
     # ------------------------------------------------------------------
     dataset = PropertyDataset.from_dataframe(df, method=method)
 
+    # Initialize wandb if enabled
+    if use_wandb:
+        import wandb
+        import os
+        
+        # Try to get input filename from the DataFrame or use a default
+        input_filename = "unknown_dataset"
+        if hasattr(df, 'name') and df.name:
+            input_filename = df.name
+        elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
+            input_filename = df._metadata['filename']
+        else:
+            # Try to infer from the DataFrame source if it has a path attribute
+            # This is a fallback for when we can't determine the filename
+            input_filename = f"dataset_{len(df)}_rows"
+        
+        # Clean the filename for wandb (remove extension, replace spaces/special chars)
+        if isinstance(input_filename, str):
+            # Remove file extension and clean up the name
+            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+            # Replace spaces and special characters with underscores
+            input_filename = input_filename.replace(' ', '_').replace('-', '_')
+            # Remove any remaining special characters
+            import re
+            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+        
+        wandb_run_name = f"{input_filename}_label"
+        
+        wandb.init(
+            project=wandb_project or "lmm-vibes",
+            name=wandb_run_name,
+            config={
+                "method": method,
+                "model_name": model_name,
+                "temperature": temperature,
+                "top_p": top_p,
+                "max_tokens": max_tokens,
+                "max_workers": max_workers,
+                "taxonomy_size": len(taxonomy),
+                "include_embeddings": include_embeddings,
+                "output_dir": output_dir,
+            },
+            reinit=False  # Don't reinitialize if already exists
+        )
+
     pipeline = _build_fixed_axes_pipeline(
         taxonomy=taxonomy,
         model_name=model_name,
@@ -951,6 +1021,57 @@ def compute_metrics_only(
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         metrics_config['output_dir'] = str(output_path)
+    
+    # Initialize wandb if enabled
+    if use_wandb:
+        import wandb
+        import os
+        
+        # Try to get input filename from the input path
+        input_filename = "unknown_dataset"
+        if input_path.is_file():
+            input_filename = input_path.name
+        elif input_path.is_dir():
+            # Try to find a recognizable dataset file in the directory
+            possible_files = [
+                input_path / "full_dataset.json",
+                input_path / "full_dataset.parquet", 
+                input_path / "clustered_results.parquet",
+                input_path / "dataset.json",
+                input_path / "dataset.parquet"
+            ]
+            
+            for file_path in possible_files:
+                if file_path.exists():
+                    input_filename = file_path.name
+                    break
+            else:
+                # If no recognizable file found, use the directory name
+                input_filename = input_path.name
+        
+        # Clean the filename for wandb (remove extension, replace spaces/special chars)
+        if isinstance(input_filename, str):
+            # Remove file extension and clean up the name
+            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+            # Replace spaces and special characters with underscores
+            input_filename = input_filename.replace(' ', '_').replace('-', '_')
+            # Remove any remaining special characters
+            import re
+            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+        
+        wandb_run_name = f"{input_filename}_metrics_only"
+        
+        wandb.init(
+            project="lmm-vibes",
+            name=wandb_run_name,
+            config={
+                "method": method,
+                "input_path": str(input_path),
+                "output_dir": output_dir,
+                "metrics_kwargs": metrics_kwargs,
+            },
+            reinit=False  # Don't reinitialize if already exists
+        )
     
     metrics_stage = get_metrics(**metrics_config)
     

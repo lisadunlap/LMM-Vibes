@@ -13,6 +13,10 @@ def test_openai_extractor():
     # Load a small sample of the data
     print("Loading sample data...")
     df = pd.read_json("data/arena_single.jsonl", lines=True)
+    
+    # Attach the filename to the DataFrame for wandb naming
+    df.name = "arena_single.jsonl"
+    
     sample_df = df.head(5)  # Just test with 5 rows
     
     print(f"Sample data shape: {sample_df.shape}")

@@ -149,29 +149,49 @@ def run_metrics_only(
     result_dataset.save(str(dataset_json_path), format="json")
     print(f"  ✓ Saved metrics PropertyDataset (JSON): {dataset_json_path}")
     
-    # 3. Save model statistics as JSON
-    stats_path = output_path / "metrics_stats.json"
+    # 3. Save metrics artifacts
+    # Functional metrics attach a compatibility structure under data.model_stats["functional_metrics"]
+    fm = None
+    if isinstance(model_stats, dict) and "functional_metrics" in model_stats:
+        fm = model_stats["functional_metrics"]
     
-    # Convert ModelStats objects to dictionaries for JSON serialization
-    stats_for_json = {}
-    for model_name, stats in model_stats.items():
-        stats_for_json[str(model_name)] = {
-            "fine": [stat.to_dict() for stat in stats["fine"]]
-        }
-        if "coarse" in stats:
-            stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
-    
-    with open(stats_path, 'w') as f:
-        json.dump(stats_for_json, f, indent=2)
-    print(f"  ✓ Saved model statistics (JSON): {stats_path}")
-    
+    if fm:
+        # Save the three functional JSONs if not already written by the metrics stage
+        mc_path = output_path / "model_cluster_scores.json"
+        cl_path = output_path / "cluster_scores.json"
+        ms_path = output_path / "model_scores.json"
+        with open(mc_path, 'w') as f:
+            json.dump(fm.get("model_cluster_scores", {}), f, indent=2)
+        with open(cl_path, 'w') as f:
+            json.dump(fm.get("cluster_scores", {}), f, indent=2)
+        with open(ms_path, 'w') as f:
+            json.dump(fm.get("model_scores", {}), f, indent=2)
+        print(f"  ✓ Saved functional metrics JSONs: {mc_path}, {cl_path}, {ms_path}")
+    else:
+        # Legacy fallback: serialize ModelStats objects
+        stats_path = output_path / "metrics_stats.json"
+        stats_for_json = {}
+        for model_name, stats in model_stats.items():
+            stats_for_json[str(model_name)] = {
+                "fine": [stat.to_dict() for stat in stats.get("fine", [])]
+            }
+            if "coarse" in stats:
+                stats_for_json[str(model_name)]["coarse"] = [stat.to_dict() for stat in stats["coarse"]]
+        with open(stats_path, 'w') as f:
+            json.dump(stats_for_json, f, indent=2)
+        print(f"  ✓ Saved legacy model statistics (JSON): {stats_path}")
+ 
     # Print summary
     print(f"\n📊 Metrics Summary:")
     print(f"  - Models analyzed: {len(model_stats)}")
-    for model_name, stats in model_stats.items():
-        print(f"  - {model_name}: {len(stats['fine'])} fine clusters")
-        if 'coarse' in stats:
-            print(f"    {len(stats['coarse'])} coarse clusters")
+    if fm:
+        # Brief: count model-cluster entries
+        print(f"  - Model-cluster combinations: {sum(len(v) for v in fm.get('model_cluster_scores', {}).values())}")
+    else:
+        for model_name, stats in model_stats.items():
+            print(f"  - {model_name}: {len(stats.get('fine', []))} fine clusters")
+            if 'coarse' in stats:
+                print(f"    {len(stats['coarse'])} coarse clusters")
     
     return clustered_df, model_stats
 

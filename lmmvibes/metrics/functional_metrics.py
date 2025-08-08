@@ -190,7 +190,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         self,
         output_dir: str | Path | None = None,
         compute_bootstrap: bool = True,
-        bootstrap_samples: int = 1000,
+        bootstrap_samples: int = 100,
         log_to_wandb: bool = True,
         generate_plots: bool = True,
         **kwargs
@@ -370,8 +370,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             "quality_delta": quality,
             "examples": list(zip(
                 cluster_model_df["conversation_id"],
-                # cluster_model_df["conversation_metadata"],
-                {},
+                cluster_model_df["conversation_metadata"],
                 cluster_model_df["property_metadata"]
             )),
         }
@@ -449,19 +448,23 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             # Resample conversations with replacement
             sample_df = self._resample_conversations(df)
             
-            # Recompute all metrics for this sample
-            sample_model_cluster = self._compute_model_cluster_scores(sample_df, cluster_names, model_names)
-            # IMPORTANT: Recompute salience for this bootstrap sample
-            sample_model_cluster = self._compute_salience(sample_model_cluster)
-            
-            sample_cluster = self._compute_cluster_scores(sample_df, cluster_names, model_names)
-            sample_model = self._compute_model_scores(sample_df, cluster_names, model_names)
-            
-            bootstrap_samples.append({
-                'model_cluster': sample_model_cluster,
-                'cluster': sample_cluster,
-                'model': sample_model
-            })
+            try:
+                # Recompute all metrics for this sample
+                sample_model_cluster = self._compute_model_cluster_scores(sample_df, cluster_names, model_names)
+                # IMPORTANT: Recompute salience for this bootstrap sample
+                sample_model_cluster = self._compute_salience(sample_model_cluster)
+                
+                sample_cluster = self._compute_cluster_scores(sample_df, cluster_names, model_names)
+                sample_model = self._compute_model_scores(sample_df, cluster_names, model_names)
+                
+                bootstrap_samples.append({
+                    'model_cluster': sample_model_cluster,
+                    'cluster': sample_cluster,
+                    'model': sample_model
+                })
+            except AssertionError:
+                # Skip this iteration if it creates empty cluster-model combinations
+                continue
         
         # Calculate confidence intervals and add to original metrics
         self._add_confidence_intervals(model_cluster_scores, cluster_scores, model_scores, bootstrap_samples)
@@ -740,7 +743,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Ensure model and property are first two columns
         cols = ['model', 'property'] + [col for col in model_cluster_df.columns if col not in ['model', 'property']]
         model_cluster_df = model_cluster_df[cols]
-        model_cluster_df.to_json("model_cluster_scores_df.jsonl", orient="records", lines=True)
+        model_cluster_df.to_json(f"{self.output_dir}/model_cluster_scores_df.jsonl", orient="records", lines=True)
         model_cluster_df = self.process_wandb_dataframe(model_cluster_df)
         
         # Create cluster_df
@@ -751,7 +754,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         cols = ['model', 'property'] + [col for col in cluster_df.columns if col not in ['model', 'property']]
         cluster_df = cluster_df[cols]
         # save to pandas jsonl file
-        cluster_df.to_json("cluster_scores_df.jsonl", orient="records", lines=True)
+        cluster_df.to_json(f"{self.output_dir}/cluster_scores_df.jsonl", orient="records", lines=True)
         cluster_df = self.process_wandb_dataframe(cluster_df)
         
         # Create model_scores_df
@@ -762,7 +765,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         cols = ['model', 'property'] + [col for col in model_scores_df.columns if col not in ['model', 'property']]
         model_scores_df = model_scores_df[cols]
         # save to pandas jsonl file
-        model_scores_df.to_json("model_scores_df.jsonl", orient="records", lines=True)
+        model_scores_df.to_json(f"{self.output_dir}/model_scores_df.jsonl", orient="records", lines=True)
         model_scores_df = self.process_wandb_dataframe(model_scores_df)
         
         # Log to wandb

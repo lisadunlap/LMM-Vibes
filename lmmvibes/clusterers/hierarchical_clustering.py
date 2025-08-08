@@ -438,7 +438,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         # Generate outlier cluster summaries
         outlier_cluster_names = generate_coarse_labels(
             outlier_items,
-            max_coarse_clusters=len(outlier_items) // config.min_cluster_size,
+            max_coarse_clusters=len(outlier_items) // (config.min_cluster_size // 2),
             systems_prompt=outlier_clustering_systems_prompt,
             model=config.summary_model,
             verbose=config.verbose,

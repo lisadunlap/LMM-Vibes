@@ -37,12 +37,18 @@ MAST_TAXONOMY = json.load(open("mast.json"))
 def load_dataframe(path: str) -> pd.DataFrame:
     """Load input data (CSV / JSONL / Parquet)."""
     if path.endswith(".csv"):
-        return pd.read_csv(path)
-    if path.endswith((".jsonl", ".json")):
-        return pd.read_json(path, orient="records", lines=path.endswith(".jsonl"))
-    if path.endswith(".parquet"):
-        return pd.read_parquet(path)
-    raise ValueError(f"Unsupported file extension: {path}")
+        df = pd.read_csv(path)
+    elif path.endswith((".jsonl", ".json")):
+        df = pd.read_json(path, orient="records", lines=path.endswith(".jsonl"))
+    elif path.endswith(".parquet"):
+        df = pd.read_parquet(path)
+    else:
+        raise ValueError(f"Unsupported file extension: {path}")
+    
+    # Attach the filename to the DataFrame for wandb naming
+    df.name = os.path.basename(path)
+    
+    return df
 
 
 def main() -> None:
@@ -65,11 +71,20 @@ def main() -> None:
         taxonomy=MAST_TAXONOMY,
         model_name=args.model_name,
         output_dir=args.output_dir,
-        metrics_kwargs={"compute_confidence_intervals": True},
+        metrics_kwargs={
+            "compute_bootstrap": True,  # Enable bootstrap for FunctionalMetrics
+            "bootstrap_samples": 100    # Number of bootstrap samples
+        },
         verbose=True,
     )
 
     print(f"\n🎉 Fixed-taxonomy pipeline finished. Results saved to: {args.output_dir}")
+    print(f"\n📁 Expected FunctionalMetrics output files:")
+    print(f"  - {args.output_dir}/model_cluster_scores.json")
+    print(f"  - {args.output_dir}/cluster_scores.json")
+    print(f"  - {args.output_dir}/model_scores.json")
+    print(f"  - {args.output_dir}/full_dataset.json")
+    print(f"  - {args.output_dir}/summary.txt")
 
 
 if __name__ == "__main__":

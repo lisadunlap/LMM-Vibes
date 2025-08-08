@@ -1,112 +1,151 @@
 """lmmvibes.metrics.side_by_side
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Compute, for every property cluster, **how strongly each model exhibits the
-behaviour compared to its peers** in an Arena-style side-by-side dataset.
+Side-by-side metrics implemented on top of the functional metrics pipeline.
 
-Metric definition
------------------
-
-For a given model *m* and cluster *c*
-
-```
-prop(m, c)   =   #questions where m shows c   /   #questions answered by m
-score(m, c)  =   prop(m, c) / median_{m'} prop(m', c)
-```
-
-Thus ``score > 1`` means the model is **over-represented** in that cluster,
-``score < 1`` under-represented.
+This adapts the Arena-style pairwise inputs by expanding each conversation into
+per-model rows and converting the 'winner' field into a numeric score per model
+(+1 winner, -1 loser, 0 tie). Other numeric quality metrics in the score dict
+are preserved as-is if present.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import pandas as pd
 
-from .base_metrics import BaseMetrics
-from ..core.data_objects import ModelStats
+from .functional_metrics import FunctionalMetrics
 
 
-class SideBySideMetrics(BaseMetrics):
-    """Metrics stage for side-by-side data."""
+class SideBySideMetrics(FunctionalMetrics):
+    """Metrics stage for side-by-side data using functional metrics.
 
-    def _extract_score_for_key(self, row: pd.Series, key: str) -> float:
-        """Extract score with special handling for winner scores."""
-        if key == "winner":
-            return self.extract_winner_score(row)
-        else:
-            return row["score"].get(key, 0) if isinstance(row["score"], dict) else 0
-    
-    def extract_winner_score(self, row: pd.Series) -> float:
-        """Convert winner/loser/tie to 1/-1/0."""
-        print(row)
-        winner = row["score"]["winner"]
-        if winner == row["model"]:
-            return 1
-        elif "tie" in winner:
-            return 0
-        else:
-            return -1
+    The output artifacts and wandb logging are identical to `FunctionalMetrics`.
+    """
 
-    def _compute(
+    def __init__(
         self,
-        group: pd.DataFrame,
-        cid: int | str,
-        label: str,
-        level: str,
-        total_q: Dict[str, int],
-        total_questions_global: int,
-        out: Dict[str, Dict[str, List[ModelStats]]],
+        output_dir: str | None = None,
+        compute_bootstrap: bool = True,
+        bootstrap_samples: int = 100,
+        log_to_wandb: bool = True,
+        generate_plots: bool = True,
+        **kwargs: Any,
     ) -> None:
-        """Compute metrics for one cluster and add to *out*."""
+        super().__init__(
+            output_dir=output_dir,
+            compute_bootstrap=compute_bootstrap,
+            bootstrap_samples=bootstrap_samples,
+            log_to_wandb=log_to_wandb,
+            generate_plots=generate_plots,
+            **kwargs,
+        )
 
-        # Counts per model inside this cluster
-        counts = self._per_model_counts(group)
+    def _prepare_data(self, data) -> pd.DataFrame:
+        """Prepare SxS data: expand each pair into two rows (one per model).
 
-        # Proportions and distinctiveness
-        props = self._per_model_proportions(counts, total_q)
-        median_prop, scores_dict = self._distinctiveness_scores(props)
+        Produces the same schema expected by FunctionalMetrics:
+        columns: [conversation_id, conversation_metadata, property_metadata, model, cluster, property_description, scores]
+        """
+        # Extract clusters and properties data
+        if not data.clusters:
+            return pd.DataFrame()
 
-        # Cache per-model quality scores
-        quality_score_cache = {m: self._compute_normalized_quality_score(group, m) for m in props}
+        properties = pd.DataFrame([cluster.to_dict() for cluster in data.clusters])
 
-        for model, prop in props.items():
-            score = scores_dict.get(model, 0.0)
-            quality_score = quality_score_cache.get(model, {})
-            
-            # Get confidence intervals for this model
-            score_ci = None
-            quality_score_ci = {}
-            
-            if self.compute_confidence_intervals:
-                # Get distinctiveness CI
-                distinctiveness_ci = self.distinctiveness_cis.get(level, {}).get(cid, {}).get(model, (0.0, 0.0))
-                if distinctiveness_ci != (0.0, 0.0):
-                    score_ci = {
-                        "lower": distinctiveness_ci[0],
-                        "upper": distinctiveness_ci[1]
+        # Explode property_descriptions and question_ids
+        properties = properties.explode(["property_descriptions", "question_ids"]).drop_duplicates(
+            subset=["property_descriptions", "question_ids"]
+        )
+        properties = properties.dropna(subset=["property_descriptions", "question_ids"]).rename(
+            {"question_ids": "question_id", "property_descriptions": "property_description"}, axis=1
+        )
+
+        # Expand conversations: one row per model with per-model scores
+        expanded_rows: List[Dict[str, Any]] = []
+        for conv in data.conversations:
+            qid = conv.question_id
+            meta = conv.meta
+            scores = conv.scores or {}
+
+            # Side-by-side: conv.model is a list/tuple of two models
+            if isinstance(conv.model, (list, tuple)) and len(conv.model) == 2:
+                model_a, model_b = conv.model[0], conv.model[1]
+                expanded_rows.append(
+                    {
+                        "question_id": qid,
+                        "scores": self._transform_scores_for_model(scores, model_a, model_b),
+                        "meta": meta,
+                        "model": model_a,
                     }
-                
-                # Get quality score CIs
-                for score_key in quality_score.keys():
-                    model_ci = self.quality_score_cis.get(level, {}).get(cid, {}).get(score_key, {}).get(model, (0.0, 0.0))
-                    if model_ci != (0.0, 0.0):
-                        quality_score_ci[score_key] = {"lower": model_ci[0], "upper": model_ci[1]}
+                )
+                expanded_rows.append(
+                    {
+                        "question_id": qid,
+                        "scores": self._transform_scores_for_model(scores, model_b, model_a),
+                        "meta": meta,
+                        "model": model_b,
+                    }
+                )
+            else:
+                # Fallback to single-model row
+                model_name = conv.model if isinstance(conv.model, str) else str(conv.model)
+                expanded_rows.append(
+                    {
+                        "question_id": qid,
+                        "scores": scores,
+                        "meta": meta,
+                        "model": model_name,
+                    }
+                )
 
-            ms = ModelStats(
-                property_description=str(label),
-                model_name=str(model),
-                score=float(score),
-                quality_score=quality_score,
-                size=int(counts.get(model, 0)),
-                proportion=float(prop),
-                examples=self._example_props(group[group.model == model]),
-                metadata={
-                    "cluster_id": cid,
-                    "level": level,
-                },
-                score_ci=score_ci,
-                quality_score_ci=quality_score_ci if quality_score_ci else None,
-            )
-            out[model][level].append(ms) 
+        conversations = pd.DataFrame(expanded_rows)
+
+        # Join conversations with properties
+        properties = properties.merge(conversations, on="question_id", how="left").rename(
+            {"meta": "conversation_metadata", "label": "cluster", "question_id": "conversation_id"},
+            axis=1,
+        )
+        properties["property_metadata"] = properties["property_description"].apply(
+            lambda x: {"property_description": x}
+        )
+
+        important_columns = [
+            "conversation_id",
+            "conversation_metadata",
+            "property_metadata",
+            "model",
+            "cluster",
+            "property_description",
+            "scores",
+        ]
+        properties = properties[important_columns]
+        return properties
+
+    @staticmethod
+    def _transform_scores_for_model(all_scores: Dict[str, Any], this_model: str, other_model: str) -> Dict[str, float]:
+        """Convert the side-by-side score dict into per-model numeric scores.
+
+        - "winner": +1 if this_model won, -1 if lost, 0 if tie
+        - Preserve other numeric keys as floats when possible
+        """
+        result: Dict[str, float] = {}
+        if isinstance(all_scores, dict):
+            # Winner conversion
+            winner = all_scores.get("winner")
+            if isinstance(winner, str):
+                if winner == this_model:
+                    result["winner"] = 1.0
+                elif "tie" in winner:
+                    result["winner"] = 0.0
+                else:
+                    result["winner"] = -1.0
+
+            # Copy other numeric metrics if present
+            for k, v in all_scores.items():
+                if k == "winner":
+                    continue
+                if isinstance(v, (int, float)):
+                    result[k] = float(v)
+        return result 

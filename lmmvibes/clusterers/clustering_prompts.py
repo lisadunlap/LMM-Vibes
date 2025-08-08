@@ -1,9 +1,22 @@
-clustering_systems_prompt = f"""You are a expert machine learning engineer tasked with summarizing the properties of LLM responses. Given a large list of properties seen in the responses of an LLM, I have clustered these properties and now want to come up with a summary of the property that each cluster represents. Below are a list of properties that all belong to the same cluster. Please come up with a clear description (no more than 1-2 short sentences) of a LLM output property that accurately describes most or all of the properties in the cluster which is informative and specific to the cluster. This should be a property of a model response, not a category of properties.
-For instance "Speaking Tone and Emoji Usage" is a category of properties, but "uses an enthusiastic tone" or "uses emojis" is a property of a model response. Similarily, "various types of reasoning" is a category of properties, but "uses deductive reasoning to solve problems" or "uses inductive reasoning to solve problems" is a property of a model response. Similar, descriptions like  "Provides detailed math responses" is not informative because it could be applied to many different clusters, so it is better to describe the property in a way that is specific to the cluster and more informative, even if it does not apply to all properties in the cluster. 
-Avoid filler words like "detailed", "comprehensive" or "step-by-step" unless these are explicitly mentioned in the properties provided. Also avoid mentioning many different properties in your summary, only respond with the primary property of the cluster (again this should be a very short sentence).
-Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. A good rule of thumb is to think about whether the user could come up with an example scenario that would be described by the property.
+# clustering_systems_prompt = f"""You are a expert machine learning engineer tasked with summarizing the properties of LLM responses. Given a large list of properties seen in the responses of an LLM, I have clustered these properties and now want to come up with a summary of the property that each cluster represents. Below are a list of properties that all belong to the same cluster. Please come up with a clear description (no more than 1-2 short sentences) of a LLM output property that accurately describes most or all of the properties in the cluster which is informative and specific to the cluster. This should be a property of a model response, not a category of properties.
 
-Output the cluster property description and nothing else."""
+# For instance "Speaking Tone and Emoji Usage" is a category of properties, but "uses an enthusiastic tone" or "uses emojis" is a property of a model response. Similarily, "various types of reasoning" is a category of properties, but "uses deductive reasoning to solve problems" or "uses inductive reasoning to solve problems" is a property of a model response. Descriptions like  "Provides detailed math responses" is not informative because it could be applied to many different clusters, so it is better to describe the property in a way that is specific to the cluster and more informative, even if it does not apply to all properties in the cluster. 
+
+# Avoid filler words like "detailed", "comprehensive" or "step-by-step" unless these are explicitly mentioned in the properties provided. Also avoid mentioning many different properties in your summary, only respond with the primary property of the cluster (again this should be a very short sentence).
+
+# Think about whether a user could easily understand the models behavior at a detailed level by looking at the cluster name. A good rule of thumb is to think about whether the user could come up with an example scenario that would be described by the property.
+
+# Output the cluster property description and nothing else."""
+
+clustering_systems_prompt = f"""You are an expert machine learning engineer tasked with summarizing LLM response behaviors. Given a list of properties seen in LLM responses that belong to the same cluster, create a clear description (1-2 short sentences) that accurately describes most or all properties in the cluster. This should be a specific behavior of a model response, not a category of behaviors.
+
+For instance "Speaking Tone and Emoji Usage" is a category, but "uses an enthusiastic tone" is a specific behavior. Descriptions like "Provides detailed math responses" are not informative because they could apply to many clusters. Instead, describe the behavior in a way that is specific and informative to this cluster, even if it doesn't apply to all properties.
+
+Avoid filler words like "detailed", "comprehensive" or "step-by-step" unless explicitly mentioned in the properties. Focus on the main behavior of the cluster.
+
+Consider whether a user could easily understand the model's behavior and come up with an example scenario described by this behavior. If given a model response, could a user determine whether the model is exhibiting this behavior?
+
+Output the cluster behavior description and nothing else."""
 
 # coarse_clustering_systems_prompt = """You are a machine learning expert specializing in evaluation of large language models and their differences in behavior.
 # Below is a list of properties that are found in LLM outputs. It is likely that some of these properties are redundant. Your task is to merge the properties that are similar. Think about if a user would gain any new information from seeing both properties. For example, "provides step-by-step guidance on health advice" and "provides setp-by-step guidance on math problems" ARE redundant because they both are the same property just applied to different tasks. However, "provides step-by-step guidance on health advice" and "overexplains simple calculations in math problems" because the later provides an inteesting insight into exactly how the model is solving the problem.
@@ -20,7 +33,7 @@ deduplication_clustering_systems_prompt = """You are a machine learning expert e
 
 Each behavior should be 1-2 clear and concise sentences. Avoid vague, broad, or meta-properties—focus on specific behaviors. Only use terms like "detailed", "comprehensive", or "step-by-step" if they are central to the behavior.
 
-If two behaviors in the list are opposites (e.g., "uses X" and "doesn't use X"), keep both. Do not combine many behaviors into one summary. Each behavior should be 1-2 sentences.
+If two behaviors in the list are opposites (e.g., "uses X" and "doesn't use X"), keep both. Do not combine many behaviors into one summary or talk about the variation of behaviors, each behavior should be a single property that someone can easily identify if looking at a model response. Each behavior should be 1-2 sentences.
 
 Output a plain list: one behavior per line, no numbering or bullets.
 """
@@ -31,8 +44,8 @@ I will provide you with a list of fine-grained behaviors of an LLM on a task. Yo
 
 Instructions:
 1. Analyze all the fine-grained behaviors
-2. Cluster the behaviors into at most {max_coarse_clusters}. Each group should be a single behavior that is representative of the group. Ensure that the behaviors in a cluster are not opposites of each other (e.g., "uses X" and "doesn't use X"), these should be in separate clusters.
-3. Create clear, descriptive names for each cluster. Each cluster name should be 1-2 sentences decribing the behavior. 
+2. Cluster the behaviors into at most {max_coarse_clusters}. Each group should be a single behavior that is representative of the group. Ensure that the behaviors in a cluster are not opposites of each other (e.g., "uses X" and "doesn't use X"), these should be in separate clusters. Do not combine many behaviors into one summary or talk about the variation of behaviors, each behavior should be a single property that someone can easily identify if looking at a model response.
+3. Create clear, descriptive names for each cluster. Each cluster name should be 1-2 sentences decribing the behavior.  
 4. Output ONLY the cluster names, one per line. Do not include numbering, bullets, or other formatting - just the plain cluster names
 """
 

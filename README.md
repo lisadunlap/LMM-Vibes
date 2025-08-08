@@ -35,7 +35,6 @@ from lmmvibes import explain
 
 # Your data with model responses (can contain multiple models)
 df = pd.DataFrame({
-    "question_id": ["q1", "q2", "q3"], # unique id that specifies a uniqeu conversation (useful if there are duplicate prompts or many models)
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model": ["gpt-4", "gpt-4", "gpt-4"],
     "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
@@ -52,7 +51,6 @@ clustered_df, model_stats = explain(
 
 # Your data with model responses (for side-by-side comparrison)
 df = pd.DataFrame({
-    "question_id": ["q1", "q2", "q3"],
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model_a": ["gpt-4", "gpt-4", "gpt-4"],
     "model_b": ["claude-3", "claude-3", "claude-3"],
@@ -110,8 +108,7 @@ Analyze behavioral patterns from individual model responses.
 **Required Columns:**
 | Column | Description | Example |
 |--------|-------------|---------|
-| `question_id` | Unique identifier for each question | `"q1"`, `"math_problem_001"` |
-| `prompt` | The question or prompt given to the model | `"What is machine learning?"` |
+| `prompt` | The question or prompt given to the model, this is only used for visualization purposes | `"What is machine learning?"` |
 | `model` | Name of the model being analyzed | `"gpt-4"`, `"claude-3-opus"` |
 | `model_response` | The model's complete response (string or OAI format) | `"Machine learning is a subset..."` or OAI conversation format |
 
@@ -119,13 +116,10 @@ Analyze behavioral patterns from individual model responses.
 | Column | Description | Example |
 |--------|-------------|---------|
 | `score` | Dictionary of evaluation metrics | `{"accuracy": 0.85, "helpfulness": 4.2, "harmlessness": 4.8}` |
-| `category` | Question category/topic | `"math"`, `"coding"`, `"creative"` |
-| `difficulty` | Question difficulty level | `"easy"`, `"medium"`, `"hard"` |
 
 **Example DataFrame:**
 ```python
 df = pd.DataFrame({
-    "question_id": ["q1", "q2", "q3"],
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model": ["gpt-4", "gpt-4", "gpt-4"],
     "model_response": ["Machine learning involves...", "QC leverages quantum...", "Silicon dreams awaken..."],
@@ -139,7 +133,6 @@ Compare two models head-to-head (Arena-style battles).
 **Required Columns:**
 | Column | Description | Example |
 |--------|-------------|---------|
-| `question_id` | Unique identifier for each question | `"q1"`, `"math_problem_001"` |
 | `prompt` | The question given to both models | `"What is machine learning?"` |
 | `model_a` | Name of the first model | `"gpt-4"`, `"claude-3-opus"` |
 | `model_b` | Name of the second model | `"gpt-3.5-turbo"`, `"llama-2"` |
@@ -154,7 +147,6 @@ Compare two models head-to-head (Arena-style battles).
 **Example DataFrame:**
 ```python
 df = pd.DataFrame({
-    "question_id": ["q1", "q2", "q3"],
     "prompt": ["What is machine learning?", "Explain quantum computing", "Write a poem about AI"],
     "model_a": ["gpt-4", "gpt-4", "gpt-4"],
     "model_b": ["claude-3", "claude-3", "claude-3"],
@@ -238,9 +230,9 @@ Computes which models excel at which behavioral patterns:
 - **Normalized quality scores**: Consistent 0-1 scale metrics across different evaluation criteria
 - **Multi-dimensional scoring**: Support for multiple evaluation metrics (accuracy, helpfulness, harmlessness, etc.)
 
-**Available metrics:**
-- `SideBySideMetrics` - For model comparison data with winner determination
-- `SingleModelMetrics` - For individual model analysis with performance metrics
+**Available metrics (functional base):**
+- `SingleModelMetrics` - Single-model analysis using the functional metrics pipeline (default)
+- `SideBySideMetrics` - Side-by-side Arena-style analysis built on the functional metrics pipeline (winner → +1/0/−1 per model)
 
 **Metric Definitions:**
 

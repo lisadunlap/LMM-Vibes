@@ -74,7 +74,7 @@ def main():
         clustered_df = None
         
         # First try JSON format for clustered DataFrame (preserves nested data)
-        clustered_json_path = os.path.join(args.output_dir, "clustered_results.json")
+        clustered_json_path = os.path.join(args.output_dir, "clustered_results.jsonl")
         full_dataset_json_path = os.path.join(args.output_dir, "full_dataset.json")
         parquet_path = os.path.join(args.output_dir, "clustered_results.parquet")
         
@@ -83,9 +83,9 @@ def main():
             print(f"Loading clustered data from: {clustered_json_path}")
             try:
                 clustered_df = pd.read_json(clustered_json_path, lines=True, orient='records')
-                print("✅ Successfully loaded clustered DataFrame from JSON")
+                print("✅ Successfully loaded clustered DataFrame from JSONL")
             except Exception as e:
-                print(f"❌ Failed to load clustered DataFrame JSON: {e}")
+                print(f"❌ Failed to load clustered DataFrame JSONL: {e}")
         
         # Option 2: Load from full PropertyDataset JSON (fallback)
         if clustered_df is None and os.path.exists(full_dataset_json_path):
@@ -151,21 +151,20 @@ def main():
         metrics_stage = SingleModelMetrics(output_dir=args.output_dir)
         dataset = metrics_stage.run(dataset)
         
-        # Save updated results
-        model_stats = dataset.model_stats
-        import json
-        stats_path = os.path.join(args.output_dir, "model_stats.json")
-        with open(stats_path, 'w') as f:
-            # Convert ModelStats objects to dictionaries for JSON serialization
-            serializable_stats = {}
-            for model, levels in model_stats.items():
-                serializable_stats[model] = {}
-                for level, stats_list in levels.items():
-                    serializable_stats[model][level] = [stat.to_dict() for stat in stats_list]
-            json.dump(serializable_stats, f, indent=2)
-        
+        # Save functional metrics outputs
+        fm = dataset.model_stats.get("functional_metrics", {}) if isinstance(dataset.model_stats, dict) else {}
+        mc_path = os.path.join(args.output_dir, "model_cluster_scores.json")
+        cl_path = os.path.join(args.output_dir, "cluster_scores.json")
+        ms_path = os.path.join(args.output_dir, "model_scores.json")
+        with open(mc_path, 'w') as f:
+            json.dump(fm.get("model_cluster_scores", {}), f, indent=2)
+        with open(cl_path, 'w') as f:
+            json.dump(fm.get("cluster_scores", {}), f, indent=2)
+        with open(ms_path, 'w') as f:
+            json.dump(fm.get("model_scores", {}), f, indent=2)
+
         print(f"\n🎉 Metrics calculation completed! Results saved to: {args.output_dir}")
-        print(f"📊 Model stats saved to: {stats_path}")
+        print(f"📊 Functional metrics saved: {mc_path}, {cl_path}, {ms_path}")
         return
     
     print("="*60)
