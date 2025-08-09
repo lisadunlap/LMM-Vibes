@@ -62,10 +62,12 @@ def get_clusterer(
 from .hdbscan import HDBSCANClusterer
 from .hierarchical import HierarchicalClusterer
 from .dummy_clusterer import DummyClusterer
+from .base import BaseClusterer
 
 __all__ = [
     "get_clusterer",
     "HDBSCANClusterer", 
     "HierarchicalClusterer",
-    "DummyClusterer"
+    "DummyClusterer",
+    "BaseClusterer",
 ] 
