@@ -6,6 +6,12 @@ import pandas as pd
 from .base import BaseClusterer
 from ..core.data_objects import PropertyDataset
 
+# Unified config
+try:
+    from .config import ClusterConfig
+except ImportError:
+    from config import ClusterConfig
+
 
 class DummyClusterer(BaseClusterer):
     """A no-op clustering stage used for fixed-taxonomy pipelines.
@@ -42,19 +48,18 @@ class DummyClusterer(BaseClusterer):
         )
         self.allowed_labels = set(allowed_labels)
         self.unknown_label = unknown_label
-        # Minimal config for saving/logging
-        self.config = type('Config', (), {
-            'min_cluster_size': 1,
-            'embedding_model': 'dummy',
-            'hierarchical': False,
-            'assign_outliers': False,
-            'use_wandb': False,
-            'wandb_project': None,
-            'max_coarse_clusters': len(allowed_labels),
-            'disable_dim_reduction': True,
-            'min_samples': 1,
-            'cluster_selection_epsilon': 0.0,
-        })()
+        # Minimal config for saving/logging and consistency
+        self.config = ClusterConfig(
+            min_cluster_size=1,
+            embedding_model="dummy",
+            hierarchical=False,
+            assign_outliers=False,
+            use_wandb=False,
+            wandb_project=None,
+            max_coarse_clusters=len(allowed_labels),
+            disable_dim_reduction=True,
+            include_embeddings=include_embeddings,
+        )
 
     def cluster(self, data: PropertyDataset, column_name: str) -> pd.DataFrame:
         """Map properties to a fixed taxonomy and return a standardized DataFrame."""

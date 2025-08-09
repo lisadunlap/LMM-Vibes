@@ -17,8 +17,7 @@ from collections import defaultdict
 import os
 import pickle
 import argparse
-import concurrent.futures
-from dataclasses import dataclass
+# from dataclasses import dataclass  # removed: ClusterConfig now imported from config
 from typing import Optional, Dict, Union, List, Any
 
 # Core ML libraries
@@ -36,6 +35,12 @@ try:
     from .clustering_utils import generate_coarse_labels, assign_fine_to_coarse
 except ImportError:
     from clustering_utils import generate_coarse_labels, assign_fine_to_coarse
+
+# Import the unified config
+try:
+    from .config import ClusterConfig
+except ImportError:
+    from config import ClusterConfig
 
 # Prompts for LLM clustering
 try:
@@ -56,77 +61,7 @@ from bertopic.backend import OpenAIBackend
 # CONFIGURATION CLASSES
 # =============================================================================
 
-@dataclass
-class ClusterConfig:
-    """Configuration for clustering operations."""
-    min_cluster_size: int = 30
-    verbose: bool = True
-    include_embeddings: bool = True
-    context: Optional[str] = None
-    precomputed_embeddings: Optional[Union[np.ndarray, Dict, str]] = None
-    disable_dim_reduction: bool = False
-    assign_outliers: bool = False
-    hierarchical: bool = False
-    min_grandparent_size: int = 3
-    max_coarse_clusters: int = 15
-    input_model_name: Optional[str] = None
-    min_samples: Optional[int] = None
-    cluster_selection_epsilon: float = 0.0
-    cache_embeddings: bool = True
-    # model settings
-    embedding_model: str = "openai"
-    summary_model: str = "gpt-4.1"
-    cluster_assignment_model: str = "gpt-4.1-mini"
-    # Dimension reduction settings
-    dim_reduction_method: str = "adaptive"  # "adaptive", "umap", "pca", "none"
-    umap_n_components: int = 100  # More conservative default
-    umap_n_neighbors: int = 30    # Higher for better global structure
-    umap_min_dist: float = 0.1    # Non-zero to preserve structure
-    umap_metric: str = "cosine"   # Better for semantic similarity
-    # wandb configuration
-    use_wandb: bool = True
-    wandb_project: Optional[str] = None
-    wandb_entity: Optional[str] = None
-    wandb_run_name: Optional[str] = None
-    
-    def __post_init__(self):
-        """Set derived parameters after initialization."""
-        if self.min_samples is None:
-            self.min_samples = min(self.min_cluster_size, max(5, self.min_cluster_size // 2))
-    
-    @classmethod
-    def from_args(cls, args):
-        """Create config from argparse args."""
-        # Handle wandb flag logic: default True, but --no-wandb overrides it
-        use_wandb = not args.no_wandb if hasattr(args, 'no_wandb') else True
-        
-        return cls(
-            min_cluster_size=args.min_cluster_size,
-            embedding_model=args.embedding_model,
-            verbose=not hasattr(args, 'quiet') or not args.quiet,
-            include_embeddings=not args.no_embeddings,
-            context=args.context,
-            precomputed_embeddings=args.precomputed_embeddings,
-            disable_dim_reduction=args.disable_dim_reduction,
-            assign_outliers=args.assign_outliers,
-            hierarchical=args.hierarchical,
-            min_grandparent_size=args.min_grandparent_size,
-            max_coarse_clusters=args.max_coarse_clusters,
-            input_model_name=args.input_model_name,
-            min_samples=args.min_samples,
-            cluster_selection_epsilon=args.cluster_selection_epsilon,
-            # Dimension reduction settings
-            dim_reduction_method=getattr(args, 'dim_reduction_method', 'adaptive'),
-            umap_n_components=getattr(args, 'umap_n_components', 100),
-            umap_n_neighbors=getattr(args, 'umap_n_neighbors', 30),
-            umap_min_dist=getattr(args, 'umap_min_dist', 0.1),
-            umap_metric=getattr(args, 'umap_metric', 'cosine'),
-            use_wandb=use_wandb,
-            wandb_project=args.wandb_project,
-            wandb_entity=args.wandb_entity,
-            wandb_run_name=args.wandb_run_name
-        )
-
+# ClusterConfig is now provided by lmmvibes.clusterers.config
 
 # =============================================================================
 # HELPER FUNCTIONS

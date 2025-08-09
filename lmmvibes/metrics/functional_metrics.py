@@ -288,6 +288,13 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             axis=1,
             inplace=True
         )
+        
+        # Ensure conversation_metadata exists - fill missing values with empty dict
+        if "conversation_metadata" not in properties.columns:
+            properties["conversation_metadata"] = {}
+        else:
+            properties["conversation_metadata"] = properties["conversation_metadata"].fillna({})
+        
         properties["property_metadata"] = properties["property_description"].apply(
             lambda x: {"property_description": x}
         )
@@ -297,6 +304,17 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             "conversation_id", "conversation_metadata", "property_metadata", 
             "model", "cluster", "property_description", "scores"
         ]
+        
+        # Ensure all required columns exist before filtering
+        for col in important_columns:
+            if col not in properties.columns:
+                if col == "scores":
+                    properties[col] = {}
+                elif col == "model":
+                    properties[col] = "unknown"
+                else:
+                    properties[col] = ""
+        
         properties = properties[important_columns]
 
         return properties

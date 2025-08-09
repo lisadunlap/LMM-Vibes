@@ -90,6 +90,7 @@ class Property:
     raw_response: Optional[str] = None
     contains_errors: Optional[bool] = None
     unexpected_behavior: Optional[bool] = None
+    meta: Dict[str, Any] = field(default_factory=dict) # all other metadata
 
     def to_dict(self):
         return asdict(self)
@@ -109,7 +110,9 @@ class Cluster:
     parent_id: str | None = None # coarse cluster id
     parent_label: str | None = None # coarse cluster label
     property_descriptions: List[str] = field(default_factory=list) # property descriptions in the cluster
+    property_ids: List[str] = field(default_factory=list) # property ids in the cluster
     question_ids: List[str] = field(default_factory=list) # ids of the conversations in the cluster
+    meta: Dict[str, Any] = field(default_factory=dict) # all other metadata
 
     def to_dict(self):
         return asdict(self)
@@ -124,6 +127,8 @@ class Cluster:
             "parent_label": self.parent_label,
             "property_descriptions": random.sample(self.property_descriptions, n),
             "question_ids": random.sample(self.question_ids, n),
+            "property_ids": random.sample(self.property_ids, n),
+            "meta": self.meta,
         }
     
 @dataclass
@@ -336,7 +341,21 @@ class PropertyDataset:
                     },
                     inplace=True,
                 )
-                cluster_df = cluster_df.explode("property_description")
+                # Explode aligned list columns so each row maps to a single property
+                list_cols = [
+                    col for col in [
+                        "property_description",
+                        "property_ids",
+                        "question_ids",
+                    ] if col in cluster_df.columns
+                ]
+                if list_cols:
+                    try:
+                        cluster_df = cluster_df.explode(list_cols, ignore_index=True)
+                    except TypeError:
+                        # Fallback for older pandas: explode sequentially to preserve alignment
+                        for col in list_cols:
+                            cluster_df = cluster_df.explode(col, ignore_index=True)
                 df = df.merge(cluster_df, on=["property_description"], how="left")
         
         # CHANGE: Handle conversations without properties by creating a "No properties" cluster

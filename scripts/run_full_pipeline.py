@@ -61,7 +61,10 @@ def run_pipeline(
     sample_size=None,
     extraction_cache_dir=None,
     clustering_cache_dir=None,
-    metrics_cache_dir=None
+    metrics_cache_dir=None,
+    *,
+    groupby_column: str | None = None,
+    assign_outliers: bool | None = None,
 ):
     """Run the complete pipeline on a dataset."""
     
@@ -93,13 +96,16 @@ def run_pipeline(
         max_coarse_clusters=max_coarse_clusters,
         embedding_model=embedding_model,
         hierarchical=hierarchical,
+        assign_outliers=bool(assign_outliers) if assign_outliers is not None else False,
         max_workers=max_workers,
         use_wandb=use_wandb,
         verbose=verbose,
         output_dir=str(output_path),
         extraction_cache_dir=extraction_cache_dir,
         clustering_cache_dir=clustering_cache_dir,
-        metrics_cache_dir=metrics_cache_dir
+        metrics_cache_dir=metrics_cache_dir,
+        # pass groupby to clusterer via kwargs; recognized by HDBSCANClusterer config
+        groupby_column=groupby_column,
     )
     
     # Calculate runtime
@@ -215,7 +221,7 @@ def main():
     parser.add_argument("--system_prompt", type=str, default="single_model_system_prompt",
                         help="System prompt to use")
     parser.add_argument("--clusterer", type=str, default="hdbscan",
-                        choices=["hdbscan", "kmeans"],
+                        choices=["hdbscan", "hdbscan_stratified", "hierarchical", "dummy"],
                         help="Clustering algorithm (default: hdbscan)")
     parser.add_argument("--min_cluster_size", type=int, default=15,
                         help="Minimum cluster size (default: 15)")
@@ -235,6 +241,10 @@ def main():
                         help="Enable wandb logging")
     parser.add_argument("--quiet", action="store_true",
                         help="Disable verbose output")
+    parser.add_argument("--groupby_column", type=str, default=None,
+                        help="Column to group by for stratified clustering (requires --clusterer hdbscan_stratified)")
+    parser.add_argument("--assign_outliers", action="store_true",
+                        help="Assign outliers to clusters when supported")
     
     args = parser.parse_args()
     
@@ -252,7 +262,9 @@ def main():
         max_workers=args.max_workers,
         use_wandb=args.use_wandb,
         verbose=not args.quiet,
-        sample_size=args.sample_size
+        sample_size=args.sample_size,
+        groupby_column=args.groupby_column,
+        assign_outliers=args.assign_outliers,
     )
     
     print(f"\nResults saved to: {args.output_dir}")

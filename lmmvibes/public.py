@@ -442,6 +442,9 @@ def _build_default_pipeline(
         'output_dir': clustering_output,
         **common_config
     }
+    # Forward any additional clusterer-specific kwargs (e.g., groupby_column)
+    if kwargs:
+        clusterer_kwargs.update(kwargs)
     
     # Add cache directory for clustering if provided
     if clustering_cache_dir:

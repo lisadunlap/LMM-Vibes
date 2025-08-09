@@ -68,7 +68,7 @@ def main() -> None:
 
     clustered_df, model_stats = label(
         df,
-        taxonomy=MAST_TAXONOMY,
+        taxonomy=DEFAULT_TAXONOMY,
         model_name=args.model_name,
         output_dir=args.output_dir,
         metrics_kwargs={

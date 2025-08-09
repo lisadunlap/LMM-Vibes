@@ -9,6 +9,12 @@ from ..core.stage import PipelineStage
 from ..core.data_objects import PropertyDataset, Cluster
 from ..core.mixins import LoggingMixin, TimingMixin, WandbMixin
 
+# Import unified config
+try:
+    from .config import ClusterConfig
+except ImportError:
+    from config import ClusterConfig
+
 
 class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
     """Abstract base class for clustering stages.
@@ -46,6 +52,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         use_wandb: bool = False,
         wandb_project: Optional[str] = None,
         hierarchical: bool = False,
+        config: Optional[ClusterConfig] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the clusterer with common options.
@@ -62,6 +69,8 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
             W&B project name to log under when enabled.
         hierarchical:
             Whether the clusterer expects/produces a hierarchical schema.
+        config:
+            Optional pre-constructed ClusterConfig to use for this clusterer.
         kwargs:
             Additional implementation-specific options for derived classes.
         """
@@ -69,6 +78,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         self.output_dir = output_dir
         self.include_embeddings = include_embeddings
         self.hierarchical = hierarchical
+        self.config: Optional[ClusterConfig] = config
 
     @abstractmethod
     def cluster(self, data: PropertyDataset, column_name: str) -> pd.DataFrame:
@@ -115,35 +125,25 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         """
         return df
 
-    def get_config(self) -> Any:
+    def get_config(self) -> ClusterConfig:
         """Return a configuration object for saving/logging.
-
-        The returned object should expose attributes referenced by saving and
-        logging routines (e.g., `min_cluster_size`, `embedding_model`,
-        `hierarchical`, `assign_outliers`, `use_wandb`, `wandb_project`,
-        `max_coarse_clusters`, `disable_dim_reduction`, `min_samples`,
-        `cluster_selection_epsilon`).
 
         Returns
         -------
-        Any
-            A configuration object or namespace-like structure.
+        ClusterConfig
+            The configuration object used by this clusterer. If one was not
+            provided, construct a default `ClusterConfig` aligned with the
+            clusterer's base options.
         """
-        if hasattr(self, "config") and self.config is not None:
+        if isinstance(self.config, ClusterConfig):
             return self.config
-        # Provide a minimal default to avoid attribute errors downstream
-        self.config = type("Config", (), {
-            "min_cluster_size": 1,
-            "embedding_model": "unknown",
-            "hierarchical": bool(self.hierarchical),
-            "assign_outliers": False,
-            "use_wandb": bool(self.use_wandb),
-            "wandb_project": getattr(self, "wandb_project", None),
-            "max_coarse_clusters": 0,
-            "disable_dim_reduction": False,
-            "min_samples": 1,
-            "cluster_selection_epsilon": 0.0,
-        })()
+        # Construct a default config aligned with existing defaults
+        self.config = ClusterConfig(
+            hierarchical=bool(self.hierarchical),
+            include_embeddings=bool(self.include_embeddings),
+            use_wandb=bool(self.use_wandb),
+            wandb_project=getattr(self, "wandb_project", None),
+        )
         return self.config
 
     def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
@@ -224,7 +224,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         """Construct `Cluster` objects from a standardized DataFrame.
 
         Group rows by fine cluster id, extract labels and collect
-        `question_id` and `{column_name}` values for each cluster. For
+        `question_id`, `{column_name}` and `id` values for each cluster. For
         hierarchical clustering, ensure that each fine cluster is associated
         with exactly one coarse cluster id/label.
         """
@@ -241,6 +241,10 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
             cid_group = group[group[fine_id_col] == cid]
             label = str(cid_group[fine_label_col].iloc[0])
 
+            property_ids = cid_group["id"].tolist() if "id" in cid_group.columns else []
+            question_ids = cid_group["question_id"].tolist() if "question_id" in cid_group.columns else []
+            property_descriptions = cid_group[column_name].tolist()
+
             if is_hierarchical:
                 coarse_labels = cid_group[coarse_label_col].unique().tolist()
                 assert len(coarse_labels) == 1, (
@@ -252,10 +256,12 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
                         id=int(cid),
                         label=label,
                         size=len(cid_group),
-                        property_descriptions=cid_group[column_name].tolist(),
-                        question_ids=cid_group["question_id"].tolist(),
+                        property_descriptions=property_descriptions,
+                        property_ids=property_ids,
+                        question_ids=question_ids,
                         parent_id=int(coarse_id),
                         parent_label=coarse_labels[0],
+                        meta={},
                     )
                 )
             else:
@@ -264,8 +270,10 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
                         id=int(cid),
                         label=label,
                         size=len(cid_group),
-                        property_descriptions=cid_group[column_name].tolist(),
-                        question_ids=cid_group["question_id"].tolist(),
+                        property_descriptions=property_descriptions,
+                        property_ids=property_ids,
+                        question_ids=question_ids,
+                        meta={},
                     )
                 )
 
@@ -324,14 +332,18 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
             f"Found {len(conversations_without_properties)} conversations without properties - creating 'No properties' cluster"
         )
 
+        # For the "No properties" cluster, we need all lists to have matching lengths for explode() to work.
+        # Use sentinel values to represent the lack of actual properties.
         no_props_cluster = Cluster(
             id=-2,
             label="No properties",
             size=len(conversations_without_properties),
-            property_descriptions=["No properties"] * len(conversations_without_properties),
+            property_descriptions=["No properties"] * len(conversations_without_properties),  # One per conversation
+            property_ids=["-2"] * len(conversations_without_properties),  # Sentinel property ID
             question_ids=[qid for qid, _ in conversations_without_properties],
             parent_id=-2,
             parent_label="No properties",
+            meta={},
         )
         clusters.append(no_props_cluster)
         self.log(

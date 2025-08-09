@@ -46,6 +46,13 @@ def main():
                         help="Enable wandb logging")
     parser.add_argument("--quiet", action="store_true",
                         help="Disable verbose output")
+    parser.add_argument("--clusterer", type=str, default="hdbscan",
+                        choices=["hdbscan", "hdbscan_stratified", "hierarchical", "dummy"],
+                        help="Clustering method to use (default: hdbscan)")
+    parser.add_argument("--groupby_column", type=str, default=None,
+                        help="Column to group by for stratified clustering (requires --clusterer hdbscan_stratified)")
+    parser.add_argument("--assign_outliers", action="store_true",
+                        help="Assign outliers to clusters when supported")
     
     # run specific components (only metrics)
     parser.add_argument("--run_metrics", action="store_true",
@@ -134,7 +141,7 @@ def main():
         output_dir=args.output_dir,
         method=args.method,
         system_prompt=args.system_prompt,
-        clusterer="hdbscan",
+        clusterer=args.clusterer,
         min_cluster_size=args.min_cluster_size,
         max_coarse_clusters=args.max_coarse_clusters,
         embedding_model="openai",
@@ -142,7 +149,9 @@ def main():
         max_workers=args.max_workers,
         use_wandb=args.use_wandb,
         verbose=not args.quiet,
-        sample_size=args.sample_size
+        sample_size=args.sample_size,
+        groupby_column=args.groupby_column,
+        assign_outliers=args.assign_outliers,
     )
     # save_examples(args.output_dir, args.method)
     
@@ -161,12 +170,12 @@ def save_examples(output_dir, method):
     if method == "single_model":
         selected_columns = ['question_id', 'prompt', 'model_response', 'score', 'property_description',
             'category', 'type', 'impact', 'reason', 'evidence',
-            'user_preference_direction', 'raw_response', 'contains_errors',
+            'behavior_type', 'raw_response', 'contains_errors',
             'unexpected_behavior', 'model', 'property_description_fine_cluster_label','property_description_coarse_cluster_label']
     elif method == "side_by_side":
         selected_columns = ['question_id', 'prompt', 'model_a_response', 'model_b_response', 'score', 'property_description',
             'category', 'type', 'impact', 'reason', 'evidence',
-            'user_preference_direction', 'raw_response', 'contains_errors',
+            'behavior_type', 'raw_response', 'contains_errors',
             'unexpected_behavior', 'model_a', 'model_b', 'property_description_fine_cluster_label','property_description_coarse_cluster_label']
     else:
         raise ValueError(f"Invalid method: {method}")
