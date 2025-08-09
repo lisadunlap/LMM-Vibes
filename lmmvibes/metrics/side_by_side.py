@@ -148,4 +148,69 @@ class SideBySideMetrics(FunctionalMetrics):
                     continue
                 if isinstance(v, (int, float)):
                     result[k] = float(v)
-        return result 
+        return result
+
+    # --- Robust metrics computation for SxS to handle empty bootstrap subsets ---
+    def _infer_metric_keys(self, df: pd.DataFrame) -> List[str]:
+        """Infer score metric keys from any available non-empty scores dict in df."""
+        if df is None or df.empty or "scores" not in df.columns:
+            return []
+        for val in df["scores"]:
+            if isinstance(val, dict) and val:
+                return list(val.keys())
+        return []
+
+    def compute_cluster_metrics(self, df: pd.DataFrame, clusters: List[str] | str, models: List[str] | str) -> Dict[str, Any]:
+        """Override to avoid indexing into empty DataFrames during bootstrap.
+
+        Mirrors FunctionalMetrics.compute_cluster_metrics but with guards for
+        empty model subsets and key alignment without assertions.
+        """
+        if isinstance(clusters, str):
+            clusters = [clusters]
+        if isinstance(models, str):
+            models = [models]
+
+        model_df = df[df["model"].isin(models)]
+        if model_df.empty:
+            metric_keys = self._infer_metric_keys(df)
+            return self.empty_metrics(metric_keys)
+
+        cluster_model_df = model_df[model_df["cluster"].isin(clusters)]
+
+        # Determine metric keys from available rows
+        metric_keys = self._infer_metric_keys(model_df)
+        if not metric_keys:
+            metric_keys = self._infer_metric_keys(df)
+
+        if len(cluster_model_df) == 0:
+            return self.empty_metrics(metric_keys)
+
+        # Compute sizes and raw quality scores
+        model_size, model_scores = self.compute_size_and_score(model_df)
+        cluster_model_size, cluster_model_scores = self.compute_size_and_score(cluster_model_df)
+
+        # Align keys without asserting strict equality
+        all_keys = set(metric_keys) | set(model_scores.keys()) | set(cluster_model_scores.keys())
+        for k in all_keys:
+            if k not in model_scores:
+                model_scores[k] = 0.0
+            if k not in cluster_model_scores:
+                cluster_model_scores[k] = 0.0
+
+        quality_delta = self.compute_relative_quality(cluster_model_scores, model_scores)
+        proportion = cluster_model_size / model_size if model_size != 0 else 0
+
+        return {
+            "size": cluster_model_size,
+            "proportion": proportion,
+            "quality": cluster_model_scores,
+            "quality_delta": quality_delta,
+            "examples": list(
+                zip(
+                    cluster_model_df["conversation_id"],
+                    cluster_model_df["conversation_metadata"],
+                    cluster_model_df["property_metadata"],
+                )
+            ),
+        } 

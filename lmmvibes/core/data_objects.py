@@ -84,7 +84,7 @@ class Property:
     impact: Optional[str] = None  # "High", "Medium", "Low"
     reason: Optional[str] = None
     evidence: Optional[str] = None
-    user_preference_direction: Optional[str] = None # Capability-focused|Experience-focused|Neutral|Negative
+    behavior_type: Optional[str] = None # Positive|Negative (non-critical)|Negative (critical)|Style
 
     # Raw LLM response (captured by extractor before parsing)
     raw_response: Optional[str] = None

@@ -36,12 +36,12 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use, or users who focus on very open-ended tasks
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -58,7 +58,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unusual_behavior": "True|False"
   }
@@ -102,12 +102,12 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use, or users who focus on very open-ended tasks
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -124,7 +124,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unusual_behavior": "True|False"
   }
@@ -167,12 +167,12 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unusual Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -189,7 +189,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unusual_behavior": "True|False"
   }
@@ -231,12 +231,12 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -253,7 +253,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -271,7 +271,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General",
     "reason": "{{Model A Name}} prefers Tailwind CSS for rapid styling, which is a notable contrast to {{Model B Name}}'s use of CSS-in-JS.",
     "impact": "Medium",
-    "user_preference_direction": "Capability-focused",
+    "behavior_type": "Positive",
     "contains_errors": "False",
     "unexpected_behavior": "False"
   },
@@ -283,7 +283,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General",
     "reason": "{{Model B Name}} uses styled-components to encapsulate styles with component logic, differing from {{Model A Name}}'s utility-first approach.",
     "impact": "Medium",
-    "user_preference_direction": "Capability-focused",
+    "behavior_type": "Positive",
     "contains_errors": "False",
     "unexpected_behavior": "False"
   },
@@ -295,7 +295,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "Context-Specific",
     "reason": "{{Model A Name}}'s code is missing the 'react-router-dom' dependency in its `package.json`, which leads to a build failure. {{Model B Name}}'s response includes all necessary dependencies and builds correctly.",
     "impact": "High",
-    "user_preference_direction": "Negative",
+    "behavior_type": "Negative (critical)",
     "contains_errors": "True",
     "unexpected_behavior": "False"
   },
@@ -307,7 +307,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General",
     "reason": "{{Model A Name}} consistently opts for a clean, minimalist aesthetic, which contrasts with {{Model B Name}}'s more vibrant and dense design.",
     "impact": "High",
-    "user_preference_direction": "Experience-focused",
+    "behavior_type": "Style",
     "contains_errors": "False",
     "unusual_behavior": "False"
   },
@@ -319,7 +319,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General",
     "reason": "{{Model B Name}}'s design choice is more energetic and visually dense compared to {{Model A Name}}'s minimalist and pastel-toned approach.",
     "impact": "High",
-    "user_preference_direction": "Experience-focused",
+    "behavior_type": "Style",
     "contains_errors": "False",
     "unexpected_behavior": "False"
   }
@@ -362,12 +362,12 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -384,7 +384,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other model (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -424,12 +424,12 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does either model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain highly unusual or concerning behavior? If true then a developer will analyze these responses manually.
@@ -441,11 +441,11 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -488,12 +488,12 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
@@ -505,11 +505,11 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -551,12 +551,12 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
@@ -568,11 +568,11 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "Direct quote(s) or evidence from the model response, comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -582,12 +582,11 @@ Prioritize properties that would actually influence a user's model choice or cou
 
 
 
-
 single_model_system_prompt_new = """You are an expert model behavior analyst. Your task is to meticulously analyze a single model response to a given user prompt and identify unique qualitative properties, failure modes, and interesting behaviors. Focus on properties that would be meaningful to users when evaluating model quality and capabilities.
 
 **Prioritize conciseness and clarity in all your descriptions and explanations.** Aim for the most impactful information in the fewest words.
 
-You will be provided with the conversation between the user and the model. You may also be provided with a score given to the model by the user or benchmark. This can be a good indicator of the model's performance, but it is not the only factor.
+You will be provided with the conversation between the user and the model. You may also be provided with a score given to the model by the user or benchmark. This can be a good indicator of the model's performance, but it is not the only factor. Do not mention the score in your response.
 
 **Your Goal:**
 Produce a JSON list of objects. Each object will represent a single distinct property observed in the model's response. Focus on identifying key areas of interest including capabilities, style, errors, and user experience factors. We specifically care about properties that may influence whether a user would prefer this model over others or how well the model understands and executes the task.
@@ -610,15 +609,15 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this property?
-    *   *Think:* Does this property appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
 *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
-*   **Unusual Behavior:** Does the model's response contain unusual or concerning behavior? 
+*   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
 
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
@@ -627,10 +626,10 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "Direct quote(s) or evidence from the model response. Format as a list of quotes, comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
@@ -664,12 +663,12 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
-*   **User Preference Direction:** Which type of user might prefer this behavior?
-    *   *Think:* Does this behavior appeal to specific user types or use cases?
-    *   **Capability-focused:** Users who prioritize accuracy, completeness, technical correctness
-    *   **Experience-focused:** Users who prioritize style, tone, presentation, ease of use
-    *   **Neutral:** Property doesn't clearly favor one user type over another
-    *   **Negative:** Property that most users would find undesirable (errors, poor quality, etc.)
+*   **Behavior Type:** How does this property affect a user's experience or the model's performance?
+    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
+    *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
+    *   **Negative (critical):** A critical error that is the direct cause of task failure. 
+    *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
     *   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
@@ -682,10 +681,10 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "model_name": "The name of the model that exhibits this behavior",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "Direct quote(s) or evidence from the model response. Format as a list of quotes, comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
-    "user_preference_direction": "Capability-focused|Experience-focused|Neutral|Negative",
+    "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }

@@ -603,7 +603,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             evidence=p.get("evidence"),
             contains_errors=p.get("contains_errors"),
             unexpected_behavior=p.get("unexpected_behavior"),
-            user_preference_direction=p.get("user_preference_direction"),
+            behavior_type=p.get("behavior_type"),
         )
 
     def _log_parsing_to_wandb(self, raw_properties: List[Property], parsed_properties: List[Property], parse_errors: int, unknown_model_filtered: int, empty_list_responses: int):
@@ -690,7 +690,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                         "category": prop.category,
                         "impact": prop.impact,
                         "type": prop.type,
-                        "user_preference_direction": prop.user_preference_direction,
+                        "behavior_type": prop.behavior_type,
                         "contains_errors": prop.contains_errors,
                         "unexpected_behavior": prop.unexpected_behavior,
                     }

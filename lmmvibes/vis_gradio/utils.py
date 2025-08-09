@@ -1315,7 +1315,7 @@ def get_example_data(
                 "impact": row.get("impact", "N/A"),
                 "reason": row.get("reason", "N/A"),
                 "evidence": row.get("evidence", "N/A"),
-                "user_preference_direction": row.get("user_preference_direction", "N/A"),
+                "behavior_type": row.get("behavior_type", "N/A"),
                 "raw_response": row.get("raw_response", "N/A"),
                 "contains_errors": row.get("contains_errors", "N/A"),
                 "unexpected_behavior": row.get("unexpected_behavior", "N/A"),
@@ -1502,7 +1502,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
                             {f'<div><strong>Category:</strong> {example["category"]}</div>' if example["category"] not in ["N/A", "None"] else ""}
                             {f'<div><strong>Type:</strong> {example["type"]}</div>' if example["type"] not in ["N/A", "None"] else ""}
                             {f'<div><strong>Impact:</strong> {example["impact"]}</div>' if example["impact"] not in ["N/A", "None"] else ""}
-                            {f'<div><strong>User Preference:</strong> {example["user_preference_direction"]}</div>' if example["user_preference_direction"] not in ["N/A", "None"] else ""}
+                            {f'<div><strong>Behavior Type:</strong> {example["behavior_type"]}</div>' if example["behavior_type"] not in ["N/A", "None"] else ""}
                             {f'<div><strong>Contains Errors:</strong> {example["contains_errors"]}</div>' if example["contains_errors"] not in ["N/A", "None"] else ""}
                             {f'<div><strong>Unexpected Behavior:</strong> {example["unexpected_behavior"]}</div>' if example["unexpected_behavior"] not in ["N/A", "None"] else ""}
                         </div>

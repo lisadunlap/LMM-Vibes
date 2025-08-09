@@ -10,7 +10,7 @@ If the trace contains any of the behaviors, return a list of objects with the fo
   {
     "property_description": which behavior is present in the trace, select one of {fixed_axes_names},
     "reason": a explanation of the exact behaviors in the trace that fall under the property_description,
-    "evidence": "Direct quote(s) or evidence from the model response of the behavior. Format as a list of quotes, comma separated and wrapped in double quotes."
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes."
   }
 ]
 ```"""

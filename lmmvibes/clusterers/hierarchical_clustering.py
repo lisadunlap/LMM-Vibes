@@ -426,81 +426,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
     cluster_label_map = generate_cluster_summaries(cluster_values, config, column_name)
 
     # -------------------------------------------------------------
-    # Step 4a: Cluster outliers using LLM
-    # -------------------------------------------------------------
-    if config.verbose:
-        print("Clustering outliers using LLM...")
-
-    # Get outlier items
-    outlier_items = [unique_values[i] for i, label in enumerate(cluster_labels) if label == -1]
-    
-    if len(outlier_items) > 0:
-        # Generate outlier cluster summaries
-        outlier_cluster_names = generate_coarse_labels(
-            outlier_items,
-            max_coarse_clusters=len(outlier_items) // (config.min_cluster_size // 2),
-            systems_prompt=outlier_clustering_systems_prompt,
-            model=config.summary_model,
-            verbose=config.verbose,
-        )
-        
-        # Assign outlier items to outlier clusters
-        outlier_assignments = assign_fine_to_coarse(
-            outlier_items,
-            outlier_cluster_names,
-            model=config.cluster_assignment_model,
-            strategy="llm",
-            verbose=config.verbose,
-        )
-        
-        if config.verbose:
-            print(f"Created {len(outlier_cluster_names)} outlier clusters")
-            print("Outlier cluster names:", outlier_cluster_names)
-        
-        # -------------------------------------------------------------
-        # Merge outlier clusters with fine clusters
-        # -------------------------------------------------------------
-        
-        # Get the next available cluster ID (after existing fine clusters)
-        next_cluster_id = max(cluster_values.keys()) + 1 if cluster_values else 0
-        
-        # Create mapping from outlier cluster names to new cluster IDs
-        outlier_name_to_id = {}
-        for i, name in enumerate(outlier_cluster_names):
-            if name != "Outliers":  # Skip if LLM returned "Outliers" as a cluster name
-                outlier_name_to_id[name] = next_cluster_id + i
-        
-        # Update cluster_labels to assign outlier items to their new clusters
-        new_cluster_labels = cluster_labels.copy()
-        for i, label in enumerate(cluster_labels):
-            if label == -1:  # This was an outlier
-                item = unique_values[i]
-                assigned_cluster = outlier_assignments.get(item, "Outliers")
-                if assigned_cluster in outlier_name_to_id:
-                    new_cluster_labels[i] = outlier_name_to_id[assigned_cluster]
-                # If assigned_cluster is "Outliers" or not found, keep as -1
-        
-        cluster_labels = new_cluster_labels
-        
-        # Rebuild cluster_values and cluster_label_map to include outlier clusters
-        cluster_values = defaultdict(list)
-        for value, cluster_id in zip(unique_values, cluster_labels):
-            cluster_values[cluster_id].append(value)
-        
-        # Update cluster_label_map to include outlier clusters
-        for name, cluster_id in outlier_name_to_id.items():
-            cluster_label_map[cluster_id] = name
-        
-        if config.verbose:
-            n_outlier_clusters = len(outlier_name_to_id)
-            n_remaining_outliers = list(cluster_labels).count(-1)
-            print(f"Assigned outliers to {n_outlier_clusters} clusters, {n_remaining_outliers} remain as outliers")
-    else:
-        if config.verbose:
-            print("No outliers to cluster")
-
-    # -------------------------------------------------------------
-    # Step 4b: Deduplicate fine-cluster labels via LLM            
+    # Step 4b (moved up): Deduplicate fine-cluster labels via LLM
     # -------------------------------------------------------------
     if config.verbose:
         print("Deduplicating fine-cluster labels…")
@@ -525,20 +451,13 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         verbose=config.verbose,
     )
 
-    # -------------------------------------------------------------
     # Merge fine clusters that were deduplicated
-    # -------------------------------------------------------------
-
     # 1. Update the label map so every original cluster id points to its deduped label
-    for cid in cluster_values.keys():
+    for cid in list(cluster_values.keys()):
         if cid == -1:
             continue
         original_label = cluster_label_map[cid]
-        # Handle case where fine label maps to 'Outliers' in deduplication
-        if original_label in fine_to_dedupe:
-            deduped_label = fine_to_dedupe[original_label]
-        else:
-            deduped_label = original_label
+        deduped_label = fine_to_dedupe.get(original_label, original_label)
         cluster_label_map[cid] = deduped_label
 
     # 2. Build mapping from deduped label → new sequential id
@@ -552,10 +471,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
             new_cluster_labels.append(-1)
         else:
             deduped = cluster_label_map[original_cid]
-            if deduped == "Outliers":
-                new_cluster_labels.append(-1)
-            else:
-                new_cluster_labels.append(label_to_new_id[deduped])
+            new_cluster_labels.append(label_to_new_id.get(deduped, -1))
 
     cluster_labels = np.array(new_cluster_labels)
 
@@ -566,6 +482,85 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
 
     cluster_label_map = {new_id: lbl for lbl, new_id in label_to_new_id.items()}
     cluster_label_map[-1] = "Outliers"  # Ensure outliers are properly mapped
+
+    # -------------------------------------------------------------
+    # Step 4a (moved down): Cluster outliers using LLM
+    # Now assign outliers against BOTH deduped fine labels and outlier cluster labels
+    # -------------------------------------------------------------
+    if config.verbose:
+        print("Clustering outliers using LLM...")
+
+    # Get outlier items after dedup
+    outlier_items = [unique_values[i] for i, label in enumerate(cluster_labels) if label == -1]
+
+    if len(outlier_items) > 0:
+        if config.verbose:
+            print("Original number of outliers:", len(outlier_items))
+
+        # 1) Generate candidate outlier-only cluster names
+        outlier_cluster_names = generate_coarse_labels(
+            outlier_items,
+            max_coarse_clusters=len(outlier_items) // (config.min_cluster_size // 2),
+            systems_prompt=outlier_clustering_systems_prompt,
+            model=config.summary_model,
+            verbose=config.verbose,
+        )
+
+        # 2) Build combined candidate label set: deduped fine labels + outlier labels
+        existing_dedup_fine_labels = [cluster_label_map[cid] for cid in cluster_values.keys() if cid != -1]
+        # remove "Outliers" if present in suggestions to avoid confusion
+        outlier_cluster_names_clean = [n for n in outlier_cluster_names if n != "Outliers"]
+        combined_candidate_labels = list(dict.fromkeys(existing_dedup_fine_labels + outlier_cluster_names_clean))
+
+        # Map from fine label -> current id
+        fine_label_to_id = {label: cid for cid, label in cluster_label_map.items() if cid != -1}
+
+        # 3) Assign each outlier to the best label among the combined set
+        outlier_assignments = assign_fine_to_coarse(
+            outlier_items,
+            combined_candidate_labels,
+            model=config.cluster_assignment_model,
+            strategy="llm",
+            verbose=config.verbose,
+        )
+
+        # 4) Allocate new IDs for truly new outlier clusters (not matching any fine label)
+        next_cluster_id = (max([cid for cid in cluster_values.keys() if cid != -1]) + 1) if any(cid != -1 for cid in cluster_values.keys()) else 0
+        outlier_name_to_new_id = {}
+        for name in outlier_cluster_names_clean:
+            if name not in fine_label_to_id and name not in outlier_name_to_new_id:
+                outlier_name_to_new_id[name] = next_cluster_id
+                next_cluster_id += 1
+
+        # 5) Update cluster_labels for outliers
+        new_cluster_labels = cluster_labels.copy()
+        for i, label in enumerate(cluster_labels):
+            if label == -1:
+                item = unique_values[i]
+                assigned_label = outlier_assignments.get(item, "Outliers")
+                if assigned_label in fine_label_to_id:
+                    new_cluster_labels[i] = fine_label_to_id[assigned_label]
+                elif assigned_label in outlier_name_to_new_id:
+                    new_cluster_labels[i] = outlier_name_to_new_id[assigned_label]
+                # else keep -1
+
+        cluster_labels = new_cluster_labels
+
+        # 6) Rebuild cluster_values and extend cluster_label_map to include new outlier clusters
+        cluster_values = defaultdict(list)
+        for value, cid in zip(unique_values, cluster_labels):
+            cluster_values[cid].append(value)
+
+        for name, cid in outlier_name_to_new_id.items():
+            cluster_label_map[cid] = name
+
+        if config.verbose:
+            n_outlier_clusters = len(outlier_name_to_new_id)
+            n_remaining_outliers = list(cluster_labels).count(-1)
+            print(f"Assigned outliers to {n_outlier_clusters} clusters, {n_remaining_outliers} remain as outliers")
+    else:
+        if config.verbose:
+            print("No outliers to cluster")
 
     # # Step 5: Handle hierarchical clustering if requested
     coarse_cluster_data = None

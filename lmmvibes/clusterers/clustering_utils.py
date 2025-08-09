@@ -392,46 +392,47 @@ def llm_match(fine_cluster_names, coarse_cluster_names, max_workers=10, model="g
     fine_to_coarse = {}
     lock = threading.Lock()
     
-    system_prompt = "You are a machine learning expert specializing in the bhavior of large langauge models. Given the following coarse grained properties of model behavior, match the given fine grained property to the coarse grained property that it most closely resembles. Respond with the name of the coarse grained property that the fine grained property most resembles. If is okay if the match is not perfect, just respond with the property that is most similar. If the fine grained property has absolutely no relation to any of the coarse grained properties, respond with 'Outliers'. Do NOT include anything but the name of the coarse grained property in your response."
+    system_prompt = "You are a machine learning expert specializing in the behavior of large language models. Given the following coarse grained properties of model behavior, match the given fine grained property to the coarse grained property that it most closely resembles. Respond with the name of the coarse grained property that the fine grained property most resembles. If it is okay if the match is not perfect, just respond with the property that is most similar. If the fine grained property has absolutely no relation to any of the coarse grained properties, respond with 'Outliers'. Do NOT include anything but the name of the coarse grained property in your response."
     
     def process_single_fine_name(fine_name):
         """Process a single fine-grained cluster name."""
         retries = 3
+        sleep_time = 2.0
+        
         for attempt in range(retries):
             try:
                 user_prompt = f"Coarse grained properties:\n\n{coarse_names_text}\n\nFine grained property: {fine_name}\n\nClosest coarse grained property:"
                 
-                response = litellm.completion(model=model, 
-                                            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
-                                            caching=retries == 3)
+                response = litellm.completion(
+                    model=model, 
+                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
+                    caching=True
+                )
                 coarse_label = response.choices[0].message.content.strip()
                 coarse_label = match_label_names(coarse_label, coarse_cluster_names)
-
-                if coarse_label == "Outliers" or coarse_label in coarse_cluster_names:
-                    user_prompt = f"Coarse grained properties:\n\n{coarse_names_text}\n\nFine grained property: {coarse_label}\n\nClosest coarse grained property:"
-                    response = litellm.completion(model=model, 
-                                                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
-                                                caching=True)
-                    coarse_label = response.choices[0].message.content.strip()
-                    coarse_label = match_label_names(coarse_label, coarse_cluster_names)
                 
-                assert (coarse_label in coarse_cluster_names) or (coarse_label == "Outliers"), f"Fine grained property {fine_name} does not match any coarse grained property"
-                
-                # Thread-safe assignment
-                with lock:
-                    fine_to_coarse[fine_name] = coarse_label
-                return fine_name, coarse_label
-                
+                # Validate the response
+                if (coarse_label in coarse_cluster_names) or (coarse_label == "Outliers"):
+                    # Thread-safe assignment
+                    with lock:
+                        fine_to_coarse[fine_name] = coarse_label
+                    return fine_name, coarse_label
+                else:
+                    # Invalid response, try again
+                    raise ValueError(f"Invalid coarse label '{coarse_label}' for fine name '{fine_name}'")
+                    
             except Exception as e:
                 if attempt == retries - 1:
+                    # Final attempt failed, assign to Outliers
                     with lock:
                         fine_to_coarse[fine_name] = "Outliers"
-                    logger.warning(f"Failed to match fine grained property {fine_name} after {retries} attempts, setting to 'Outliers'")
+                    logger.warning(f"Failed to match fine grained property '{fine_name}' after {retries} attempts, setting to 'Outliers'. Error: {e}")
                     return fine_name, "Outliers"
                 else:
-                    logger.warning(f"Error matching fine grained property to coarse grained property: {e}\n\nLabel: {coarse_label}")
-   
-        return fine_name, "Outliers"
+                    # Log warning and continue to next attempt
+                    logger.warning(f"Attempt {attempt + 1}/{retries} failed for '{fine_name}': {e}. Retrying in {sleep_time}s...")
+                    time.sleep(sleep_time)
+                    sleep_time *= 2  # Exponential backoff
     
     # Use ThreadPoolExecutor to process fine cluster names in parallel
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
