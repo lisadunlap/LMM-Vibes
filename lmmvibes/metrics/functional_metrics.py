@@ -27,6 +27,7 @@ This module produces 3 separate JSON files with the following structure:
            "metric_name": float          # e.g., "helpfulness": +0.3 (cluster is 0.3 points above model baseline)
          },
          "proportion_delta": float,      # Salience: how much this model over/under-represents vs average across all models
+         "metadata": {},                 # Cluster metadata (e.g., group information from stratified clustering)
          "examples": [                   # Sample conversation IDs and metadata for this model-cluster
            [conversation_id, conversation_metadata, property_metadata], ...
          ],
@@ -57,6 +58,7 @@ This module produces 3 separate JSON files with the following structure:
        "quality_delta": {                # How this cluster compares to overall average quality
          "metric_name": float
        },
+       "metadata": {},                   # Cluster metadata (e.g., group information from stratified clustering)
        "examples": [...],                # Sample conversations from all models in this cluster
        
        # Bootstrap CIs (when enabled):
@@ -275,7 +277,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             {
                 "question_id": conv.question_id,
                 "scores": conv.scores,
-                "meta": conv.meta,
+                "conversation_meta": conv.meta,  # Rename to avoid collision with cluster meta
                 "model": conv.model if isinstance(conv.model, str) else conv.model[0]  # Handle list case
             }
             for conv in data.conversations
@@ -284,7 +286,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Join conversations with properties
         properties = properties.merge(conversations, on="question_id", how="left")
         properties.rename(
-            {"meta": "conversation_metadata", "label": "cluster", "question_id": "conversation_id"},
+            {"conversation_meta": "conversation_metadata", "label": "cluster", "meta": "cluster_metadata", "question_id": "conversation_id"},
             axis=1,
             inplace=True
         )
@@ -295,6 +297,12 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         else:
             properties["conversation_metadata"] = properties["conversation_metadata"].fillna({})
         
+        # Ensure cluster_metadata exists - fill missing values with empty dict
+        if "cluster_metadata" not in properties.columns:
+            properties["cluster_metadata"] = {}
+        else:
+            properties["cluster_metadata"] = properties["cluster_metadata"].fillna({})
+        
         properties["property_metadata"] = properties["property_description"].apply(
             lambda x: {"property_description": x}
         )
@@ -302,7 +310,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Select important columns
         important_columns = [
             "conversation_id", "conversation_metadata", "property_metadata", 
-            "model", "cluster", "property_description", "scores"
+            "model", "cluster", "property_description", "scores", "cluster_metadata"
         ]
         
         # Ensure all required columns exist before filtering
@@ -312,6 +320,8 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
                     properties[col] = {}
                 elif col == "model":
                     properties[col] = "unknown"
+                elif col in ["cluster_metadata", "conversation_metadata"]:
+                    properties[col] = {}
                 else:
                     properties[col] = ""
         
@@ -346,6 +356,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             "proportion": 0,
             "quality": {metric: 0 for metric in metrics},
             "quality_delta": {metric: 0 for metric in metrics},
+            "metadata": {},
             "examples": [],
         }
 
@@ -382,6 +393,12 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Ensure both have the same keys
         assert model_scores.keys() == cluster_model_scores.keys(), f"Model scores and cluster model scores have different keys: {model_scores.keys()} != {cluster_model_scores.keys()}"
 
+        # Extract cluster metadata (take the first non-empty metadata from the cluster)
+        cluster_metadata = {}
+        if "cluster_metadata" in cluster_model_df.columns:
+            non_empty_metadata = cluster_model_df["cluster_metadata"].dropna()
+            if not non_empty_metadata.empty:
+                cluster_metadata = non_empty_metadata.iloc[0]
 
         quality = self.compute_relative_quality(cluster_model_scores, model_scores)
         proportion = cluster_model_size / model_size if model_size != 0 else 0
@@ -391,6 +408,7 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             "proportion": proportion,
             "quality": cluster_model_scores,
             "quality_delta": quality,
+            "metadata": cluster_metadata,
             "examples": list(zip(
                 cluster_model_df["conversation_id"],
                 cluster_model_df["conversation_metadata"],

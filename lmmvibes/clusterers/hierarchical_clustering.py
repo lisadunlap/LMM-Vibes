@@ -274,7 +274,7 @@ def format_clustering_results(df: pd.DataFrame, column_name: str,
 # MAIN CLUSTERING FUNCTIONS
 # =============================================================================
 
-def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
+def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.DataFrame:
     """
     Fast HDBSCAN clustering for medium to large datasets.
     Now supports BERTopic-based outlier reduction if config.assign_outliers is True.

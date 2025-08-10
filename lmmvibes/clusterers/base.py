@@ -167,6 +167,8 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
             raise ValueError("No properties to cluster")
 
         clustered_df = self.cluster(data, column_name)
+        if "meta" not in clustered_df.columns:
+            clustered_df["meta"] = [{} for _ in range(len(clustered_df))]
         clustered_df = self.postprocess_clustered_df(clustered_df, column_name)
 
         clusters = self._build_clusters_from_df(clustered_df, column_name)

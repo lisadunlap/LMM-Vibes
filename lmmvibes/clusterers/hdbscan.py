@@ -114,8 +114,8 @@ class HDBSCANClusterer(BaseClusterer):
 
         If ``self.config.groupby_column`` is provided and present in the data, the
         input DataFrame is first partitioned by that column and each partition is
-        clustered independently (stratified clustering).  Results are then
-        concatenated back together.  Otherwise, the entire dataset is clustered
+        clustered independently (stratified clustering). Results are then
+        concatenated back together. Otherwise, the entire dataset is clustered
         at once.
         """
 
@@ -134,6 +134,8 @@ class HDBSCANClusterer(BaseClusterer):
                     column_name=column_name,
                     config=self.config,
                 )
+                # Add meta column with group information as a dictionary
+                part["meta"] = [{"group": group}] * len(part)
                 clustered_parts.append(part)
             clustered_df = pd.concat(clustered_parts, ignore_index=True)
         else:
