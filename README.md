@@ -156,16 +156,96 @@ df = pd.DataFrame({
 })
 ```
 
-**Format Conversion:**
-The system automatically detects and converts simple string responses to OpenAI conversation format. If your `model_response` (or `model_a_response`/`model_b_response`) is a string, it will be converted to:
+## Response Format Details
+
+LMM-Vibes supports flexible response formats to accommodate various data sources and conversation structures.
+
+### Automatic Format Detection
+
+The system automatically detects and converts response formats:
+
+1. **Simple string responses** are converted to OpenAI conversation format
+2. **OpenAI conversation format** (list of message dictionaries) is used as-is
+3. **Other types** are converted to strings then processed
+
+### OpenAI Conversation Format Specification
+
+The response format follows the standard OpenAI conversation format. Each message dictionary should contain:
+
+**Required Fields:**
+- `role`: Message sender role (`"user"`, `"assistant"`, `"system"`, `"tool"`)
+- `content`: Message content (string or dictionary - see below)
+
+**Optional Fields:**
+- `name`: Name of the model/tool (persists for entire conversation)
+- `id`: Unique identifier for specific model or tool call
+- Additional custom fields are preserved
+
+**Content Field:**
+For simple text responses, `content` is a string:
+```python
+{"role": "assistant", "content": "Machine learning involves training algorithms..."}
+```
+
+For multimodal inputs or complex interactions, `content` can be a dictionary following OpenAI's format:
+- `text`: Text content
+- `image`: Image content (for multimodal models)
+- `tool_calls`: Array of tool call objects (for tool-augmented responses)
+
+**Example Formats:**
+
+Simple text conversation:
 ```python
 [
-    {"role": "user", "content": "your_prompt"},
-    {"role": "assistant", "content": "your_response"}
+    {"role": "user", "content": "What is machine learning?"},
+    {"role": "assistant", "content": "Machine learning involves training algorithms..."}
 ]
 ```
 
-If your response is already in OpenAI format (a list of message dictionaries), it will be used as-is.
+Multimodal with image (follows OpenAI format):
+```python
+[
+    {
+        "role": "user", 
+        "content": {
+            "text": "What's in this image?",
+            "image": "data:image/jpeg;base64,..."
+        }
+    },
+    {"role": "assistant", "content": "I can see a diagram showing..."}
+]
+```
+
+Tool-augmented response:
+```python
+[
+    {"role": "user", "content": "Search for recent papers on quantum computing"},
+    {
+        "role": "assistant",
+        "content": {
+            "tool_calls": [
+                {
+                    "name": "search_papers",
+                    "arguments": {"query": "quantum computing 2024"},
+                    "tool_call_id": "call_123"
+                }
+            ]
+        }
+    },
+    {
+        "role": "tool",
+        "name": "search_papers", 
+        "content": "Found 5 relevant papers..."
+    }
+]
+```
+
+**Format Conversion:**
+Simple strings are automatically converted to OpenAI format:
+```python
+# Input: "Machine learning involves..."
+# Becomes: [{"role": "assistant", "content": "Machine learning involves..."}]
+```
 
 ## Pipeline Components
 
@@ -461,3 +541,51 @@ If you want to know more about the nitty gritty abstractions and code structure,
 *(JK this doesnt exist claude assumes i am more organized than i actually am)*
 
 </div>
+
+## Clustering configuration (explicit and overridable)
+
+LMM‑Vibes now uses a single `ClusterConfig` across clusterers. All parameters are explicit and can be overridden when constructing a clusterer. Defaults remain consistent with the codebase.
+
+Minimal example:
+
+```python
+from lmmvibes.clusterers import HDBSCANClusterer
+
+clusterer = HDBSCANClusterer(
+    min_cluster_size=30,
+    embedding_model="openai",
+    hierarchical=True,
+    include_embeddings=True,
+    use_wandb=False,
+)
+```
+
+Advanced overrides (subset shown):
+
+```python
+clusterer = HDBSCANClusterer(
+    min_cluster_size=30,
+    embedding_model="openai",
+    # HDBSCAN tuning
+    min_samples=None,                   # default derived from min_cluster_size
+    cluster_selection_epsilon=0.0,
+    # Dimensionality reduction
+    disable_dim_reduction=False,
+    dim_reduction_method="adaptive",   # "adaptive" | "umap" | "pca" | "none"
+    umap_n_components=100,
+    umap_n_neighbors=30,
+    umap_min_dist=0.1,
+    umap_metric="cosine",
+    # LLM labeling
+    summary_model="gpt-4.1",
+    cluster_assignment_model="gpt-4.1-mini",
+    # Hierarchy / logging
+    hierarchical=True,
+    max_coarse_clusters=25,
+    use_wandb=False,
+    wandb_project=None,
+    verbose=True,
+)
+```
+
+You can also pass `precomputed_embeddings` (np.ndarray or dict), `context`, `cache_embeddings`, and `input_model_name`. See `lmmvibes/clusterers/config.py` for the full `ClusterConfig` schema. No hardcoded config values are used; user‑supplied values take precedence over defaults.

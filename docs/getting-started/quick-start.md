@@ -139,18 +139,6 @@ clustered_df, model_stats = explain(
 )
 ```
 
-### Hierarchical Clustering
-
-```python
-clustered_df, model_stats = explain(
-    df,
-    method="side_by_side",
-    hierarchical=True,  # Creates both fine and coarse clusters
-    max_coarse_clusters=15,
-    embedding_model="openai"  # Higher quality embeddings
-)
-```
-
 ### Pipeline Configuration
 
 ```python
@@ -173,7 +161,7 @@ clustered_df, model_stats = explain(
 
 ## Data Formats
 
-### Required Columns
+### Expected Columns
 
 **Side-by-side:**
 - `question_id` - Unique identifier for each question
@@ -190,7 +178,7 @@ clustered_df, model_stats = explain(
 ### Output Files
 
 When you specify `output_dir`, LMM-Vibes saves:
-- `clustered_results.parquet` - Complete results with clusters
+- `clustered_results.jsonl` - Complete results with clusters
 - `model_stats.json` - Model performance statistics  
 - `full_dataset.json` - Complete dataset for reuse
 - `summary.txt` - Human-readable summary

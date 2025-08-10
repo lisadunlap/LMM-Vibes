@@ -355,8 +355,16 @@ class OpenAIExtractor_OAI_Format(OpenAIExtractor):
         if isinstance(conversation.model, list) and len(conversation.model) == 2:
             # Side-by-side format
             model_a, model_b = conversation.model
-            response_a = conv_to_str(conversation.responses[0])
-            response_b = conv_to_str(conversation.responses[1])
+            try:
+                response_a = conv_to_str(conversation.responses[0])
+                response_b = conv_to_str(conversation.responses[1])
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to convert conversation responses to string format. "
+                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
+                    f"Got: {type(conversation.responses[0])}, {type(conversation.responses[1])}. "
+                    f"Error: {str(e)}"
+                )
             scores = conversation.scores
 
             # if scores is an empty dict, then we don't have scores
@@ -374,7 +382,15 @@ class OpenAIExtractor_OAI_Format(OpenAIExtractor):
         elif isinstance(conversation.model, str):
             # Single model format
             model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)
-            response = conv_to_str(conversation.responses)
+            try:
+                response = conv_to_str(conversation.responses)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to convert conversation response to string format. "
+                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
+                    f"Got: {type(conversation.responses)}. "
+                    f"Error: {str(e)}"
+                )
             scores = conversation.scores
 
             if not scores:

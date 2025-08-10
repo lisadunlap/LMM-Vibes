@@ -88,6 +88,91 @@ streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_res
 - **Side-by-Side**: `question_id`, `model_a`, `model_b`, `model_a_response`, `model_b_response`, `winner` (optional)
 - **Single Model**: `question_id`, `model`, `response`, `score` (optional)
 
+### Response Format Specification
+
+LMM-Vibes supports flexible response formats following OpenAI conversation format:
+
+**Automatic Format Detection:**
+- Simple strings → converted to `[{"role": "assistant", "content": "response"}]`
+- OpenAI conversation format (list of message dicts) → used as-is
+- Other types → converted to string then processed
+
+**OpenAI Format Structure:**
+Each message requires `role` ("user", "assistant", "system", "tool") and `content`.
+Optional fields: `name` (model/tool identifier), `id` (unique identifier).
+
+**Content Types:**
+- String: Simple text responses
+- Dictionary (for multimodal/tool use): Contains `text`, `image`, `tool_calls` fields
+
+**Examples:**
+
+Simple conversation:
+```python
+[
+    {
+        "role": "user", 
+        "content": "What is machine learning?"
+    },
+    {
+        "role": "assistant", 
+        "content": "Machine learning is a subset of AI..."
+    }
+]
+```
+
+Tool-augmented response:
+```python
+[
+    {
+        "role": "user",
+        "content": "Search for papers on quantum computing"
+    },
+    {
+        "role": "assistant",
+        "content": {
+            "tool_calls": [
+                {
+                    "name": "search_papers",
+                    "arguments": {
+                        "query": "quantum computing",
+                        "year": 2024,
+                        "max_results": 5
+                    },
+                    "tool_call_id": "call_abc123"
+                }
+            ]
+        }
+    },
+    {
+        "role": "tool",
+        "name": "search_papers",
+        "content": "Found 5 papers: [1] Quantum Error Correction..."
+    },
+    {
+        "role": "assistant",
+        "content": "Based on the search results, here are recent developments..."
+    }
+]
+```
+
+Multimodal input (when applicable):
+```python
+[
+    {
+        "role": "user",
+        "content": {
+            "text": "What's in this image?",
+            "image": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+        }
+    },
+    {
+        "role": "assistant",
+        "content": "I can see a diagram showing neural network architecture..."
+    }
+]
+```
+
 ### Core Data Objects
 - `PropertyDataset`: Main container for all pipeline data
 - `ConversationRecord`: Individual conversation with prompt/responses

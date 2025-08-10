@@ -63,10 +63,9 @@ clustered_df, model_stats = explain(
 - `max_workers`: Parallel workers for API calls (default: `16`) - Speed up analysis with concurrent requests
 
 **Clustering Parameters:**  
-- `clusterer`: Clustering method (`"hdbscan"`, `"hierarchical"`) - Algorithm to group similar behaviors
+- `clusterer`: Clustering method (`"hdbscan"`) - Algorithm to group similar behaviors
 - `min_cluster_size`: Minimum cluster size (default: `30`) - Smaller = more granular clusters, larger = broader patterns
 - `embedding_model`: `"openai"` or sentence-transformer model - How to convert properties to vectors for clustering
-- `hierarchical`: Create both fine and coarse clusters (default: `False`) - Get both detailed and high-level behavior groups
 
 ### Examples
 
@@ -86,21 +85,6 @@ clustered_df, model_stats = explain(
 )
 # The LLM will now focus specifically on reasoning, accuracy, and style
 # instead of using the general-purpose default prompt
-```
-
-**Hierarchical Clustering:**
-```python
-clustered_df, model_stats = explain(
-    df,
-    method="side_by_side",
-    hierarchical=True,          # Create both fine and coarse clusters
-    max_coarse_clusters=15,     # Limit high-level categories to 15
-    min_cluster_size=20         # Each behavior cluster needs 20+ examples
-)
-# This creates two levels:
-# - Fine clusters: "Uses step-by-step reasoning", "Shows mathematical work"  
-# - Coarse clusters: "Reasoning Transparency" (contains both fine clusters)
-# You get columns for both: *_fine_cluster_label and *_coarse_cluster_label
 ```
 
 ## The `label()` Function
@@ -203,7 +187,122 @@ df = pd.DataFrame({
 })
 ```
 
-**Note:** Both string responses and OpenAI conversation format are supported. Simple strings are automatically converted to conversation format internally.
+## Response Format Details
+
+LMM-Vibes supports flexible response formats to accommodate various data sources and conversation structures.
+
+### Automatic Format Detection
+
+The system automatically detects and converts response formats:
+
+1. **Simple string responses** → converted to OpenAI conversation format
+2. **OpenAI conversation format** (list of message dictionaries) → used as-is  
+3. **Other types** → converted to strings then processed
+
+### OpenAI Conversation Format Specification
+
+The response format follows the standard OpenAI conversation format. Each message dictionary contains:
+
+**Required Fields:**
+- `role`: Message sender role (`"user"`, `"assistant"`, `"system"`, `"tool"`)
+- `content`: Message content (string or dictionary - see below)
+
+**Optional Fields:**
+- `name`: Name of the model/tool (persists for entire conversation)
+- `id`: Unique identifier for specific model or tool call
+- Additional custom fields are preserved
+
+**Content Field:**
+For simple text responses, `content` is a string:
+```python
+{"role": "assistant", "content": "Machine learning involves training algorithms..."}
+```
+
+For multimodal inputs or complex interactions, `content` can be a dictionary following OpenAI's format:
+- `text`: Text content
+- `image`: Image content (for multimodal models)  
+- `tool_calls`: Array of tool call objects (for tool-augmented responses)
+
+### Format Examples
+
+Here are some examples for chatbot conversations, agents, and multimodel models.
+
+*Annoyed with having to convert to yet another data format?* Dude me too, here are some alternative options:
+* Vibe code that bad boy - its decently good at converting formats. One day I aspire to make this a built in feature so if you feel strongly please make a PR
+* Come up with your own conversaion which is just 1 big string: This will work you just won't get the nice trace visualization we have in the UI (but it should still localize text)
+
+**Simple text conversation:**
+```python
+[
+    {
+        "role": "user",
+        "content": "What is machine learning?"
+    },
+    {
+        "role": "assistant", 
+        "content": "Machine learning involves training algorithms..."
+    }
+]
+```
+
+**Tool-augmented response:**
+```python
+[
+    {
+        "role": "user",
+        "content": "Search for papers on quantum computing"
+    },
+    {
+        "role": "assistant",
+        "content": {
+            "tool_calls": [
+                {
+                    "name": "search_papers",
+                    "arguments": {
+                        "query": "quantum computing",
+                        "year": 2024,
+                        "max_results": 5
+                    },
+                    "tool_call_id": "call_abc123"
+                }
+            ]
+        }
+    },
+    {
+        "role": "tool",
+        "name": "search_papers",
+        "content": "Found 5 papers: [1] Quantum Error Correction..."
+    },
+    {
+        "role": "assistant",
+        "content": "Based on the search results, here are recent developments..."
+    }
+]
+```
+
+**Multimodal input (when applicable):**
+```python
+[
+    {
+        "role": "user",
+        "content": {
+            "text": "What's in this image?",
+            "image": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+        }
+    },
+    {
+        "role": "assistant",
+        "content": "I can see a diagram showing neural network architecture..."
+    }
+]
+```
+
+**Format Conversion:**
+Simple strings are automatically converted:
+```python
+# Input: "Machine learning involves..."
+# Becomes: [{"role": "assistant", "content": "Machine learning involves..."}]
+```
 
 ## Understanding Results
 
