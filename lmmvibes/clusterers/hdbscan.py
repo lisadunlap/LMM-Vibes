@@ -126,6 +126,9 @@ class HDBSCANClusterer(BaseClusterer):
         if group_col is not None and group_col in df.columns:
             clustered_parts = []
             for group, group_df in df.groupby(group_col):
+                print("--------------------------------")
+                print(f"Clustering group {group}")
+                print("--------------------------------")
                 part = hdbscan_cluster_categories(
                     group_df,
                     column_name=column_name,

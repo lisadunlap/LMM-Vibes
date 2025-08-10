@@ -304,17 +304,28 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         print("Starting HDBSCAN clustering...")
         print(f"Parameters: min_cluster_size={config.min_cluster_size}, data_shape={embeddings.shape}")
 
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=config.min_cluster_size,
-        min_samples=config.min_samples,
-        metric='euclidean',
-        cluster_selection_method='eom',
-        prediction_data=True,
-        algorithm='best',
-        core_dist_n_jobs=-1,
-        cluster_selection_epsilon=config.cluster_selection_epsilon
-    )
-    cluster_labels = clusterer.fit_predict(embeddings)
+    # 🛡️ Guard against small datasets ------------------------------------
+    n_points = embeddings.shape[0]
+    if n_points < config.min_cluster_size:
+        if config.verbose:
+            print(
+                f"Number of points ({n_points}) is less than min_cluster_size "
+                f"({config.min_cluster_size}). Assigning all items to outliers (-1)."
+            )
+        cluster_labels = np.full(n_points, -1, dtype=int)
+        clusterer = None
+    else:
+        clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=config.min_cluster_size,
+            min_samples=config.min_samples,
+            metric='euclidean',
+            cluster_selection_method='eom',
+            prediction_data=True,
+            algorithm='best',
+            core_dist_n_jobs=-1,
+            cluster_selection_epsilon=config.cluster_selection_epsilon
+        )
+        cluster_labels = clusterer.fit_predict(embeddings)
 
     if config.verbose:
         n_initial_clusters = len(set(cluster_labels)) - (1 if -1 in cluster_labels else 0)
@@ -322,7 +333,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs):
         print(f"HDBSCAN clustering completed! Found {n_initial_clusters} clusters and {n_noise} outliers")
 
     # Step 3: Handle outlier assignment if requested, using BERTopic
-    if config.assign_outliers and -1 in cluster_labels:
+    if clusterer is not None and config.assign_outliers and -1 in cluster_labels:
         if config.verbose:
             print("Assigning outliers using BERTopic.reduce_outliers...")
         # Use OpenAIBackend if openai model, else None

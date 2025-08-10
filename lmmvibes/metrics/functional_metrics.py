@@ -364,6 +364,11 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             models = [models]
 
         model_df = df[df["model"].isin(models)]
+
+        # 🛑 If the sample contains no rows for these models, signal the caller to skip this bootstrap sample
+        if model_df.empty:
+            raise AssertionError("Bootstrap sample contains no examples for the requested model(s)")
+
         cluster_model_df = model_df[model_df["cluster"].isin(clusters)]
         metrics = model_df.iloc[0]["scores"].keys()
 
