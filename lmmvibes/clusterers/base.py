@@ -308,6 +308,17 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         and visualizations. Subclasses may override to disable or customize
         this behavior.
         """
+        # Only add the synthetic cluster when *no* properties were extracted for the
+        # entire dataset.  If at least one property exists, we leave conversations
+        # without properties unclustered so that partial extraction failures do not
+        # pollute the clustering results with a global "No properties" bucket.
+
+        if data.properties:
+            # There is at least one property in the dataset – skip creating the
+            # special cluster entirely.
+            self.log("Dataset contains properties; skipping creation of 'No properties' cluster")
+            return
+
         conversations_with_properties = set()
         for prop in data.properties:
             conversations_with_properties.add((prop.question_id, prop.model))

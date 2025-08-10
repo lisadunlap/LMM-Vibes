@@ -24,7 +24,8 @@ This package contains clustering stages that group properties into coherent cate
 - `save(df, clusters) -> Dict[str, str]`
   - Persists artifacts via shared utilities.
 - `add_no_properties_cluster(data, clusters) -> None`
-  - Appends a synthetic cluster covering conversations that lack properties.
+  - Appends a synthetic "No properties" cluster **only when _no_ properties were extracted for the entire dataset**.  
+    If at least one property exists, the function is a no-op, so conversations for which extraction failed remain unclustered rather than being grouped into the global bucket.
 
 ## Implementing a new clusterer
 
@@ -63,4 +64,4 @@ class MyClusterer(BaseClusterer):
 
 - Keep `column_name` defaulting to `"property_description"` to integrate with the rest of the pipeline.
 - Use `postprocess_clustered_df` for small, policy-like tweaks instead of embedding them in `cluster`.
-- The base class will handle building `Cluster` objects, backfilling `fine_cluster_*` onto properties, saving artifacts, and adding the "No properties" cluster. 
+- The base class will handle building `Cluster` objects, backfilling `fine_cluster_*` onto properties, saving artifacts, and (optionally) adding the "No properties" cluster when applicable. 

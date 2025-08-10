@@ -21,7 +21,7 @@ def get_clusterer(
     Factory function to get the appropriate clusterer.
     
     Args:
-        method: Clustering method ("hdbscan", "hdbscan_stratified", "hierarchical")
+        method: Clustering method ("hdbscan", "hierarchical")
         min_cluster_size: Minimum cluster size
         embedding_model: Embedding model to use
         hierarchical: Whether to create hierarchical clusters
@@ -43,16 +43,9 @@ def get_clusterer(
             include_embeddings=include_embeddings,
             **kwargs
         )
-    elif method == "hdbscan_stratified":
-        from .hdbscan import StratifiedHDBSCANClusterer
-        return StratifiedHDBSCANClusterer(
-            min_cluster_size=min_cluster_size,
-            embedding_model=embedding_model,
-            hierarchical=hierarchical,
-            assign_outliers=assign_outliers,
-            include_embeddings=include_embeddings,
-            **kwargs
-        )
+    # 'hdbscan_stratified' alias has been removed; users should pass
+    # `method="hdbscan"` and supply `groupby_column` if stratification is
+    # desired.
     elif method == "hierarchical":
         from .hierarchical import HierarchicalClusterer
         return HierarchicalClusterer(
@@ -76,7 +69,7 @@ from .base import BaseClusterer
 
 __all__ = [
     "get_clusterer",
-    "HDBSCANClusterer", 
+    "HDBSCANClusterer",
     "HierarchicalClusterer",
     "DummyClusterer",
     "BaseClusterer",

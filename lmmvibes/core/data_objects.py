@@ -362,10 +362,14 @@ class PropertyDataset:
         # This ensures all conversations are considered in metrics calculation
         if type in ["all", "clusters"]:
             # Identify rows without properties (no property_description or it's NaN)
-            mask_no_properties = df["property_description"].isna() | (df["property_description"] == "")
-            
-            if mask_no_properties.any():
-                print(f"Found {mask_no_properties.sum()} conversations without properties - creating 'No properties' cluster")
+            mask_no_properties = df["property_description"].isna() | (df["property_description"].astype(str).str.strip() == "")
+
+            # Only add the synthetic cluster if *all* rows lack a property description.
+            # If at least one property exists, we skip to avoid mixing partially
+            # processed conversations into a global "No properties" cluster.
+
+            if mask_no_properties.all():
+                print("All conversations lack properties – creating 'No properties' cluster")
                 
                 # Fill in missing data for conversations without properties
                 df.loc[mask_no_properties, "property_description"] = "No properties"

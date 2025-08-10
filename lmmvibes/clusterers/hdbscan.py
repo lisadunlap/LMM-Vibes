@@ -110,110 +110,88 @@ class HDBSCANClusterer(BaseClusterer):
 
 
     def cluster(self, data: PropertyDataset, column_name: str) -> pd.DataFrame:
-        """Run HDBSCAN clustering and return a standardized DataFrame."""
+        """Cluster the dataset.
 
-        clustered_df = hdbscan_cluster_categories(
-            data.to_dataframe(type="properties"),
-            column_name=column_name,
-            config=self.config,
-        )
-        return clustered_df
+        If ``self.config.groupby_column`` is provided and present in the data, the
+        input DataFrame is first partitioned by that column and each partition is
+        clustered independently (stratified clustering).  Results are then
+        concatenated back together.  Otherwise, the entire dataset is clustered
+        at once.
+        """
 
-    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
-        """Assign clusters smaller than min_cluster_size to Outliers."""
-        fine_label_col = f"{column_name}_fine_cluster_label"
-        fine_id_col = f"{column_name}_fine_cluster_id"
-        label_counts = df[fine_label_col].value_counts()
-        too_small_labels = label_counts[label_counts < int(getattr(self.config, "min_cluster_size", 1))].index
-        for label in too_small_labels:
-            mask = df[fine_label_col] == label
-            cid = df.loc[mask, fine_id_col].iloc[0] if not df.loc[mask].empty else None
-            self.log(f"Assigning cluster {cid} (label '{label}') to Outliers because it has {label_counts[label]} items")
-            df.loc[mask, fine_label_col] = "Outliers"
-            df.loc[mask, fine_id_col] = -1
-        return df
-
-
-class StratifiedHDBSCANClusterer(HDBSCANClusterer):
-    """
-    HDBSCAN clustering stage that first partitions the data by a given column name, clusters each partition, and then merges the results.
-    """
-
-    def cluster(self, data: PropertyDataset, column_name: str) -> pd.DataFrame:
-        """First partitions the data by a given column name, cluster each partition, and then merges the results."""
-        assert self.config.groupby_column is not None, "groupby_column must be set for stratified clustering"
         df = data.to_dataframe(type="properties")
-        if self.config.groupby_column is not None:
-            for group, group_df in df.groupby(self.config.groupby_column):
-                group_df = hdbscan_cluster_categories(
+
+        group_col = getattr(self.config, "groupby_column", None)
+
+        if group_col is not None and group_col in df.columns:
+            clustered_parts = []
+            for group, group_df in df.groupby(group_col):
+                part = hdbscan_cluster_categories(
                     group_df,
                     column_name=column_name,
                     config=self.config,
                 )
-                df = pd.concat([df, group_df])
+                clustered_parts.append(part)
+            clustered_df = pd.concat(clustered_parts, ignore_index=True)
         else:
-            df = hdbscan_cluster_categories(
+            clustered_df = hdbscan_cluster_categories(
                 df,
                 column_name=column_name,
                 config=self.config,
             )
-        df = self.postprocess_clustered_df(df, column_name)
-        return df
-    
+
+        return clustered_df
+
     def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
-        """
-        Assign clusters smaller than min_cluster_size to Outliers.
-        For all the merged clusters, make sure to reassign the cluster ids to ensure they are unique across all partitions.
-        Double check that the cluster ids are unique across all partitions and that outliers are assigned the correct ids.
-        """
+        """Standard post-processing plus stratified ID re-assignment when needed."""
+
         fine_label_col = f"{column_name}_fine_cluster_label"
         fine_id_col = f"{column_name}_fine_cluster_id"
 
-        # 1. Assign clusters smaller than min_cluster_size to Outliers
+        # 1️⃣  Move tiny clusters to Outliers
         label_counts = df[fine_label_col].value_counts()
         too_small_labels = label_counts[label_counts < int(getattr(self.config, "min_cluster_size", 1))].index
         for label in too_small_labels:
             mask = df[fine_label_col] == label
             cid = df.loc[mask, fine_id_col].iloc[0] if not df.loc[mask].empty else None
-            self.log(f"Assigning cluster {cid} (label '{label}') to Outliers because it has {label_counts[label]} items")
+            self.log(
+                f"Assigning cluster {cid} (label '{label}') to Outliers because it has {label_counts[label]} items"
+            )
             df.loc[mask, fine_label_col] = "Outliers"
             df.loc[mask, fine_id_col] = -1
 
-        # 2. Reassign cluster ids to ensure uniqueness across all partitions (excluding outliers)
-        group_col = self.config.groupby_column
+        # 2️⃣  For stratified mode: ensure cluster IDs are unique across partitions
+        group_col = getattr(self.config, "groupby_column", None)
         if group_col is not None and group_col in df.columns:
             non_outlier_mask = df[fine_label_col] != "Outliers"
-            # Build unique pairs of (group, fine_label) and enumerate them to stable ids
             unique_pairs = (
                 df.loc[non_outlier_mask, [group_col, fine_label_col]]
                 .drop_duplicates()
                 .reset_index(drop=True)
             )
             pair_to_new_id = {
-                (row[group_col], row[fine_label_col]): idx
-                for idx, row in unique_pairs.iterrows()
+                (row[group_col], row[fine_label_col]): idx for idx, row in unique_pairs.iterrows()
             }
-            # Assign new ids based on (group, label)
-            mask_non_outliers = df[fine_label_col] != "Outliers"
             for (gval, lbl), new_id in pair_to_new_id.items():
-                pair_mask = (df[group_col] == gval) & (df[fine_label_col] == lbl) & mask_non_outliers
+                pair_mask = (df[group_col] == gval) & (df[fine_label_col] == lbl) & non_outlier_mask
                 df.loc[pair_mask, fine_id_col] = new_id
 
-        # 3. Ensure all outliers have id -1
-        outlier_mask = df[fine_label_col] == "Outliers"
-        df.loc[outlier_mask, fine_id_col] = -1
+            # Ensure all outliers keep id -1
+            df.loc[df[fine_label_col] == "Outliers", fine_id_col] = -1
 
         return df
 
+    # ------------------------------------------------------------------
+    # 🏷️  Cluster construction helper with group metadata
+    # ------------------------------------------------------------------
     def _build_clusters_from_df(self, df: pd.DataFrame, column_name: str):
-        """Construct Cluster objects and include group in meta for stratified clustering."""
-        # Defer to base implementation first
+        """Build clusters and, in stratified mode, add group info to metadata."""
+
         clusters = super()._build_clusters_from_df(df, column_name)
 
         group_col = getattr(self.config, "groupby_column", None)
         if group_col is not None and group_col in df.columns:
             fine_id_col = f"{column_name}_fine_cluster_id"
-            # Map fine_id -> single group value; if multiple groups exist, pick the first for determinism
             id_to_group = (
                 df.loc[df[fine_id_col].notna(), [fine_id_col, group_col]]
                 .dropna()
@@ -226,6 +204,7 @@ class StratifiedHDBSCANClusterer(HDBSCANClusterer):
                 if cid in id_to_group:
                     c.meta = dict(c.meta or {})
                     c.meta["group"] = id_to_group[cid]
+
         return clusters
 
 
