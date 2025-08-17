@@ -3,8 +3,8 @@
 Debug test for mixin initialization issues.
 """
 
-from lmmvibes.core.stage import PipelineStage
-from lmmvibes.core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin
+from stringsight.core.stage import PipelineStage
+from stringsight.core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin
 
 # Test each mixin individually first
 print("Testing individual mixins...")

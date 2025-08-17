@@ -15,10 +15,10 @@
 
 ```bash
 # Basic installation
-pip install lmmvibes
+pip install stringsight
 
 # With optional dependencies
-pip install lmmvibes[full]  # includes sentence-transformers, wandb
+pip install stringsight[full]  # includes sentence-transformers, wandb
 ```
 
 ### Requirements
@@ -31,7 +31,7 @@ pip install lmmvibes[full]  # includes sentence-transformers, wandb
 
 ```python
 import pandas as pd
-from lmmvibes import explain
+from stringsight import explain
 
 # Your data with model responses (can contain multiple models)
 df = pd.DataFrame({
@@ -71,7 +71,7 @@ clustered_df, model_stats = explain(
 ### Viewing Results in Gradio
 ```bash
 # View clusters, examples, and metrics
-python -m lmmvibes.vis_gradio.launcher --share
+python -m stringsight.vis_gradio.launcher --share
 ```
 
 ## Outputs
@@ -256,7 +256,7 @@ Data Input → Property Extraction → Post-processing → Clustering → Metric
 ```
 
 <details>
-<summary><strong>1. Property Extraction</strong> (<code>lmmvibes.extractors</code>)</summary>
+<summary><strong>1. Property Extraction</strong> (<code>stringsight.extractors</code>)</summary>
 
 **Goal**: Identify specific behavioral properties from model responses using LLM analysis.
 
@@ -274,7 +274,7 @@ Takes each conversation and asks an LLM (like GPT-4) to extract behavioral prope
 </details>
 
 <details>
-<summary><strong>2. Post-processing</strong> (<code>lmmvibes.postprocess</code>)</summary>
+<summary><strong>2. Post-processing</strong> (<code>stringsight.postprocess</code>)</summary>
 
 **Goal**: Parse and validate the extracted properties into structured data.
 
@@ -284,7 +284,7 @@ Takes each conversation and asks an LLM (like GPT-4) to extract behavioral prope
 </details>
 
 <details>
-<summary><strong>3. Clustering</strong> (<code>lmmvibes.clusterers</code>)</summary>
+<summary><strong>3. Clustering</strong> (<code>stringsight.clusterers</code>)</summary>
 
 **Goal**: Group similar behavioral properties into coherent clusters for analysis.
 
@@ -297,7 +297,7 @@ Takes individual properties like "explains step-by-step" and "shows work clearly
 </details>
 
 <details>
-<summary><strong>4. Metrics & Analysis</strong> (<code>lmmvibes.metrics</code>)</summary>
+<summary><strong>4. Metrics & Analysis</strong> (<code>stringsight.metrics</code>)</summary>
 
 **Goal**: Calculate model performance statistics and behavioral rankings.
 
@@ -424,11 +424,11 @@ for model, model_stats in stats.items():
 <summary><strong>For more control, you can run each pipeline stage separately:</strong></summary>
 
 ```python
-from lmmvibes.core import PropertyDataset
-from lmmvibes.extractors import OpenAIExtractor
-from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
-from lmmvibes.clusterers import HDBSCANClusterer
-from lmmvibes.metrics import SideBySideMetrics, SingleModelMetrics
+from stringsight.core import PropertyDataset
+from stringsight.extractors import OpenAIExtractor
+from stringsight.postprocess import LLMJsonParser, PropertyValidator
+from stringsight.clusterers import HDBSCANClusterer
+from stringsight.metrics import SideBySideMetrics, SingleModelMetrics
 
 # 1. Load your data
 dataset = PropertyDataset.from_dataframe(df, method="side_by_side")
@@ -470,11 +470,11 @@ dataset.save("results/full_pipeline_output.json")
 
 Sometimes you already **know exactly** which behavioural axes you care about and you
 just want the LLM to decide whether an answer exhibits any of them – no
-unsupervised clustering needed.  Use `lmmvibes.label()` for this mode.
+unsupervised clustering needed.  Use `stringsight.label()` for this mode.
 
 ```python
 import pandas as pd
-from lmmvibes import label
+from stringsight import label
 
 # 1️⃣  Define your taxonomy (name → description)
 TAXONOMY = {
@@ -549,7 +549,7 @@ LMM‑Vibes now uses a single `ClusterConfig` across clusterers. All parameters 
 Minimal example:
 
 ```python
-from lmmvibes.clusterers import HDBSCANClusterer
+from stringsight.clusterers import HDBSCANClusterer
 
 clusterer = HDBSCANClusterer(
     min_cluster_size=30,
@@ -588,4 +588,4 @@ clusterer = HDBSCANClusterer(
 )
 ```
 
-You can also pass `precomputed_embeddings` (np.ndarray or dict), `context`, `cache_embeddings`, and `input_model_name`. See `lmmvibes/clusterers/config.py` for the full `ClusterConfig` schema. No hardcoded config values are used; user‑supplied values take precedence over defaults.
+You can also pass `precomputed_embeddings` (np.ndarray or dict), `context`, `cache_embeddings`, and `input_model_name`. See `stringsight/clusterers/config.py` for the full `ClusterConfig` schema. No hardcoded config values are used; user‑supplied values take precedence over defaults.

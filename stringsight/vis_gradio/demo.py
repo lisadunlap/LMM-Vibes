@@ -6,7 +6,7 @@ This demonstrates the Python API for launching the Gradio app.
 
 import argparse
 from pathlib import Path
-from lmmvibes.vis_gradio import launch_app, create_app
+from stringsight.vis_gradio import launch_app, create_app
 
 
 def demo_basic_launch():

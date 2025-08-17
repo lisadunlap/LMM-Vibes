@@ -14,8 +14,8 @@ import json
 from pathlib import Path
 
 # Import the metrics classes
-from lmmvibes.metrics.single_model import SingleModelMetrics
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.metrics.single_model import SingleModelMetrics
+from stringsight.core.data_objects import PropertyDataset
 
 
 def demonstrate_bootstrap_sampling():

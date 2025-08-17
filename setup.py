@@ -1,5 +1,5 @@
 """
-Setup script for LMM-Vibes package.
+Setup script for StringSight package.
 """
 
 from setuptools import setup, find_packages
@@ -8,9 +8,9 @@ with open("README_ABSTRACTION.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="lmmvibes",
+    name="stringsight",
     version="0.1.0",
-    author="LMM-Vibes Team",
+    author="StringSight Team",
     description="Explain Large Language Model Behavior Patterns",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -55,7 +55,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "lmmvibes=lmmvibes.cli:main",
+            "stringsight=stringsight.cli:main",
         ],
     },
 ) 

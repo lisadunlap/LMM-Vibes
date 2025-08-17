@@ -1,5 +1,5 @@
 """
-lmmvibes.metrics.functional_metrics
+stringsight.metrics.functional_metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Simplified functional approach to metrics computation that produces cleaner,

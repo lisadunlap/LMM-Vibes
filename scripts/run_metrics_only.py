@@ -17,9 +17,9 @@ from pathlib import Path
 import time
 from datetime import datetime
 
-from lmmvibes.core.data_objects import PropertyDataset
-from lmmvibes.metrics import get_metrics
-from lmmvibes.pipeline import Pipeline
+from stringsight.core.data_objects import PropertyDataset
+from stringsight.metrics import get_metrics
+from stringsight.pipeline import Pipeline
 
 
 def load_existing_results(input_path: str, method: str = "single_model") -> PropertyDataset:

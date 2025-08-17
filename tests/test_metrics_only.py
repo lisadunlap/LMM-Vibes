@@ -5,8 +5,8 @@ import tempfile
 import os
 from pathlib import Path
 
-from lmmvibes import compute_metrics_only
-from lmmvibes.core.data_objects import PropertyDataset, ConversationRecord, Property, Cluster
+from stringsight import compute_metrics_only
+from stringsight.core.data_objects import PropertyDataset, ConversationRecord, Property, Cluster
 
 
 def create_test_dataset():
@@ -91,7 +91,8 @@ def create_test_dataset():
             parent_id=None,
             parent_label=None,
             property_descriptions=["Correct mathematical reasoning"],
-            question_ids=["test_1", "test_2", "test_3"]
+            question_ids=["test_1", "test_2", "test_3"],
+            meta={"group": "math_problems", "difficulty": "easy"}
         )
     ]
     
@@ -200,10 +201,38 @@ def test_compute_metrics_only_no_properties():
 
 
 def test_compute_metrics_only_invalid_path():
-    """Test that metrics-only fails gracefully with invalid input path."""
+    """Test that invalid path raises appropriate error."""
     with pytest.raises(FileNotFoundError):
-        compute_metrics_only(
-            input_path="/nonexistent/path",
-            method="single_model",
-            verbose=False
-        ) 
+        compute_metrics_only("nonexistent_path")
+
+
+def test_metrics_include_cluster_metadata():
+    """Test that cluster metadata is properly included in metrics output."""
+    dataset = create_test_dataset()
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save dataset to temp directory
+        dataset.save(os.path.join(temp_dir, "test_dataset.json"))
+        
+        # Compute metrics
+        result = compute_metrics_only(temp_dir)
+        
+        # Check that cluster metadata is included in the output
+        assert "model_cluster_scores" in result
+        assert "cluster_scores" in result
+        
+        # Check that the cluster has metadata in cluster_scores
+        cluster_scores = result["cluster_scores"]
+        assert "Mathematical reasoning" in cluster_scores
+        cluster_metrics = cluster_scores["Mathematical reasoning"]
+        assert "metadata" in cluster_metrics
+        assert cluster_metrics["metadata"] == {"group": "math_problems", "difficulty": "easy"}
+        
+        # Check that the cluster has metadata in model_cluster_scores
+        model_cluster_scores = result["model_cluster_scores"]
+        for model in ["gpt-4", "claude-3"]:
+            assert model in model_cluster_scores
+            assert "Mathematical reasoning" in model_cluster_scores[model]
+            cluster_metrics = model_cluster_scores[model]["Mathematical reasoning"]
+            assert "metadata" in cluster_metrics
+            assert cluster_metrics["metadata"] == {"group": "math_problems", "difficulty": "easy"} 

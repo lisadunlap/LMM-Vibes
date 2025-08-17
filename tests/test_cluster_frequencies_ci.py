@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # Import the app functions
-from lmmvibes.viz.pipeline_results_app import (
+from stringsight.viz.pipeline_results_app import (
     format_confidence_interval, 
     has_confidence_intervals, 
     get_confidence_interval_width
@@ -146,7 +146,7 @@ def test_frequency_table_with_quality_cis():
     print("\n🧪 Testing frequency table with quality CIs and global sizes...")
     
     # Import the function we want to test
-    from lmmvibes.vis_gradio.utils import create_frequency_comparison_table
+    from stringsight.vis_gradio.utils import create_frequency_comparison_table
     
     # Create test data with quality confidence intervals
     test_model_stats = {

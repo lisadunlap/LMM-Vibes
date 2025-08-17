@@ -74,7 +74,7 @@ for model_name, model_data in model_scores.items():
 Contains the entire `PropertyDataset` object with all conversations, properties, clusters, and metadata.
 
 ```python
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.core.data_objects import PropertyDataset
 
 # Load complete dataset
 dataset = PropertyDataset.load("results/full_dataset.json")
@@ -86,7 +86,7 @@ print(f"Clusters: {len(dataset.clusters)}")
 print(f"Models: {dataset.all_models}")
 
 # Rerun metrics with different parameters
-from lmmvibes import compute_metrics_only
+from stringsight import compute_metrics_only
 clustered_df, new_stats = compute_metrics_only(
     "results/full_dataset.json",
     method="single_model",
@@ -177,7 +177,7 @@ for cluster in cluster_counts.head(5).index:
 ### Rerunning Analysis
 
 ```python
-from lmmvibes import compute_metrics_only
+from stringsight import compute_metrics_only
 
 # Recompute metrics with different parameters
 clustered_df, model_stats = compute_metrics_only(

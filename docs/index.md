@@ -18,7 +18,7 @@ LMM-Vibes provides tools and utilities for:
 pip install -e .
 
 # Run a basic evaluation
-python -m lmmvibes.evaluate --model your-model --dataset your-data
+python -m stringsight.evaluate --model your-model --dataset your-data
 ```
 
 ## Key Features

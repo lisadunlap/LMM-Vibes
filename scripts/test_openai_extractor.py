@@ -4,8 +4,8 @@ Test script to verify the OpenAI extractor fix works with single model data.
 """
 
 import pandas as pd
-from lmmvibes.core.data_objects import PropertyDataset
-from lmmvibes.extractors.openai import OpenAIExtractor
+from stringsight.core.data_objects import PropertyDataset
+from stringsight.extractors.openai import OpenAIExtractor
 
 def test_openai_extractor():
     """Test that OpenAI extractor works with single model data."""

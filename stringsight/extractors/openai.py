@@ -33,7 +33,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         top_p: float = 0.95,
         max_tokens: int = 16000,
         max_workers: int = 16,
-        cache_dir: str = ".cache/lmmvibes",
+        cache_dir: str = ".cache/stringsight",
         **kwargs
     ):
         """

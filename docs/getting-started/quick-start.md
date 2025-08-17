@@ -6,10 +6,10 @@ Get up and running with LMM-Vibes in minutes.
 
 ```bash
 # Basic installation
-pip install lmmvibes
+pip install stringsight
 
 # With optional dependencies for better performance
-pip install lmmvibes[full]  # includes sentence-transformers, wandb
+pip install stringsight[full]  # includes sentence-transformers, wandb
 ```
 
 **Requirements:**
@@ -27,7 +27,7 @@ export OPENAI_API_KEY="your-api-key-here"
 
 ```python
 import pandas as pd
-from lmmvibes import explain
+from stringsight import explain
 ```
 
 ### 2. Prepare Your Data
@@ -111,7 +111,7 @@ Launch the Gradio web interface to explore your results interactively:
 
 ```bash
 # View clusters, examples, and metrics in a web interface
-python -m lmmvibes.vis_gradio.launcher --share
+python -m stringsight.vis_gradio.launcher --share
 ```
 
 This opens a web interface where you can:
@@ -142,9 +142,9 @@ clustered_df, model_stats = explain(
 ### Pipeline Configuration
 
 ```python
-from lmmvibes.pipeline import PipelineBuilder
-from lmmvibes.extractors import OpenAIExtractor
-from lmmvibes.clusterers import HDBSCANClusterer
+from stringsight.pipeline import PipelineBuilder
+from stringsight.extractors import OpenAIExtractor
+from stringsight.clusterers import HDBSCANClusterer
 
 pipeline = (PipelineBuilder("Custom Pipeline")
     .extract_properties(OpenAIExtractor(model="gpt-4o-mini"))

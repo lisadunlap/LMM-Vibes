@@ -1,11 +1,11 @@
 """
-lmmvibes.metrics.single_model
+stringsight.metrics.single_model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Functional metrics wrapper for single-model datasets.
 
 This class now delegates all computation to the functional metrics pipeline
-(`lmmvibes.metrics.functional_metrics.FunctionalMetrics`) and exists mainly as
+(`stringsight.metrics.functional_metrics.FunctionalMetrics`) and exists mainly as
 an ergonomic/compatibility alias so existing code importing
 `SingleModelMetrics` continues to work.
 """

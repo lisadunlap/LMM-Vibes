@@ -33,7 +33,7 @@ def _get_cache_config():
     import os
     
     # Get cache directory from environment or use default
-    cache_dir = os.environ.get("LITELLM_CACHE_DIR_CLUSTERING", ".cache/lmmvibes/clustering")
+    cache_dir = os.environ.get("LITELLM_CACHE_DIR_CLUSTERING", ".cache/stringsight/clustering")
     
     # Get cache size from environment or use default
     cache_size = os.environ.get("LITELLM_CACHE_SIZE", "10GB")

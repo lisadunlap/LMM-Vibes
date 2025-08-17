@@ -61,7 +61,7 @@ from bertopic.backend import OpenAIBackend
 # CONFIGURATION CLASSES
 # =============================================================================
 
-# ClusterConfig is now provided by lmmvibes.clusterers.config
+# ClusterConfig is now provided by stringsight.clusterers.config
 
 # =============================================================================
 # HELPER FUNCTIONS

@@ -5,9 +5,9 @@ Test to verify the optimizations work correctly and produce the same results.
 
 import pandas as pd
 import numpy as np
-from lmmvibes import PropertyDataset
-from lmmvibes.metrics.single_model import SingleModelMetrics
-from lmmvibes.metrics.side_by_side import SideBySideMetrics
+from stringsight import PropertyDataset
+from stringsight.metrics.single_model import SingleModelMetrics
+from stringsight.metrics.side_by_side import SideBySideMetrics
 import time
 
 def test_optimization_correctness():

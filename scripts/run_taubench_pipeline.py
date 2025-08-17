@@ -10,7 +10,7 @@ import argparse
 import os
 from run_full_pipeline import run_pipeline
 import pandas as pd
-from lmmvibes.prompts import taubench_system_prompt
+from stringsight.prompts import taubench_system_prompt
 
 def main():
     """Main function for taubench airline dataset processing."""
@@ -91,7 +91,7 @@ def main():
         if clustered_df is None and os.path.exists(full_dataset_json_path):
             print(f"Loading from full PropertyDataset JSON: {full_dataset_json_path}")
             try:
-                from lmmvibes import PropertyDataset
+                from stringsight import PropertyDataset
                 dataset = PropertyDataset.from_json(full_dataset_json_path)
                 clustered_df = dataset.to_dataframe(type="clusters")
                 print("✅ Successfully loaded from PropertyDataset JSON")
@@ -141,8 +141,8 @@ def main():
             return
         
         # Run metrics calculation only
-        from lmmvibes import PropertyDataset
-        from lmmvibes.metrics.single_model import SingleModelMetrics
+        from stringsight import PropertyDataset
+        from stringsight.metrics.single_model import SingleModelMetrics
         
         # Create PropertyDataset from clustered DataFrame
         dataset = PropertyDataset.from_dataframe(clustered_df, method="single_model")

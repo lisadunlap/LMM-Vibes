@@ -604,6 +604,6 @@ def launch_app(results_dir: Optional[str] = None,
         except Exception as e2:
             print(f"❌ Failed to launch with alternative ports: {e2}")
             print("💡 Try specifying a different port manually:")
-            print(f"   python -m lmmvibes.vis_gradio.launcher --port 9000")
-            print(f"   python -m lmmvibes.vis_gradio.launcher --auto_port")
+            print(f"   python -m stringsight.vis_gradio.launcher --port 9000")
+            print(f"   python -m stringsight.vis_gradio.launcher --auto_port")
             raise e2 

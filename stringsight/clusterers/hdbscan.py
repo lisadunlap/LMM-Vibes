@@ -19,7 +19,7 @@ except ImportError:
     from config import ClusterConfig
 
 try:
-    from lmmvibes.clusterers.hierarchical_clustering import (
+    from stringsight.clusterers.hierarchical_clustering import (
         hdbscan_cluster_categories,
     )
 except ImportError:

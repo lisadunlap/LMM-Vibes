@@ -9,7 +9,7 @@ Reference documentation for utility functions and helper classes in LMM-Vibes.
 Validate that data follows the expected format.
 
 ```python
-from lmmvibes.utils import validate_data_format
+from stringsight.utils import validate_data_format
 
 validate_data_format(
     data: List[Dict],
@@ -31,7 +31,7 @@ validate_data_format(
 Convert data between different formats.
 
 ```python
-from lmmvibes.utils import convert_data_format
+from stringsight.utils import convert_data_format
 
 convert_data_format(
     data: List[Dict],
@@ -55,7 +55,7 @@ convert_data_format(
 Ensure a directory exists, creating it if necessary.
 
 ```python
-from lmmvibes.utils import ensure_directory
+from stringsight.utils import ensure_directory
 
 ensure_directory(path: str) -> None
 ```
@@ -68,7 +68,7 @@ ensure_directory(path: str) -> None
 Get the file extension from a path.
 
 ```python
-from lmmvibes.utils import get_file_extension
+from stringsight.utils import get_file_extension
 
 get_file_extension(file_path: str) -> str
 ```
@@ -84,7 +84,7 @@ get_file_extension(file_path: str) -> str
 Create a safe filename from a string.
 
 ```python
-from lmmvibes.utils import sanitize_filename
+from stringsight.utils import sanitize_filename
 
 sanitize_filename(filename: str) -> str
 ```
@@ -102,7 +102,7 @@ sanitize_filename(filename: str) -> str
 Normalize text for consistent processing.
 
 ```python
-from lmmvibes.utils import normalize_text
+from stringsight.utils import normalize_text
 
 normalize_text(
     text: str,
@@ -126,7 +126,7 @@ normalize_text(
 Tokenize text into words or subwords.
 
 ```python
-from lmmvibes.utils import tokenize_text
+from stringsight.utils import tokenize_text
 
 tokenize_text(
     text: str,
@@ -150,7 +150,7 @@ tokenize_text(
 Compute a single metric on predictions and references.
 
 ```python
-from lmmvibes.utils import compute_metric
+from stringsight.utils import compute_metric
 
 compute_metric(
     metric_name: str,
@@ -174,7 +174,7 @@ compute_metric(
 Aggregate multiple metric scores.
 
 ```python
-from lmmvibes.utils import aggregate_metrics
+from stringsight.utils import aggregate_metrics
 
 aggregate_metrics(
     scores: List[float],
@@ -196,7 +196,7 @@ aggregate_metrics(
 Load configuration from a file.
 
 ```python
-from lmmvibes.utils import load_config_file
+from stringsight.utils import load_config_file
 
 load_config_file(
     file_path: str,
@@ -216,7 +216,7 @@ load_config_file(
 Save configuration to a file.
 
 ```python
-from lmmvibes.utils import save_config_file
+from stringsight.utils import save_config_file
 
 save_config_file(
     config: Dict,
@@ -237,7 +237,7 @@ save_config_file(
 Set up logging configuration.
 
 ```python
-from lmmvibes.utils import setup_logging
+from stringsight.utils import setup_logging
 
 setup_logging(
     level: str = "INFO",
@@ -256,9 +256,9 @@ setup_logging(
 Get a logger instance.
 
 ```python
-from lmmvibes.utils import get_logger
+from stringsight.utils import get_logger
 
-get_logger(name: str = "lmmvibes") -> logging.Logger
+get_logger(name: str = "stringsight") -> logging.Logger
 ```
 
 **Parameters:**
@@ -274,7 +274,7 @@ get_logger(name: str = "lmmvibes") -> logging.Logger
 Context manager for timing operations.
 
 ```python
-from lmmvibes.utils import Timer
+from stringsight.utils import Timer
 
 with Timer("operation_name"):
     # Your code here
@@ -286,7 +286,7 @@ with Timer("operation_name"):
 Format a duration in human-readable format.
 
 ```python
-from lmmvibes.utils import format_duration
+from stringsight.utils import format_duration
 
 format_duration(seconds: float) -> str
 ```
@@ -304,7 +304,7 @@ format_duration(seconds: float) -> str
 Simple progress bar for long-running operations.
 
 ```python
-from lmmvibes.utils import ProgressBar
+from stringsight.utils import ProgressBar
 
 with ProgressBar(total=100, desc="Processing") as pbar:
     for i in range(100):
@@ -323,7 +323,7 @@ with ProgressBar(total=100, desc="Processing") as pbar:
 Validate that a metric name is supported.
 
 ```python
-from lmmvibes.utils import validate_metric_name
+from stringsight.utils import validate_metric_name
 
 validate_metric_name(metric_name: str) -> bool
 ```
@@ -339,7 +339,7 @@ validate_metric_name(metric_name: str) -> bool
 Validate that a file format is supported.
 
 ```python
-from lmmvibes.utils import validate_file_format
+from stringsight.utils import validate_file_format
 
 validate_file_format(format_name: str) -> bool
 ```
@@ -357,7 +357,7 @@ validate_file_format(format_name: str) -> bool
 Decorator for consistent error handling.
 
 ```python
-from lmmvibes.utils import handle_errors
+from stringsight.utils import handle_errors
 
 @handle_errors
 def my_function():
@@ -370,7 +370,7 @@ def my_function():
 Decorator for retrying failed operations.
 
 ```python
-from lmmvibes.utils import retry_on_failure
+from stringsight.utils import retry_on_failure
 
 @retry_on_failure(max_attempts=3, delay=1.0)
 def my_function():

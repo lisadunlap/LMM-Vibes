@@ -9,7 +9,7 @@ Reference documentation for the core LMM-Vibes functions and classes.
 Main function for evaluating model performance.
 
 ```python
-from lmmvibes.evaluation import evaluate_model
+from stringsight.evaluation import evaluate_model
 
 evaluate_model(
     data: List[Dict],
@@ -46,7 +46,7 @@ results = evaluate_model(
 Evaluate multiple models or datasets.
 
 ```python
-from lmmvibes.evaluation import batch_evaluate
+from stringsight.evaluation import batch_evaluate
 
 batch_evaluate(
     data: List[Dict],
@@ -72,7 +72,7 @@ batch_evaluate(
 Load data from various file formats.
 
 ```python
-from lmmvibes.data import load_dataset
+from stringsight.data import load_dataset
 
 load_dataset(
     file_path: str,
@@ -99,7 +99,7 @@ load_dataset(
 Save data to various file formats.
 
 ```python
-from lmmvibes.data import save_dataset
+from stringsight.data import save_dataset
 
 save_dataset(
     data: List[Dict],
@@ -120,7 +120,7 @@ save_dataset(
 Configuration class for evaluation settings.
 
 ```python
-from lmmvibes.config import EvaluationConfig
+from stringsight.config import EvaluationConfig
 
 config = EvaluationConfig(
     metrics: List[str] = ["accuracy"],
@@ -141,7 +141,7 @@ config = EvaluationConfig(
 Configuration class for data settings.
 
 ```python
-from lmmvibes.config import DataConfig
+from stringsight.config import DataConfig
 
 config = DataConfig(
     input_format: str = "jsonl",
@@ -164,7 +164,7 @@ config = DataConfig(
 Save evaluation results to file.
 
 ```python
-from lmmvibes.utils import save_results
+from stringsight.utils import save_results
 
 save_results(
     results: Dict,
@@ -183,7 +183,7 @@ save_results(
 Load evaluation results from file.
 
 ```python
-from lmmvibes.utils import load_results
+from stringsight.utils import load_results
 
 load_results(file_path: str) -> Dict
 ```
@@ -201,7 +201,7 @@ load_results(file_path: str) -> Dict
 Create plots of evaluation metrics.
 
 ```python
-from lmmvibes.visualization import plot_metrics
+from stringsight.visualization import plot_metrics
 
 plot_metrics(
     results: Dict,
@@ -222,7 +222,7 @@ plot_metrics(
 Compare multiple models or results.
 
 ```python
-from lmmvibes.visualization import plot_comparison
+from stringsight.visualization import plot_comparison
 
 plot_comparison(
     results_list: List[Dict],
@@ -245,7 +245,7 @@ plot_comparison(
 Base class for custom metrics.
 
 ```python
-from lmmvibes.metrics import Metric
+from stringsight.metrics import Metric
 
 class CustomMetric(Metric):
     def compute(self, predictions: List[str], references: List[str]) -> float:
@@ -274,7 +274,7 @@ Available built-in metrics:
 Raised when evaluation fails.
 
 ```python
-from lmmvibes.exceptions import EvaluationError
+from stringsight.exceptions import EvaluationError
 
 try:
     results = evaluate_model(data=data)
@@ -287,7 +287,7 @@ except EvaluationError as e:
 Raised when data validation fails.
 
 ```python
-from lmmvibes.exceptions import DataValidationError
+from stringsight.exceptions import DataValidationError
 
 try:
     data = load_dataset("data.jsonl")

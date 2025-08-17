@@ -7,7 +7,7 @@ import pandas as pd
 import tempfile
 import os
 from pathlib import Path
-from lmmvibes import explain
+from stringsight import explain
 
 def test_new_structure():
     """Test the new stage-based saving structure."""

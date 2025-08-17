@@ -21,7 +21,7 @@ vis_gradio/
 └── data_loader.py        # Low-level JSON/JSONL reading utilities (unchanged)
 ```
 
-Only `app.py` is imported by external callers (`python -m lmmvibes.vis_gradio.launcher`); it wires together the tab builders from the per-tab modules.
+Only `app.py` is imported by external callers (`python -m stringsight.vis_gradio.launcher`); it wires together the tab builders from the per-tab modules.
 
 ## Expected input files
 
@@ -89,7 +89,7 @@ present and spelled correctly.
 ## Launching
 
 ```bash
-python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results
+python -m stringsight.vis_gradio.launcher --results_dir /path/to/results
 ```
 
 If the directory contains exactly one experiment it is auto-loaded; otherwise

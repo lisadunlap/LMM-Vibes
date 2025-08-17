@@ -1,5 +1,5 @@
 """
-LMM-Vibes: Language Model Model Vibes Analysis
+StringSight: Language Model Model Vibes Analysis
 
 A toolkit for analyzing and understanding model behavior patterns through
 property extraction, clustering, and metrics computation.

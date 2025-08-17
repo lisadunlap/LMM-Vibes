@@ -8,10 +8,10 @@ quick unit-test environment you might want to mock `datasets.load_dataset`.
 from types import SimpleNamespace
 
 import pandas as pd
-from lmmvibes.extractors.openai import OpenAIExtractor
-from lmmvibes.postprocess.parser import LLMJsonParser
-from lmmvibes.datasets import load_data
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.extractors.openai import OpenAIExtractor
+from stringsight.postprocess.parser import LLMJsonParser
+from stringsight.datasets import load_data
+from stringsight.core.data_objects import PropertyDataset
 
 
 def test_first_10_arena_rows():

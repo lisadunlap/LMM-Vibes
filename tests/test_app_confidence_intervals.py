@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # Import the app functions
-from lmmvibes.viz.pipeline_results_app import (
+from stringsight.viz.pipeline_results_app import (
     format_confidence_interval, 
     has_confidence_intervals, 
     get_confidence_interval_width

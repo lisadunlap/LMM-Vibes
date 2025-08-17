@@ -102,7 +102,7 @@ def explain(
         
     Example:
         >>> import pandas as pd
-        >>> from lmmvibes import explain
+        >>> from stringsight import explain
         >>> 
         >>> # Load your conversation data
         >>> df = pd.read_csv("conversations.csv")
@@ -693,7 +693,7 @@ def _build_fixed_axes_pipeline(
         top_p=top_p,
         max_tokens=max_tokens,
         max_workers=max_workers,
-        cache_dir=extraction_cache_dir or ".cache/lmmvibes",
+        cache_dir=extraction_cache_dir or ".cache/stringsight",
         output_dir=output_dir,
         **common_cfg,
     )
@@ -932,7 +932,7 @@ def compute_metrics_only(
         Tuple of (clustered_df, model_stats)
         
     Example:
-        >>> from lmmvibes import compute_metrics_only
+        >>> from stringsight import compute_metrics_only
         >>> 
         >>> # Run metrics on existing pipeline results
         >>> clustered_df, model_stats = compute_metrics_only(

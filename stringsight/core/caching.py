@@ -38,7 +38,7 @@ def parse_size_string(size_str: str) -> int:
     return int(number * multipliers[unit])
 
 class LMDBCache:
-    def __init__(self, cache_dir: str = ".cache/lmmvibes", max_size: Union[str, int] = "10GB"):
+    def __init__(self, cache_dir: str = ".cache/stringsight", max_size: Union[str, int] = "10GB"):
         """Initialize LMDB cache.
         
         Args:

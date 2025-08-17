@@ -14,13 +14,13 @@ The project follows a **4-step pipeline architecture**:
 
 ### Key Components
 
-- **Main API**: `lmmvibes.explain()` - Primary entry point for users
-- **Pipeline System**: `lmmvibes.pipeline.Pipeline` - Orchestrates sequential stage execution
-- **Property Extraction**: `lmmvibes.extractors` - Extract behavioral properties using LLM analysis
-- **Clustering**: `lmmvibes.clusterers` - Group similar behaviors using HDBSCAN/hierarchical methods
-- **Data Management**: `lmmvibes.core.data_objects` - Core data structures (`PropertyDataset`, `Property`, `ConversationRecord`)
-- **Metrics**: `lmmvibes.metrics` - Calculate model performance statistics
-- **Visualization**: `lmmvibes.viz` - Interactive Streamlit applications
+- **Main API**: `stringsight.explain()` - Primary entry point for users
+- **Pipeline System**: `stringsight.pipeline.Pipeline` - Orchestrates sequential stage execution
+- **Property Extraction**: `stringsight.extractors` - Extract behavioral properties using LLM analysis
+- **Clustering**: `stringsight.clusterers` - Group similar behaviors using HDBSCAN/hierarchical methods
+- **Data Management**: `stringsight.core.data_objects` - Core data structures (`PropertyDataset`, `Property`, `ConversationRecord`)
+- **Metrics**: `stringsight.metrics` - Calculate model performance statistics
+- **Visualization**: `stringsight.viz` - Interactive Streamlit applications
 
 ## Common Development Commands
 
@@ -41,7 +41,7 @@ python -m pytest tests/
 
 **Simple API (Recommended)**
 ```python
-from lmmvibes import explain
+from stringsight import explain
 import pandas as pd
 
 # Side-by-side comparison
@@ -65,9 +65,9 @@ clustered_df, model_stats = explain(
 
 **Advanced Pipeline Construction**
 ```python
-from lmmvibes.pipeline import PipelineBuilder
-from lmmvibes.extractors import OpenAIExtractor
-from lmmvibes.clusterers import HDBSCANClusterer
+from stringsight.pipeline import PipelineBuilder
+from stringsight.extractors import OpenAIExtractor
+from stringsight.clusterers import HDBSCANClusterer
 
 builder = PipelineBuilder("Custom Pipeline")
 pipeline = (builder
@@ -79,7 +79,7 @@ pipeline = (builder
 
 ### Interactive Visualization
 ```bash
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
+streamlit run stringsight/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
 
 ## Data Architecture
@@ -181,7 +181,7 @@ Multimodal input (when applicable):
 - `ModelStats`: Per-model performance metrics
 
 ### Directory Structure
-- `/lmmvibes/` - Main package code
+- `/stringsight/` - Main package code
 - `/tests/` - Test suite
 - `/data/` - Raw datasets and processed results
 - `/results/` - Output directory for analysis results
@@ -189,7 +189,7 @@ Multimodal input (when applicable):
 
 ## Package Structure
 
-### Core Framework (`lmmvibes/core/`)
+### Core Framework (`stringsight/core/`)
 - `data_objects.py` - Core data structures
 - `stage.py` - Pipeline stage interface
 - `mixins.py` - Logging, timing, error handling mixins

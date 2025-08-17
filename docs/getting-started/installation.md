@@ -32,7 +32,7 @@ pip install -r requirements.txt
 To verify your installation, run:
 
 ```bash
-python -c "import lmmvibes; print('LMM-Vibes installed successfully!')"
+python -c "import stringsight; print('LMM-Vibes installed successfully!')"
 ```
 
 ## Troubleshooting
@@ -47,13 +47,13 @@ python -c "import lmmvibes; print('LMM-Vibes installed successfully!')"
 
 ```bash
 # Create virtual environment
-python -m venv lmmvibes-env
+python -m venv stringsight-env
 
 # Activate (Linux/Mac)
-source lmmvibes-env/bin/activate
+source stringsight-env/bin/activate
 
 # Activate (Windows)
-lmmvibes-env\Scripts\activate
+stringsight-env\Scripts\activate
 
 # Install package
 pip install -e .

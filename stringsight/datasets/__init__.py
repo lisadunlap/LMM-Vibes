@@ -3,7 +3,7 @@
 This module migrates the helpers that previously lived in *data_loader.py*
 into the package namespace so they can be imported as
 
-    from lmmvibes.datasets import load_arena_data, load_webdev_data, load_data
+    from stringsight.datasets import load_arena_data, load_webdev_data, load_data
 
 The logic is copied verbatim (with minor import-path tweaks) to keep
 back-compatibility with existing scripts.

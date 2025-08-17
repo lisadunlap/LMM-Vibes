@@ -13,16 +13,16 @@ def test_imports():
     print("Testing imports...")
     
     try:
-        from lmmvibes.vis_gradio import launch_app, create_app
+        from stringsight.vis_gradio import launch_app, create_app
         print("✅ Main imports successful")
     except ImportError as e:
         print(f"❌ Import error: {e}")
         return False
     
     try:
-        from lmmvibes.vis_gradio.data_loader import DataCache, validate_results_directory
-        from lmmvibes.vis_gradio.utils import extract_quality_score, compute_model_rankings
-        from lmmvibes.vis_gradio.app import create_app
+        from stringsight.vis_gradio.data_loader import DataCache, validate_results_directory
+        from stringsight.vis_gradio.utils import extract_quality_score, compute_model_rankings
+        from stringsight.vis_gradio.app import create_app
         print("✅ Module imports successful")
     except ImportError as e:
         print(f"❌ Module import error: {e}")
@@ -35,7 +35,7 @@ def test_utility_functions():
     """Test utility functions with sample data."""
     print("Testing utility functions...")
     
-    from lmmvibes.vis_gradio.utils import (
+    from stringsight.vis_gradio.utils import (
         extract_quality_score, 
         compute_model_rankings,
         create_model_summary_card,
@@ -94,7 +94,7 @@ def test_data_cache():
     """Test the data caching functionality."""
     print("Testing data cache...")
     
-    from lmmvibes.vis_gradio.data_loader import DataCache
+    from stringsight.vis_gradio.data_loader import DataCache
     
     # Test basic cache operations
     DataCache.set("test_key", "test_value")
@@ -113,7 +113,7 @@ def test_app_creation():
     print("Testing app creation...")
     
     try:
-        from lmmvibes.vis_gradio.app import create_app
+        from stringsight.vis_gradio.app import create_app
         app = create_app()
         print("✅ Gradio app creation successful")
         return True
@@ -126,7 +126,7 @@ def test_validation():
     """Test directory validation."""
     print("Testing validation functions...")
     
-    from lmmvibes.vis_gradio.data_loader import validate_results_directory
+            from stringsight.vis_gradio.data_loader import validate_results_directory
     
     # Test with non-existent directory
     is_valid, msg = validate_results_directory("/nonexistent/path")
@@ -173,9 +173,9 @@ def main():
     if failed == 0:
         print("🎉 All tests passed! The Gradio visualization is ready to use.")
         print("\nTo launch the app:")
-        print("  python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results")
+        print("  python -m stringsight.vis_gradio.launcher --results_dir /path/to/results")
         print("  or")
-        print("  from lmmvibes.vis_gradio import launch_app; launch_app()")
+        print("  from stringsight.vis_gradio import launch_app; launch_app()")
         return True
     else:
         print("❌ Some tests failed. Please check the implementation.")

@@ -4,8 +4,8 @@ import re
 
 import pandas as pd
 
-from lmmvibes.core.data_objects import PropertyDataset
-from lmmvibes.metrics import SideBySideMetrics
+from stringsight.core.data_objects import PropertyDataset
+from stringsight.metrics import SideBySideMetrics
 
 DATASET_PATH = pathlib.Path("tests/outputs/hdbscan_clustered_results.parquet")
 

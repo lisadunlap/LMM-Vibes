@@ -6,9 +6,9 @@ directly.
 """
 
 import json
-from lmmvibes.core.data_objects import ConversationRecord, PropertyDataset
-from lmmvibes.extractors.openai import OpenAIExtractor
-from lmmvibes.postprocess.parser import LLMJsonParser
+from stringsight.core.data_objects import ConversationRecord, PropertyDataset
+from stringsight.extractors.openai import OpenAIExtractor
+from stringsight.postprocess.parser import LLMJsonParser
 
 
 # ---------------------------------------------------------------------------

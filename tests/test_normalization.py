@@ -5,8 +5,8 @@ Simple test to verify min-max normalization works correctly.
 
 import pandas as pd
 import numpy as np
-from lmmvibes import PropertyDataset
-from lmmvibes.metrics.single_model import SingleModelMetrics
+from stringsight import PropertyDataset
+from stringsight.metrics.single_model import SingleModelMetrics
 
 def test_min_max_normalization():
     """Test that min-max normalization produces expected 0-1 values."""

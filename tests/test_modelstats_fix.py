@@ -3,7 +3,7 @@
 Test script to verify that ModelStats now works with confidence interval fields.
 """
 
-from lmmvibes.core.data_objects import ModelStats
+from stringsight.core.data_objects import ModelStats
 import json
 
 

@@ -7,8 +7,8 @@ to track LLM inputs/outputs, parsing success rates, and final results.
 """
 
 import pandas as pd
-from lmmvibes import explain
-from lmmvibes.datasets import load_data
+from stringsight import explain
+from stringsight.datasets import load_data
 from types import SimpleNamespace
 import wandb
 

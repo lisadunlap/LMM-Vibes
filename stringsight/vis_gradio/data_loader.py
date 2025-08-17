@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Tuple, Optional
 import os
 
 from .state import app_state
-from lmmvibes.metrics.plotting import create_model_cluster_dataframe
+from stringsight.metrics.plotting import create_model_cluster_dataframe
 
 
 class DataCache:

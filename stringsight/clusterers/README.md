@@ -35,8 +35,8 @@ Create a subclass in this folder and implement the `cluster` method.
 from __future__ import annotations
 
 import pandas as pd
-from lmmvibes.clusterers.base import BaseClusterer
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.clusterers.base import BaseClusterer
+from stringsight.core.data_objects import PropertyDataset
 
 class MyClusterer(BaseClusterer):
     def __init__(self, *, output_dir: str | None = None, **kwargs):

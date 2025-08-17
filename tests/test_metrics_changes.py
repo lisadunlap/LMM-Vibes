@@ -7,9 +7,9 @@ Test script to verify the new metrics functionality:
 
 import pandas as pd
 import numpy as np
-from lmmvibes import PropertyDataset
-from lmmvibes.metrics.single_model import SingleModelMetrics
-from lmmvibes.metrics.side_by_side import SideBySideMetrics
+from stringsight import PropertyDataset
+from stringsight.metrics.single_model import SingleModelMetrics
+from stringsight.metrics.side_by_side import SideBySideMetrics
 
 def create_test_data_single_model():
     """Create test data for single model metrics."""

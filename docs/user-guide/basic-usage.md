@@ -19,7 +19,7 @@ The `explain()` function automatically discovers behavioral patterns in model re
 
 ```python
 import pandas as pd
-from lmmvibes import explain
+from stringsight import explain
 
 # Load your conversation data
 df = pd.read_csv("model_conversations.csv")
@@ -94,7 +94,7 @@ The `label()` function classifies model behavior using a predefined taxonomy rat
 ### Basic Usage
 
 ```python
-from lmmvibes import label
+from stringsight import label
 
 # Define your evaluation taxonomy
 taxonomy = {

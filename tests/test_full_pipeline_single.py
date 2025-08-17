@@ -12,8 +12,8 @@ import pytest
 import pandas as pd
 import json
 
-from lmmvibes import explain
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight import explain
+from stringsight.core.data_objects import PropertyDataset
 
 
 def test_full_pipeline_with_explain(tmp_path):

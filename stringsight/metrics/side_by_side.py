@@ -1,4 +1,4 @@
-"""lmmvibes.metrics.side_by_side
+"""stringsight.metrics.side_by_side
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Side-by-side metrics implemented on top of the functional metrics pipeline.

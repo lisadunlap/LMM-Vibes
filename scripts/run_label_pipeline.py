@@ -7,7 +7,7 @@ This mirrors `scripts/run_pipeline.py` but uses the new `label()` entry point.
 import argparse
 import os
 import pandas as pd
-from lmmvibes import label
+from stringsight import label
 import json
 
 # -----------------------------------------------------------------------------

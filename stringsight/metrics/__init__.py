@@ -2,12 +2,12 @@
 
 Currently available:
 
-* :pyclass:`lmmvibes.metrics.side_by_side.SideBySideMetrics` – metrics for the
+* :pyclass:`stringsight.metrics.side_by_side.SideBySideMetrics` – metrics for the
   Arena‐style side-by-side dataset where each question is answered by multiple
   models.
-* :pyclass:`lmmvibes.metrics.functional_metrics.FunctionalMetrics` – simplified
+* :pyclass:`stringsight.metrics.functional_metrics.FunctionalMetrics` – simplified
   functional approach with cleaner outputs for model-cluster analysis (DEFAULT for single_model).
-* :pyclass:`lmmvibes.metrics.single_model.SingleModelMetrics` – legacy single-model
+* :pyclass:`stringsight.metrics.single_model.SingleModelMetrics` – legacy single-model
   metrics (available as 'single_model_legacy').
 """
 
@@ -22,9 +22,9 @@ __all__: list[str] = [
 ]
 
 # Lazy import to keep import time low
-SideBySideMetrics = _imp("lmmvibes.metrics.side_by_side").SideBySideMetrics
-SingleModelMetrics = _imp("lmmvibes.metrics.single_model").SingleModelMetrics
-FunctionalMetrics = _imp("lmmvibes.metrics.functional_metrics").FunctionalMetrics
+SideBySideMetrics = _imp("stringsight.metrics.side_by_side").SideBySideMetrics
+SingleModelMetrics = _imp("stringsight.metrics.single_model").SingleModelMetrics
+FunctionalMetrics = _imp("stringsight.metrics.functional_metrics").FunctionalMetrics
 
 
 def get_metrics(method: str, **kwargs) -> "PipelineStage":

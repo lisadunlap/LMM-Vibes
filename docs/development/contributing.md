@@ -59,11 +59,11 @@ git checkout -b fix/your-bug-description
 pytest
 
 # Run with coverage
-pytest --cov=lmmvibes
+pytest --cov=stringsight
 
 # Run linting
-flake8 lmmvibes/
-black lmmvibes/
+flake8 stringsight/
+black stringsight/
 ```
 
 ### 4. Commit Your Changes
@@ -142,7 +142,7 @@ def evaluate_model(
 
 ```python
 import pytest
-from lmmvibes.evaluation import evaluate_model
+from stringsight.evaluation import evaluate_model
 
 def test_evaluate_model_basic():
     """Test basic model evaluation functionality."""
@@ -164,8 +164,8 @@ def test_evaluate_model_invalid_data():
 ## Project Structure
 
 ```
-lmmvibes/
-├── lmmvibes/           # Main package
+stringsight/
+├── stringsight/           # Main package
 │   ├── __init__.py
 │   ├── evaluation.py   # Core evaluation functions
 │   ├── data.py         # Data loading and processing
@@ -185,7 +185,7 @@ lmmvibes/
 
 To add a new evaluation metric:
 
-1. Create the metric class in `lmmvibes/metrics.py`
+1. Create the metric class in `stringsight/metrics.py`
 2. Inherit from the `Metric` base class
 3. Implement the `compute` method
 4. Add tests in `tests/test_metrics.py`
@@ -195,7 +195,7 @@ To add a new evaluation metric:
 
 To add support for new data formats:
 
-1. Add format detection in `lmmvibes/data.py`
+1. Add format detection in `stringsight/data.py`
 2. Implement loading/saving functions
 3. Add validation logic
 4. Write tests
@@ -205,7 +205,7 @@ To add support for new data formats:
 
 To add new visualization types:
 
-1. Add plotting functions in `lmmvibes/visualization.py`
+1. Add plotting functions in `stringsight/visualization.py`
 2. Follow the existing API patterns
 3. Add configuration options
 4. Write tests

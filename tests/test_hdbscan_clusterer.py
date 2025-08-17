@@ -2,8 +2,8 @@ import pytest
 import pathlib
 import pandas as pd
 
-from lmmvibes.clusterers.hdbscan import HDBSCANClusterer
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.clusterers.hdbscan import HDBSCANClusterer
+from stringsightght.core.data_objects import PropertyDataset
 
 
 DATASET_PATH = pathlib.Path("tests/outputs/arena_first50_properties.json")

@@ -13,9 +13,9 @@ import tempfile
 import json
 
 # Import the metrics classes
-from lmmvibes.metrics.single_model import SingleModelMetrics
-from lmmvibes.metrics.side_by_side import SideBySideMetrics
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight.metrics.single_model import SingleModelMetrics
+from stringsight.metrics.side_by_side import SideBySideMetrics
+from stringsight.core.data_objects import PropertyDataset
 
 
 def create_synthetic_single_model_data():

@@ -24,13 +24,13 @@ pytest tests/test_evaluation.py::test_evaluate_model_basic
 
 ```bash
 # Run with coverage report
-pytest --cov=lmmvibes
+pytest --cov=stringsight
 
 # Generate HTML coverage report
-pytest --cov=lmmvibes --cov-report=html
+pytest --cov=stringsight --cov-report=html
 
 # Generate XML coverage report (for CI)
-pytest --cov=lmmvibes --cov-report=xml
+pytest --cov=stringsight --cov-report=xml
 ```
 
 ### Test Categories
@@ -55,7 +55,7 @@ pytest -m "not slow"
 
 ```python
 import pytest
-from lmmvibes.evaluation import evaluate_model
+from stringsight.evaluation import evaluate_model
 
 class TestEvaluation:
     """Test suite for evaluation functionality."""
@@ -121,7 +121,7 @@ from unittest.mock import patch, MagicMock
 
 def test_external_api_call():
     """Test function that calls external API."""
-    with patch('lmmvibes.external_api.call_api') as mock_api:
+    with patch('stringsight.external_api.call_api') as mock_api:
         mock_api.return_value = {"result": "success"}
         
         # Your test code here
@@ -140,7 +140,7 @@ Test individual functions and classes in isolation.
 ```python
 def test_metric_computation():
     """Test metric computation logic."""
-    from lmmvibes.metrics import AccuracyMetric
+    from stringsight.metrics import AccuracyMetric
     
     metric = AccuracyMetric()
     predictions = ["4", "6", "8"]
@@ -341,11 +341,11 @@ def temp_dir():
 def setup_test_environment():
     """Set up test environment."""
     # Set test environment variables
-    os.environ["LMMVIBES_TESTING"] = "true"
+    os.environ["stringsight_TESTING"] = "true"
     yield
     # Cleanup
-    if "LMMVIBES_TESTING" in os.environ:
-        del os.environ["LMMVIBES_TESTING"]
+    if "stringsight_TESTING" in os.environ:
+        del os.environ["stringsight_TESTING"]
 ```
 
 ## Continuous Integration
@@ -376,7 +376,7 @@ jobs:
     
     - name: Run tests
       run: |
-        pytest --cov=lmmvibes --cov-report=xml
+        pytest --cov=stringsight --cov-report=xml
     
     - name: Upload coverage
       uses: codecov/codecov-action@v3

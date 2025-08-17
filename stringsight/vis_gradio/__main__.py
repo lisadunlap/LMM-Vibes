@@ -1,7 +1,7 @@
 """
 Module launcher for LMM-Vibes Gradio visualization.
 
-This allows running: python -m lmmvibes.vis_gradio
+This allows running: python -m stringsight.vis_gradio
 """
 
 from .launcher import main

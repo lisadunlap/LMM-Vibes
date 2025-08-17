@@ -76,7 +76,7 @@ class HierarchicalClusterer(PipelineStage, LoggingMixin, TimingMixin, WandbMixin
             return data
 
         try:
-            from lmmvibes.clusterers.hierarchical_clustering import hierarchical_cluster_categories
+            from stringsight.clusterers.hierarchical_clustering import hierarchical_cluster_categories
         except ImportError:
             from .hierarchical_clustering import hierarchical_cluster_categories  # type: ignore
 

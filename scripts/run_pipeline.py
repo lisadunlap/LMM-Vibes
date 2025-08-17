@@ -9,7 +9,7 @@ with optimized parameters.
 import argparse
 import os
 from run_full_pipeline import run_pipeline
-from lmmvibes import compute_metrics_only
+from stringsight import compute_metrics_only
 import pandas as pd
 import json
 
@@ -36,7 +36,7 @@ def main():
                         help="Minimum cluster size (default: 8)")
     parser.add_argument("--max_coarse_clusters", type=int, default=12,
                         help="Maximum number of coarse clusters (default: 12)")
-    parser.add_argument("--max_workers", type=int, default=16,
+    parser.add_argument("--max_workers", type=int, default=64,
                         help="Maximum number of workers (default: 16)")
     
     # Flags

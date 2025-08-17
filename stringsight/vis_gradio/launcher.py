@@ -3,10 +3,10 @@
 CLI launcher for LMM-Vibes Gradio visualization app.
 
 Usage:
-    python -m lmmvibes.vis_gradio.launcher --results_dir path/to/results
+    python -m stringsight.vis_gradio.launcher --results_dir path/to/results
     
     Or directly:
-    python lmmvibes/vis_gradio/launcher.py --results_dir path/to/results
+    python stringsight/vis_gradio/launcher.py --results_dir path/to/results
 """
 
 import argparse
@@ -20,19 +20,19 @@ def main():
         epilog="""
 Examples:
     # Launch with auto-loaded data from a base results directory
-    python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results
+    python -m stringsight.vis_gradio.launcher --results_dir /path/to/results
     
     # Launch with public sharing enabled
-    python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results --share
+    python -m stringsight.vis_gradio.launcher --results_dir /path/to/results --share
     
     # Launch on specific port
-    python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results --port 8080
+    python -m stringsight.vis_gradio.launcher --results_dir /path/to/results --port 8080
     
     # Launch with automatic port selection
-    python -m lmmvibes.vis_gradio.launcher --results_dir /path/to/results --auto_port
+    python -m stringsight.vis_gradio.launcher --results_dir /path/to/results --auto_port
     
     # Launch without auto-loading (manual selection in app)
-    python -m lmmvibes.vis_gradio.launcher
+    python -m stringsight.vis_gradio.launcher
         """
     )
     

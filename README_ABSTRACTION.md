@@ -7,7 +7,7 @@ _A high-level design & user guide for the LMM-Vibes package._
 ## 0. Quick-start (public API)
 
 ```python
-from lmmvibes import explain          # pip install lmmvibes
+from stringsight import explain          # pip install stringsight
 
 clustered_df, model_stats = explain(
     df,                                 # pandas DataFrame with conversation data
@@ -50,7 +50,7 @@ That's it—no pipeline objects, no loaders—just vibes.
 
 ---
 
-## 2. Core data objects (`lmmvibes.core`)
+## 2. Core data objects (`stringsight.core`)
 
 The core data objects define the data contract that flows between pipeline stages:
 
@@ -78,7 +78,7 @@ class Property:
     impact: Optional[str] = None  # "High", "Medium", "Low"
     reason: Optional[str] = None
     evidence: Optional[str] = None
-    user_preference_direction: Optional[str] = None # Capability-focused|Experience-focused|Neutral|Negative
+    behavior_type: Optional[str] = None # Positive|Negative (non-critical)|Negative (critical)|Style
     raw_response: Optional[str] = None
     contains_errors: Optional[bool] = None
     unexpected_behavior: Optional[bool] = None
@@ -241,10 +241,10 @@ Advanced users can pass:
 
 ## 5. Factory functions and stage configuration
 
-### 5.1 Extractors (`lmmvibes.extractors`)
+### 5.1 Extractors (`stringsight.extractors`)
 
 ```python
-from lmmvibes.extractors import get_extractor, OpenAIExtractor, BatchExtractor
+from stringsight.extractors import get_extractor, OpenAIExtractor, BatchExtractor
 
 # Factory function for automatic extractor selection
 extractor = get_extractor(
@@ -268,10 +268,10 @@ extractor = OpenAIExtractor(
 - `VLLMExtractor` - Uses local models via vLLM
 - `BatchExtractor` - Creates batch files for batch API processing
 
-### 5.2 Post-processors (`lmmvibes.postprocess`)
+### 5.2 Post-processors (`stringsight.postprocess`)
 
 ```python
-from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
+from stringsight.postprocess import LLMJsonParser, PropertyValidator
 
 # Parse raw LLM responses into structured properties
 parser = LLMJsonParser()
@@ -280,10 +280,10 @@ parser = LLMJsonParser()
 validator = PropertyValidator()
 ```
 
-### 5.3 Clusterers (`lmmvibes.clusterers`)
+### 5.3 Clusterers (`stringsight.clusterers`)
 
 ```python
-from lmmvibes.clusterers import get_clusterer
+from stringsight.clusterers import get_clusterer
 
 # Factory function for automatic clusterer selection
 clusterer = get_clusterer(
@@ -300,10 +300,10 @@ clusterer = get_clusterer(
 - `HDBSCANNativeClusterer` - Native HDBSCAN implementation
 - `HierarchicalClusterer` - Traditional hierarchical clustering with LLM-powered naming
 
-### 5.4 Metrics (`lmmvibes.metrics`)
+### 5.4 Metrics (`stringsight.metrics`)
 
 ```python
-from lmmvibes.metrics import get_metrics
+from stringsight.metrics import get_metrics
 
 # Factory function for automatic metrics selection
 metrics = get_metrics(
@@ -321,11 +321,11 @@ metrics = get_metrics(
 ## 6. Pipeline orchestration (advanced use)
 
 ```python
-from lmmvibes.pipeline import Pipeline, PipelineBuilder
-from lmmvibes.extractors import get_extractor
-from lmmvibes.postprocess import LLMJsonParser, PropertyValidator
-from lmmvibes.clusterers import get_clusterer
-from lmmvibes.metrics import get_metrics
+from stringsight.pipeline import Pipeline, PipelineBuilder
+from stringsight.extractors import get_extractor
+from stringsight.postprocess import LLMJsonParser, PropertyValidator
+from stringsight.clusterers import get_clusterer
+from stringsight.metrics import get_metrics
 
 # Method 1: Using PipelineBuilder (recommended)
 builder = PipelineBuilder(name="Custom-Pipeline")
@@ -364,7 +364,7 @@ model_stats = result.model_stats
 The `explain` function automatically determines the appropriate system prompt based on your data:
 
 ```python
-from lmmvibes.prompts import get_default_system_prompt
+from stringsight.prompts import get_default_system_prompt
 
 # Auto-detection based on method and data format
 system_prompt = get_default_system_prompt(
@@ -404,7 +404,7 @@ These filenames are **stable** so downstream notebooks and dashboards can rely o
 ## 9. Package layout
 
 ```
-lmmvibes/
+stringsight/
 │
 ├─ core/                    # data objects & stage base classes
 │  ├─ __init__.py
@@ -459,7 +459,7 @@ The package ships with a zero-config **Streamlit** app that lets you *browse clu
 
 ```bash
 # View clusters, examples, and metrics
-streamlit run lmmvibes/viz/interactive_app.py -- --dataset results/clustered_results.parquet
+streamlit run stringsight/viz/interactive_app.py -- --dataset results/clustered_results.parquet
 ```
 
 Key features:
@@ -489,7 +489,7 @@ clustered_df, model_stats = explain(
 ### 11.2 Custom pipelines
 
 ```python
-from lmmvibes import explain_with_custom_pipeline
+from stringsight import explain_with_custom_pipeline
 
 # Use a completely custom pipeline
 clustered_df, model_stats = explain_with_custom_pipeline(
@@ -502,7 +502,7 @@ clustered_df, model_stats = explain_with_custom_pipeline(
 ### 11.3 Metrics-only computation
 
 ```python
-from lmmvibes import compute_metrics_only
+from stringsight import compute_metrics_only
 
 # Recompute metrics on existing pipeline results
 clustered_df, model_stats = compute_metrics_only(
@@ -515,7 +515,7 @@ clustered_df, model_stats = compute_metrics_only(
 ### 11.4 Convenience functions
 
 ```python
-from lmmvibes import explain_side_by_side, explain_single_model
+from stringsight import explain_side_by_side, explain_single_model
 
 # Convenience functions for common use cases
 clustered_df, model_stats = explain_side_by_side(df, min_cluster_size=20)
@@ -558,7 +558,7 @@ All new stages become instantly available to `explain` via factory functions or 
 * Auto-detection of system prompts based on data format
 * Comprehensive output file generation
 * Tests: extraction → parsing → clustering → metrics integration
-* **Interactive Streamlit viewer** (`lmmvibes.viz.interactive_app`)
+* **Interactive Streamlit viewer** (`stringsight.viz.interactive_app`)
 * Caching support for expensive operations
 * Custom pipeline support
 * Metrics-only computation mode
@@ -568,10 +568,10 @@ All new stages become instantly available to `explain` via factory functions or 
 
 | Component | Source file | Target module |
 |-----------|-------------|---------------|
-| Native / hierarchical clustering | `clustering/hierarchical_clustering.py` | `lmmvibes.clusterers.hdbscan_native_hierarchical` |
-| Batch & vLLM extractors | `generate_differences.py` / `vllm` | `lmmvibes.extractors.batch`, `vllm` |
-| Data-loader helpers | `data_loader.py` | `lmmvibes.datasets.*` (arena, webdev, etc.) |
-| CLI + YAML runner | n/a | `lmmvibes.cli` |
+| Native / hierarchical clustering | `clustering/hierarchical_clustering.py` | `stringsight.clusterers.hdbscan_native_hierarchical` |
+| Batch & vLLM extractors | `generate_differences.py` / `vllm` | `stringsight.extractors.batch`, `vllm` |
+| Data-loader helpers | `data_loader.py` | `stringsight.datasets.*` (arena, webdev, etc.) |
+| CLI + YAML runner | n/a | `stringsight.cli` |
 | Comprehensive test suite | n/a | `tests/` |
 
 Nice-to-have polish after migration:

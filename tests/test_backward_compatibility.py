@@ -11,8 +11,8 @@ import tempfile
 import json
 
 # Import the metrics classes
-from lmmvibes.metrics.single_model import SingleModelMetrics
-from lmmvibes.core.data_objects import PropertyDataset, ModelStats
+from stringsight.metrics.single_model import SingleModelMetrics
+from stringsight.core.data_objects import PropertyDataset, ModelStats
 
 
 def create_minimal_test_data():

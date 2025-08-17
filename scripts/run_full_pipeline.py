@@ -14,8 +14,8 @@ from pathlib import Path
 import time
 from datetime import datetime
 
-from lmmvibes import explain
-from lmmvibes.core.data_objects import PropertyDataset
+from stringsight import explain
+from stringsight.core.data_objects import PropertyDataset
 
 
 def load_dataset(data_path, method="single_model"):
