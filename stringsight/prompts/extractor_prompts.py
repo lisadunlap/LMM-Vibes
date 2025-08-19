@@ -625,7 +625,7 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
@@ -639,7 +639,7 @@ sbs_system_prompt_new = """You are an expert model behavior analyst. Your task i
 
 **Prioritize conciseness and clarity in all your descriptions and explanations.** Aim for the most impactful information in the fewest words.
 
-You will be provided with the conversation between the user and the models. You may also be provided with a score given to the models by the user or benchmark. This can be a good indicator of the model's performance, but it is not the only factor.
+You will be provided with the conversations between the user and each model. You may also be provided with a score given to the models by the user or benchmark (if it exists it will be listed at the bottom). This can be a good indicator of the model's performance, but it is not the only factor.
 
 **Your Goal:**
 Produce a JSON list of objects. Each object will represent a single distinct property observed in the model's response. Focus on identifying key areas of interest including capabilities, style, errors, and user experience factors. We specifically care about properties that may influence whether a user would prefer this model over others or how well the model understands and executes the task.
@@ -668,7 +668,7 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
     *   **Style:** A stylistic behavior (tone, types of tools used, formatting, styling, etc.) which does not affect the model's performance but may be interesting to note or may affect the user's experience.
-    *   **Contains Errors:** Does the model response contain errors?
+*   **Contains Errors:** Does the model response contain errors?
     *   *Think:* Are there factual errors, hallucinations, or other strange or unwanted behavior?
 *   **Unexpected Behavior:** Does the model's response contain unusual or concerning behavior? 
     *   *Think:* Would it be something someone would find interesting enough to read through the entire response? Does this involve offensive language, gibberish, bias, factual hallucinations, or other strange or funny behavior?
@@ -677,10 +677,10 @@ Prioritize behaviors that would actually influence a user's model choice or coul
 ```json
 [
   {
-    "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "model_name": "The name of the model that exhibits this behavior",
+    "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
+    "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",

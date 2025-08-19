@@ -294,59 +294,37 @@ def convert_to_new_oai_format(row):
         content = msg.get("content")
         
         # Handle different content types
+        new_message = {"role": role, "content": {}}
+        
+        # Handle content
         if content is None:
-            # For None content, check if there are tool_calls
-            if "tool_calls" in msg:
-                # Convert tool_calls to the expected format
-                converted_tool_calls = []
-                for tool_call in msg["tool_calls"]:
-                    converted_tool_call = {
-                        "name": tool_call.get("function", {}).get("name", ""),
-                        "arguments": tool_call.get("function", {}).get("arguments", ""),
-                        "id": tool_call.get("id", ""),
-                        "type": tool_call.get("type", "")
-                    }
-                    # Add any other keys from the original tool_call
-                    for key, value in tool_call.items():
-                        if key not in ["function", "id", "type"]:
-                            converted_tool_call[key] = value
-                    converted_tool_calls.append(converted_tool_call)
-                
-                new_message = {
-                    "role": role,
-                    "content": {
-                        "tool_calls": converted_tool_calls
-                    }
-                }
-            else:
-                new_message = {
-                    "role": role,
-                    "content": {
-                        "text": ""
-                    }
-                }
+            new_message["content"]["text"] = ""
         elif isinstance(content, str):
-            # String content goes in text field
-            new_message = {
-                "role": role,
-                "content": {
-                    "text": content
-                }
-            }
+            new_message["content"]["text"] = content
         elif isinstance(content, dict):
-            # Dictionary content - preserve as is but ensure it's in content field
-            new_message = {
-                "role": role,
-                "content": content
-            }
+            # Dictionary content - merge into content field
+            new_message["content"].update(content)
         else:
             # Other types convert to string
-            new_message = {
-                "role": role,
-                "content": {
-                    "text": str(content)
+            new_message["content"]["text"] = str(content)
+        
+        # Handle tool_calls if present (regardless of content type)
+        if "tool_calls" in msg and msg["tool_calls"]:
+            converted_tool_calls = []
+            for tool_call in msg["tool_calls"]:
+                converted_tool_call = {
+                    "name": tool_call.get("function", {}).get("name", ""),
+                    "arguments": tool_call.get("function", {}).get("arguments", ""),
+                    "id": tool_call.get("id", ""),
+                    "type": tool_call.get("type", "")
                 }
-            }
+                # Add any other keys from the original tool_call
+                for key, value in tool_call.items():
+                    if key not in ["function", "id", "type"]:
+                        converted_tool_call[key] = value
+                converted_tool_calls.append(converted_tool_call)
+            
+            new_message["content"]["tool_calls"] = converted_tool_calls
         
         # Add optional metadata fields
         if "name" in msg:
@@ -356,9 +334,9 @@ def convert_to_new_oai_format(row):
         if "tool_call_id" in msg:
             new_message["tool_call_id"] = msg["tool_call_id"]
         
-        # Add any other keys that might be present
+        # Add any other keys that might be present (excluding tool_calls since we handle it separately)
         for key, value in msg.items():
-            if key not in ["role", "content", "name", "id", "tool_call_id"]:
+            if key not in ["role", "content", "name", "id", "tool_call_id", "tool_calls"]:
                 new_message[key] = value
         
         messages.append(new_message)
@@ -429,6 +407,57 @@ def process_data(file: str, incorrect_only: bool = False) -> list[dict]:
     
     return data_gpt
 
+def balance_dataset_by_task_trials(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """
+    Balance datasets by ensuring each task_id has the same number of trials from each model.
+    For each task_id, samples the same trials (0,1,2,3...) from both models.
+    """
+    print(f"Initial GPT-4o conversations: {len(df1)}")
+    print(f"Initial Claude conversations: {len(df2)}")
+    
+    # Get unique task_ids from both datasets
+    gpt_task_ids = set(df1['task_id'].unique())
+    claude_task_ids = set(df2['task_id'].unique())
+    common_task_ids = gpt_task_ids.intersection(claude_task_ids)
+    
+    print(f"GPT-4o unique task_ids: {len(gpt_task_ids)}")
+    print(f"Claude unique task_ids: {len(claude_task_ids)}")
+    print(f"Common task_ids: {len(common_task_ids)}")
+    
+    balanced_dfs = []
+    
+    for task_id in sorted(common_task_ids):
+        # Get data for this task_id from both models
+        gpt_task_data = df1[df1['task_id'] == task_id]
+        claude_task_data = df2[df2['task_id'] == task_id]
+        
+        # Get available trials for each model
+        gpt_trials = set(gpt_task_data['trial'].unique())
+        claude_trials = set(claude_task_data['trial'].unique())
+        common_trials = gpt_trials.intersection(claude_trials)
+        
+        if not common_trials:
+            print(f"Warning: No common trials for task_id {task_id}")
+            continue
+            
+        # Sample the same trials from both models
+        for trial in sorted(common_trials):
+            gpt_trial_data = gpt_task_data[gpt_task_data['trial'] == trial]
+            claude_trial_data = claude_task_data[claude_task_data['trial'] == trial]
+            
+            if len(gpt_trial_data) > 0 and len(claude_trial_data) > 0:
+                balanced_dfs.append(gpt_trial_data.iloc[0])  # Take first row if multiple
+                balanced_dfs.append(claude_trial_data.iloc[0])  # Take first row if multiple
+    
+    balanced_df = pd.DataFrame(balanced_dfs)
+    
+    print(f"Balanced dataset size: {len(balanced_df)}")
+    print("Model distribution:", balanced_df['model'].value_counts().to_dict())
+    
+    # Show task_id distribution
+    task_counts = balanced_df.groupby(['task_id', 'model']).size().unstack(fill_value=0)
+    
+    return balanced_df
 
 
 def process_airline_data(incorrect_only: bool = False) -> list[dict]:
@@ -436,14 +465,14 @@ def process_airline_data(incorrect_only: bool = False) -> list[dict]:
     df1["model"] = "gpt-4o"
     df2 = process_data("./data/taubench/sonnet-35-new-airline.json", incorrect_only)
     df2["model"] = "claude-sonnet-35"
-    return pd.concat([df1, df2])
+    return balance_dataset_by_task_trials(df1, df2)
 
 def process_retail_data(incorrect_only: bool = False) -> list[dict]:
     df1 = process_data("./data/taubench/gpt-4o-retail.json", incorrect_only)
     df1["model"] = "gpt-4o"
     df2 = process_data("./data/taubench/sonnet-35-new-retail.json", incorrect_only)
     df2["model"] = "claude-sonnet-35"
-    return pd.concat([df1, df2])
+    return balance_dataset_by_task_trials(df1, df2)
 
 airline_data = process_airline_data()
 print(f"Airline data: {len(airline_data)}")

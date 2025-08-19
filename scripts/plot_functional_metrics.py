@@ -512,11 +512,6 @@ def main():
     # - Simple bar plots
     # =============================================================================
     
-    # Model counts
-    plot_bar_with_ci(model_df, 'model', 'size', 'Conversation Count by Model',
-                    output_dir / 'per_model_counts.png',
-                    wandb_key='per_model/counts' if args.log_to_wandb else None)
-    
     # Model quality scores (for each quality metric)  
     for metric in quality_metrics:
         quality_col = f'quality_{metric}'

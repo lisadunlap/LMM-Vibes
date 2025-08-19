@@ -112,6 +112,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         # ------------------------------------------------------------------
         user_messages: List[str] = []
         for conv in data.conversations:
+            print(self.prompt_builder(conv))
             user_messages.append(self.prompt_builder(conv))
 
         # ------------------------------------------------------------------
@@ -371,11 +372,13 @@ class OpenAIExtractor_OAI_Format(OpenAIExtractor):
             if not scores:
                 return (
                     f"# {model_a} conversation:\n {response_a}\n\n"
+                    f"--------------------------------\n"
                     f"# {model_b} conversation:\n {response_b}"
                 )
             else:
                 return (
                     f"# {model_a} conversation:\n {response_a}\n\n"
+                    f"--------------------------------\n"
                     f"# {model_b} conversation:\n {response_b}\n\n"
                     f"# Scores:\n {scores}"
                 )

@@ -115,7 +115,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         
         for i, row in df.iterrows():
             label = row[column_name]
-            if label != "Outliers":
+            if not (label == "Outliers" or label.startswith("Outliers - ")):
                 labels_to_process.append(label)
                 indices_to_update.append(i)
         

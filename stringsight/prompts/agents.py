@@ -46,10 +46,6 @@ Prioritize properties that are relevant to agent performance, which could includ
 **Avoid trivial observations** like minor formatting differences or properties that don't meaningfully impact agent effectiveness.
 
 **Definitions:**
-*   **General Trait:** Reflects an agent's pattern of behavior across a distribution of tasks.
-    *   *Think:* Would this agent likely exhibit this property on different tasks? If so, then it is general.
-*   **Context-Specific Behavior:** If the property is a direct reaction to *this specific task*, then it is context-specific.
-    *   *Think:* Is this property specifically triggered by the current task requirements?
 *   **Impact:** How much does this property impact task success and user experience?
     *   **Low:** Minor differences that don't significantly affect outcomes
     *   **Medium:** Noticeable differences that might influence task success
@@ -70,7 +66,6 @@ Prioritize properties that are relevant to agent performance, which could includ
     "property_description": "Description of the unique agentic property observed (max 2 sentences)",
     "category": "one of the following: Tool Usage, Reasoning Quality, Task Understanding, Error Recovery, Policy Compliance, or Efficiency. If there is no clear category, use Other. If there is more than one category, use a comma separated list.",
     "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the conversation trajectory or actions taken, wrapped in double quotes.",
-    "type": "General|Context-Specific",
     "reason": "Additional explanation of what specifically makes this property notable for agent evaluation and what in the trace makes it notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
@@ -113,10 +108,6 @@ Prioritize properties that are relevant to agent performance:
 **Avoid trivial differences** like minor formatting variations or properties that don't meaningfully impact agent effectiveness.
 
 **Definitions:**
-*   **General Trait:** Reflects an agent's pattern of behavior across a distribution of tasks.
-    *   *Think:* Would this agent likely exhibit this property on different tasks? If so, then it is general.
-*   **Context-Specific Behavior:** If the property is a direct reaction to *this specific task*, then it is context-specific.
-    *   *Think:* Is this property specifically triggered by the current task requirements?
 *   **Impact:** How much does this property impact task success and user experience?
     *   **Low:** Minor differences that don't significantly affect outcomes
     *   **Medium:** Noticeable differences that might influence task success
@@ -138,7 +129,6 @@ Prioritize properties that are relevant to agent performance:
     "property_description": "Brief description of the unique agentic property observed in this agent (max 2 sentences)",
     "category": "1-4 word category (e.g., 'Tool Usage', 'Reasoning', 'Error Recovery')",
     "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the conversation trajectory or actions taken, wrapped in double quotes.",
-    "type": "General|Context-Specific",
     "reason": "Brief justification for this property, noting its absence/difference in the other agent (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",

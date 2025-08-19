@@ -44,8 +44,6 @@ df = pd.DataFrame({
 # Extract and cluster behavioral properties
 clustered_df, model_stats = explain(
     df,
-    method="single_model",
-    min_cluster_size=10,
     output_dir="results/test"
 )
 
@@ -63,7 +61,6 @@ df = pd.DataFrame({
 clustered_df, model_stats = explain(
     df,
     method="side_by_side",
-    min_cluster_size=10,
     output_dir="results/test"
 )
 ```

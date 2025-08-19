@@ -694,13 +694,6 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
     # - Interactive bar plots
     # =============================================================================
     
-    # Model counts
-    fig = create_interactive_model_plot(
-        model_df, model_cluster_df, 'size', 'Conversation Count by Model'
-    )
-    save_plotly_figure(fig, output_dir / 'per_model_counts',
-                      wandb_key='Plots/per_model/counts' if log_to_wandb else None)
-    
     # Model quality scores (for each quality metric)  
     for metric in quality_metrics:
         quality_col = f'quality_{metric}'

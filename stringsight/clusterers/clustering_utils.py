@@ -14,7 +14,6 @@ from __future__ import annotations
 import concurrent.futures
 import random
 import time
-import threading
 import logging
 from typing import List, Tuple, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -157,59 +156,7 @@ def _get_embeddings(texts: List[str], embedding_model: str, verbose: bool = Fals
 # LLM-based cluster summarisation helpers
 # -----------------------------------------------------------------------------
 
-def _get_llm_cluster_summary(
-    values: List[str],
-    model: str,
-    column_name: str,
-    cluster_type: str,
-    sample_size: int = 50,
-) -> str:
-    """Generate a short human readable summary for a cluster via LLM.
-
-    This is a lightly refactored version of _get_llm_cluster_summary from
-    *hierarchical_clustering.py* with the leading underscore removed to
-    signal its intended public use from the utils module.
-    """
-
-    sampled_vals = values if len(values) <= sample_size else random.sample(values, sample_size)
-    values_text = "\n".join(map(str, sampled_vals))
-
-    # Build request data for caching
-    request_data = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": clustering_systems_prompt},
-            {"role": "user", "content": values_text}
-        ],
-        "max_completion_tokens": 100,
-    }
-
-    # Check cache first
-    cached_response = _cache.get_completion(request_data)
-    if cached_response is not None:
-        content = cached_response["choices"][0]["message"]["content"].strip()
-    else:
-        response = litellm.completion(
-            **request_data,
-            caching=False,  # Disable litellm caching since we're using our own
-        )
-        content = response.choices[0].message.content.strip()
-        
-        # Cache the response
-        response_dict = {
-            "choices": [{
-                "message": {
-                    "content": content
-                }
-            }]
-        }
-        _cache.set_completion(request_data, response_dict)
-
-    if content.startswith(("'", '"')):
-        content = content[1:]
-    if content.endswith(("'", '"')):
-        content = content[:-1]
-    return content
+# _get_llm_cluster_summary function removed - replaced with parallel generate_cluster_summaries
 
 
 def _clean_list_item(text: str) -> str:
@@ -259,7 +206,7 @@ def generate_coarse_labels(
     This function is *pure* w.r.t. its inputs: it never mutates global
     state other than consulting / writing to the LMDB cache.
     """
-    valid_fine_names = [n for n in fine_cluster_names if n != "Outliers"]
+    valid_fine_names = [n for n in fine_cluster_names if not (n == "Outliers" or n.startswith("Outliers - "))]
     if max_coarse_clusters and len(valid_fine_names) > max_coarse_clusters:
         systems_prompt = systems_prompt.format(max_coarse_clusters=max_coarse_clusters)
 
@@ -342,7 +289,7 @@ def llm_coarse_cluster_with_centers(
     systems_prompt: str = deduplication_clustering_systems_prompt,
 ) -> Tuple[Dict[str, str], List[str]]:
     """High-level convenience wrapper that returns both mapping and centres."""
-    valid_fine_names = [n for n in fine_cluster_names if n != "Outliers"]
+    valid_fine_names = [n for n in fine_cluster_names if not (n == "Outliers" or n.startswith("Outliers - "))]
     if not valid_fine_names:
         return {}, ["Outliers"]
 
@@ -375,13 +322,14 @@ def embedding_match(fine_cluster_names, coarse_cluster_names):
     # turn into dictionary of {fine_name: coarse_name}
     return {fine_cluster_names[i]: coarse_cluster_names[j] for i, j in enumerate(fine_to_coarse)}
 
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+# Duplicate imports removed - already imported at top of file
 
 def match_label_names(label_name, label_options):
     """See if label_name is in label_options, not taking into account capitalization or whitespace or punctuation. Return original option if found, otherwise return None"""
     if "outliers" in label_name.lower():
+        # Check if it's a group-specific outlier label
+        if label_name.startswith("Outliers - "):
+            return label_name  # Return the full group-specific label
         return "Outliers"
     label_name_clean = label_name.lower().strip().replace(".", "").replace(",", "").replace("!", "").replace("?", "").replace(":", "").replace(";", "").replace("(", "").replace(")", "").replace("[", "").replace("]", "").replace("{", "").replace("}", "").replace("'", "").replace("\"", "").replace("`", "").replace("~", "").replace("*", "").replace("+", "").replace("-", "").replace("_", "").replace("=", "").replace("|", "").replace("\\", "").replace("/", "").replace("<", "").replace(">", "").replace(" ", "")
     for option in label_options:

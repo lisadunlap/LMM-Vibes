@@ -28,9 +28,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 # Try relative import first, fall back to absolute import
 try:
-    from .clustering_utils import _get_llm_cluster_summary, llm_coarse_cluster_with_centers, _get_embeddings, _setup_embeddings, save_clustered_results, initialize_wandb, load_precomputed_embeddings
+    from .clustering_utils import llm_coarse_cluster_with_centers, _get_embeddings, _setup_embeddings, save_clustered_results, initialize_wandb, load_precomputed_embeddings
 except ImportError:
-    from clustering_utils import _get_llm_cluster_summary, llm_coarse_cluster_with_centers, _get_embeddings, _setup_embeddings, save_clustered_results, initialize_wandb, load_precomputed_embeddings
+    from clustering_utils import llm_coarse_cluster_with_centers, _get_embeddings, _setup_embeddings, save_clustered_results, initialize_wandb, load_precomputed_embeddings
 
 # Import the new modular functions
 try:
@@ -278,6 +278,16 @@ def format_clustering_results(df: pd.DataFrame, column_name: str,
     
     # Create basic mappings
     value_to_cluster = dict(zip(unique_values, cluster_labels))
+    
+    # Ensure cluster_label_map contains -1 key for outliers if needed
+    if -1 in cluster_labels and -1 not in cluster_label_map:
+        # Find any existing outlier labels or use default
+        outlier_labels = [lbl for lbl in cluster_label_map.values() if lbl == "Outliers" or lbl.startswith("Outliers - ")]
+        if outlier_labels:
+            cluster_label_map[-1] = outlier_labels[0]
+        else:
+            cluster_label_map[-1] = "Outliers"
+    
     value_to_label = {v: cluster_label_map[c] for v, c in value_to_cluster.items()}
     
     # Add fine cluster columns
@@ -288,6 +298,16 @@ def format_clustering_results(df: pd.DataFrame, column_name: str,
     if coarse_cluster_data is not None:
         coarse_labels, coarse_label_map = coarse_cluster_data
         value_to_coarse = dict(zip(unique_values, coarse_labels))
+        
+        # Ensure coarse_label_map contains -1 key for outliers if needed
+        if -1 in coarse_labels and -1 not in coarse_label_map:
+            # Find any existing outlier labels or use default
+            outlier_labels = [lbl for lbl in coarse_label_map.values() if lbl == "Outliers" or lbl.startswith("Outliers - ")]
+            if outlier_labels:
+                coarse_label_map[-1] = outlier_labels[0]
+            else:
+                coarse_label_map[-1] = "Outliers"
+        
         value_to_coarse_label = {v: coarse_label_map[c] for v, c in value_to_coarse.items()}
         
         df_copy[f'{column_name}_coarse_cluster_label'] = df_copy[column_name].map(value_to_coarse_label)
@@ -438,6 +458,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         
         if config.verbose:
             print(f"Created {len(outlier_cluster_names)} outlier clusters")
+            print("Outlier cluster names:", outlier_cluster_names)
         
         # -------------------------------------------------------------
         # Merge outlier clusters with fine clusters
@@ -449,7 +470,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         # Create mapping from outlier cluster names to new cluster IDs
         outlier_name_to_id = {}
         for i, name in enumerate(outlier_cluster_names):
-            if name != "Outliers":  # Skip if LLM returned "Outliers" as a cluster name
+            if not (name == "Outliers" or name.startswith("Outliers - ")):  # Skip if LLM returned outlier names
                 outlier_name_to_id[name] = next_cluster_id + i
         
         # Update cluster_labels to assign outlier items to their new clusters
@@ -460,7 +481,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
                 assigned_cluster = outlier_assignments.get(item, "Outliers")
                 if assigned_cluster in outlier_name_to_id:
                     new_cluster_labels[i] = outlier_name_to_id[assigned_cluster]
-                # If assigned_cluster is "Outliers" or not found, keep as -1
+                # If assigned_cluster is "Outliers" or starts with "Outliers - " or not found, keep as -1
         
         cluster_labels = new_cluster_labels
         
@@ -524,7 +545,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         cluster_label_map[cid] = deduped_label
 
     # 2. Build mapping from deduped label → new sequential id
-    unique_dedup_labels = [lbl for lbl in sorted(set(cluster_label_map.values())) if lbl != "Outliers"]
+    unique_dedup_labels = [lbl for lbl in sorted(set(cluster_label_map.values())) if not (lbl == "Outliers" or lbl.startswith("Outliers - "))]
     label_to_new_id = {lbl: idx for idx, lbl in enumerate(unique_dedup_labels)}
 
     # 3. Re-assign cluster_labels array so duplicates share the same id
@@ -534,7 +555,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
             new_cluster_labels.append(-1)
         else:
             deduped = cluster_label_map[original_cid]
-            if deduped == "Outliers":
+            if deduped == "Outliers" or deduped.startswith("Outliers - "):
                 new_cluster_labels.append(-1)
             else:
                 new_cluster_labels.append(label_to_new_id[deduped])
@@ -547,7 +568,15 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         cluster_values[cid].append(val)
 
     cluster_label_map = {new_id: lbl for lbl, new_id in label_to_new_id.items()}
-    cluster_label_map[-1] = "Outliers"  # Ensure outliers are properly mapped
+    # Ensure outliers are properly mapped (handle both standard and group-specific outliers)
+    # Find any outlier labels that might exist
+    outlier_labels = [lbl for lbl in cluster_label_map.values() if lbl == "Outliers" or lbl.startswith("Outliers - ")]
+    if outlier_labels:
+        # Use the first outlier label found, or default to "Outliers"
+        cluster_label_map[-1] = outlier_labels[0]
+    else:
+        # If no outlier labels found, add default mapping
+        cluster_label_map[-1] = "Outliers"
 
     # # Step 5: Handle hierarchical clustering if requested
     coarse_cluster_data = None
@@ -555,7 +584,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         if config.verbose:
             print("Generating hierarchical coarse clusters…")
 
-        fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1]
+        fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1 and not (cluster_label_map[c] == "Outliers" or cluster_label_map[c].startswith("Outliers - "))]
         max_coarse_clusters = min(config.max_coarse_clusters, max(1, len(fine_cluster_names) // 2))
 
         # Generate coarse cluster labels
@@ -586,12 +615,14 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         for value, fine_cluster_id in zip(unique_values, cluster_labels):
             if fine_cluster_id == -1:
                 coarse_labels.append(-1)
-                coarse_label_map[-1] = "Outliers"
+                # Use the original outlier label if available, otherwise default to "Outliers"
+                original_outlier_label = cluster_label_map.get(-1, "Outliers")
+                coarse_label_map[-1] = original_outlier_label
             else:
                 fine_name = cluster_label_map[fine_cluster_id]
                 if fine_name in fine_cluster_names:
                     coarse_name = coarse_assignments[fine_name]
-                    if coarse_name == "Outliers":
+                    if coarse_name == "Outliers" or coarse_name.startswith("Outliers - "):
                         coarse_idx = -1
                     else:
                         coarse_idx = coarse_names.index(coarse_name)
@@ -601,7 +632,9 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
                 else:
                     # Handle case where fine cluster name is not in fine_cluster_names
                     coarse_labels.append(-1)
-                    coarse_label_map[-1] = "Outliers"
+                    # Use the original outlier label if available, otherwise default to "Outliers"
+                    original_outlier_label = cluster_label_map.get(-1, "Outliers")
+                    coarse_label_map[-1] = original_outlier_label
         coarse_cluster_data = (coarse_labels, coarse_label_map)
 
     # Step 6: Format results

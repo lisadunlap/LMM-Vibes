@@ -164,13 +164,28 @@ class HDBSCANClusterer(BaseClusterer):
             self.log(
                 f"Assigning cluster {cid} (label '{label}') to Outliers because it has {label_counts[label]} items"
             )
-            df.loc[mask, fine_label_col] = "Outliers"
-            df.loc[mask, fine_id_col] = -1
+            
+            # Check if we're using groupby and assign group-specific outlier labels
+            group_col = getattr(self.config, "groupby_column", None)
+            if group_col is not None and group_col in df.columns:
+                # Assign group-specific outlier labels
+                for group_value in df.loc[mask, group_col].unique():
+                    group_mask = mask & (df[group_col] == group_value)
+                    outlier_label = f"Outliers - {group_value}"
+                    df.loc[group_mask, fine_label_col] = outlier_label
+                    df.loc[group_mask, fine_id_col] = -1
+            else:
+                # Standard outlier assignment
+                df.loc[mask, fine_label_col] = "Outliers"
+                df.loc[mask, fine_id_col] = -1
 
         # 2️⃣  For stratified mode: ensure cluster IDs are unique across partitions
         group_col = getattr(self.config, "groupby_column", None)
         if group_col is not None and group_col in df.columns:
-            non_outlier_mask = df[fine_label_col] != "Outliers"
+            # Handle group-specific outlier labels
+            outlier_mask = df[fine_label_col].str.startswith("Outliers - ") if df[fine_label_col].dtype == 'object' else df[fine_label_col] == "Outliers"
+            non_outlier_mask = ~outlier_mask
+            
             unique_pairs = (
                 df.loc[non_outlier_mask, [group_col, fine_label_col]]
                 .drop_duplicates()
@@ -184,7 +199,7 @@ class HDBSCANClusterer(BaseClusterer):
                 df.loc[pair_mask, fine_id_col] = new_id
 
             # Ensure all outliers keep id -1
-            df.loc[df[fine_label_col] == "Outliers", fine_id_col] = -1
+            df.loc[outlier_mask, fine_id_col] = -1
 
         return df
 

@@ -49,7 +49,7 @@ def main():
     parser.add_argument("--clusterer", type=str, default="hdbscan",
                         choices=["hdbscan", "hierarchical", "dummy"],
                         help="Clustering method to use (default: hdbscan)")
-    parser.add_argument("--groupby_column", type=str, default=None,
+    parser.add_argument("--groupby_column", type=str, default='behavior_type',
                         help="Column to group by to enable stratified clustering (effective only for hdbscan)")
     parser.add_argument("--assign_outliers", action="store_true",
                         help="Assign outliers to clusters when supported")
