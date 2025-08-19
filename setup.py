@@ -10,7 +10,7 @@ with open("README_ABSTRACTION.md", "r", encoding="utf-8") as fh:
 setup(
     name="stringsight",
     version="0.1.0",
-    author="StringSight Team",
+    author="Lisa Dunlap",
     description="Explain Large Language Model Behavior Patterns",
     long_description=long_description,
     long_description_content_type="text/markdown",

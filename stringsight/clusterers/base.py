@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import os
 import pandas as pd
+import litellm
+from ..core.llm_utils import parallel_completions, LLMConfig
 
 from ..core.stage import PipelineStage
 from ..core.data_objects import PropertyDataset, Cluster
@@ -52,6 +54,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         use_wandb: bool = False,
         wandb_project: Optional[str] = None,
         hierarchical: bool = False,
+        prettify_labels: bool = True,
         config: Optional[ClusterConfig] = None,
         **kwargs: Any,
     ) -> None:
@@ -103,7 +106,47 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         """
         ...
 
-    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
+    @staticmethod
+    def prettify_labels(df: pd.DataFrame, column_name: str) -> pd.DataFrame:
+        """Use an LLM to highlight key parts of cluster names in bold for improved readability."""
+        # Filter out outliers and collect labels to process
+        labels_to_process = []
+        indices_to_update = []
+        
+        for i, row in df.iterrows():
+            label = row[column_name]
+            if label != "Outliers":
+                labels_to_process.append(label)
+                indices_to_update.append(i)
+        
+        if not labels_to_process:
+            return df
+            
+        system_prompt = """The following is a property of a model response. To improve readability of the property for a user, please highlight the key parts of the property in bold (in markdown format). 
+            
+Do not bold the entire property, only the minimal set of words that can be used to understand the property (for instance, "The model" or " The agent" are not key parts, but "uses deductive reasoning" or "contains factual inaccuracies" are key parts).
+            
+Think: what would a user need to know to understand the property? What does not need to be emphasized? Remeber that a string with a lot of bolded words can be visually overwhelming.
+
+Do not include any other text in your response."""
+
+        # Process labels in parallel with caching
+        prettified_labels = parallel_completions(
+            labels_to_process,
+            model="gpt-4.1-mini",
+            system_prompt=system_prompt,
+            max_workers=min(10, len(labels_to_process)),
+            show_progress=True,
+            progress_desc="Prettifying cluster labels"
+        )
+        
+        # Update the dataframe with prettified labels
+        for idx, prettified_label in zip(indices_to_update, prettified_labels):
+            df.at[idx, column_name] = prettified_label
+            
+        return df
+
+    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str, prettify_labels: bool = True) -> pd.DataFrame:
         """Optional hook to modify the clustered DataFrame.
 
         Called after `cluster` and before converting to `Cluster` objects.
@@ -117,12 +160,16 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
             The clustered DataFrame produced by `cluster`.
         column_name:
             The feature column used for clustering.
+        prettify_labels:
+            Whether to use an LLM to highlight key parts of cluster names in bold for improved readability.
 
         Returns
         -------
         pd.DataFrame
             The potentially modified DataFrame. Default: return `df` unchanged.
         """
+        if prettify_labels:
+            df = self.prettify_labels(df, column_name)
         return df
 
     def get_config(self) -> ClusterConfig:

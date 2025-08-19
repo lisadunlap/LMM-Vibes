@@ -425,7 +425,7 @@ Do not include generic properties like "more concise." Focus on meaningful diffe
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
-    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
@@ -489,7 +489,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
-    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
@@ -505,7 +505,7 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -513,7 +513,6 @@ Prioritize properties that would actually influence a user's model choice or cou
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
   }
-]
 ```"""
 
 single_model_system_prompt = """You are an expert model behavior analyst. Your task is to meticulously analyze a single model response to a given user prompt and identify unique qualitative properties, failure modes, and interesting behaviors. Focus on properties that would be meaningful to users when evaluating model quality and capabilities.
@@ -552,7 +551,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
-    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
@@ -568,7 +567,7 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "1-4 word category",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
     "type": "General|Context-Specific",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
@@ -610,7 +609,7 @@ Prioritize properties that would actually influence a user's model choice or cou
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
-    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
@@ -626,7 +625,7 @@ Prioritize properties that would actually influence a user's model choice or cou
   {
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
@@ -664,7 +663,7 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
     *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
-    *   *Think:* Would someone view this as a positive, negative, or neutral behavior?
+    *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
     *   **Negative (non-critical):** A negative behavior that should be fixed but is not the direct cause of failure.
     *   **Negative (critical):** A critical error that is the direct cause of task failure. 
@@ -681,7 +680,7 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "model_name": "The name of the model that exhibits this behavior",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
-    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes.",
+    "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
     "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",

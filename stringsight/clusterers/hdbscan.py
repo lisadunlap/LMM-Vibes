@@ -147,11 +147,13 @@ class HDBSCANClusterer(BaseClusterer):
 
         return clustered_df
 
-    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
+    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str, prettify_labels: bool = True) -> pd.DataFrame:
         """Standard post-processing plus stratified ID re-assignment when needed."""
 
         fine_label_col = f"{column_name}_fine_cluster_label"
         fine_id_col = f"{column_name}_fine_cluster_id"
+
+        df = super().postprocess_clustered_df(df, fine_label_col, prettify_labels)
 
         # 1️⃣  Move tiny clusters to Outliers
         label_counts = df[fine_label_col].value_counts()

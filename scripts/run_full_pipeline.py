@@ -55,7 +55,7 @@ def run_pipeline(
     max_coarse_clusters=30,
     embedding_model="openai",
     hierarchical=True,
-    max_workers=4,
+    max_workers=64,
     use_wandb=False,
     verbose=True,
     sample_size=None,

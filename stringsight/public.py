@@ -28,6 +28,7 @@ def explain(
     clusterer: Union[str, "PipelineStage"] = "hdbscan",
     min_cluster_size: int = 30,
     embedding_model: str = "openai",
+    prettify_labels: bool = True,
     hierarchical: bool = False,
     assign_outliers: bool = False,
     max_coarse_clusters: int = 25,

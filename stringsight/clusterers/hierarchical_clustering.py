@@ -14,6 +14,8 @@ import pandas as pd
 import numpy as np
 import time
 from collections import defaultdict
+from ..core.llm_utils import parallel_completions
+import random
 import os
 import pickle
 import argparse
@@ -202,16 +204,51 @@ def generate_cluster_summaries(cluster_values: Dict[int, List], config: ClusterC
     if config.verbose:
         print(f"Generating LLM-based cluster summaries for {cluster_type} clusters...")
     
-    cluster_label_map = {}
+    # Prepare data for parallel processing
+    cluster_ids = []
+    messages = []
+    
     for cluster_id, values in cluster_values.items():
         if cluster_id == -1:
-            cluster_label_map[cluster_id] = "Outliers"
-            continue
+            continue  # Handle outliers separately
             
-        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, cluster_type, 50)
-        cluster_label_map[cluster_id] = summary
+        cluster_ids.append(cluster_id)
+        
+        # Sample values and create prompt (same logic as _get_llm_cluster_summary)
+        sampled_vals = values if len(values) <= 50 else random.sample(values, 50)
+        values_text = "\n".join(map(str, sampled_vals))
+        messages.append(values_text)
+    
+    cluster_label_map = {-1: "Outliers"}  # Handle outliers
+    
+    if not messages:
+        return cluster_label_map
+    
+    # Get the system prompt
+    from .clustering_prompts import clustering_systems_prompt
+    
+    # Parallel LLM calls!
+    summaries = parallel_completions(
+        messages,
+        model=config.summary_model,
+        system_prompt=clustering_systems_prompt,
+        max_workers=10,
+        show_progress=config.verbose,
+        progress_desc=f"Generating {cluster_type} summaries"
+    )
+    
+    # Build result map
+    for cluster_id, summary in zip(cluster_ids, summaries):
+        # Clean up summary (same logic as _get_llm_cluster_summary)
+        content = summary.strip()
+        if content.startswith(("'", '"')):
+            content = content[1:]
+        if content.endswith(("'", '"')):
+            content = content[:-1]
+        cluster_label_map[cluster_id] = content
+        
         if config.verbose:
-            print(f"    Cluster {cluster_id}: {summary} ({len(values)} items)")
+            print(f"    Cluster {cluster_id}: {content} ({len(cluster_values[cluster_id])} items)")
     
     return cluster_label_map
 
@@ -401,7 +438,6 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         
         if config.verbose:
             print(f"Created {len(outlier_cluster_names)} outlier clusters")
-            print("Outlier cluster names:", outlier_cluster_names)
         
         # -------------------------------------------------------------
         # Merge outlier clusters with fine clusters
@@ -642,31 +678,31 @@ def hierarchical_cluster_categories(df, column_name, config=None, **kwargs):
     for value, cluster_id in zip(unique_values, fine_clusters):
         fine_cluster_values[cluster_id].append(value)
     
-    # Generate coarse cluster summaries
-    coarse_label_map = {}
-    for cluster_id, values in coarse_cluster_values.items():
-        if len(values) < 5:  # Skip very small clusters
-            coarse_label_map[cluster_id] = f"coarse_cluster_{cluster_id}"
-            continue
-            
-        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, "broad", 50)
-        coarse_label_map[cluster_id] = summary
-        
-        if config.verbose:
-            print(f"    Coarse cluster {cluster_id}: {summary} ({len(values)} items)")
+    # Generate coarse cluster summaries (parallel)
+    coarse_label_map = generate_cluster_summaries(
+        coarse_cluster_values, 
+        config, 
+        column_name, 
+        cluster_type="broad"
+    )
     
-    # Generate fine cluster summaries
-    fine_label_map = {}
+    # Handle small clusters that weren't processed
+    for cluster_id, values in coarse_cluster_values.items():
+        if len(values) < 5 and cluster_id not in coarse_label_map:
+            coarse_label_map[cluster_id] = f"coarse_cluster_{cluster_id}"
+    
+    # Generate fine cluster summaries (parallel)
+    fine_label_map = generate_cluster_summaries(
+        fine_cluster_values, 
+        config, 
+        column_name, 
+        cluster_type="specific"
+    )
+    
+    # Handle small clusters that weren't processed  
     for cluster_id, values in fine_cluster_values.items():
-        if len(values) < 3:  # Skip very small clusters
+        if len(values) < 3 and cluster_id not in fine_label_map:
             fine_label_map[cluster_id] = f"fine_cluster_{cluster_id}"
-            continue
-            
-        summary = _get_llm_cluster_summary(values, config.summary_model, column_name, "specific", 30)
-        fine_label_map[cluster_id] = summary
-        
-        if config.verbose and cluster_id % 5 == 0:  # Print progress for every 5th cluster
-            print(f"    Fine cluster {cluster_id}: {summary} ({len(values)} items)")
     
     value_to_coarse_label = {v: coarse_label_map[c] for v, c in value_to_coarse_id.items()}
     value_to_fine_label = {v: fine_label_map[c] for v, c in value_to_fine_id.items()}
