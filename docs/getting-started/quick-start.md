@@ -111,7 +111,7 @@ Launch the Gradio web interface to explore your results interactively:
 
 ```bash
 # View clusters, examples, and metrics in a web interface
-python -m stringsight.vis_gradio.launcher --share
+python -m stringsight.dashboard.launcher --share
 ```
 
 This opens a web interface where you can:

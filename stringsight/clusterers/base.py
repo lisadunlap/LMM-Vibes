@@ -54,7 +54,7 @@ class BaseClusterer(LoggingMixin, TimingMixin, WandbMixin, PipelineStage, ABC):
         use_wandb: bool = False,
         wandb_project: Optional[str] = None,
         hierarchical: bool = False,
-        prettify_labels: bool = True,
+        prettify_labels: bool = False,
         config: Optional[ClusterConfig] = None,
         **kwargs: Any,
     ) -> None:
@@ -146,7 +146,7 @@ Do not include any other text in your response."""
             
         return df
 
-    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str, prettify_labels: bool = True) -> pd.DataFrame:
+    def postprocess_clustered_df(self, df: pd.DataFrame, column_name: str, prettify_labels: bool = False) -> pd.DataFrame:
         """Optional hook to modify the clustered DataFrame.
 
         Called after `cluster` and before converting to `Cluster` objects.

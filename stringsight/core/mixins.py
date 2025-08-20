@@ -9,16 +9,17 @@ import logging
 from typing import Any, Dict, Optional
 from functools import wraps
 from tqdm import tqdm
-import wandb
 
 
 class LoggingMixin:
     """Mixin for consistent logging across pipeline stages."""
     
-    def __init__(self, *, verbose: bool = True, **_):
+    def __init__(self, *, verbose: bool = True, **kwargs):
         self.verbose = verbose
         self.logger = logging.getLogger(self.__class__.__name__)
-        super().__init__()
+        # Forward all remaining kwargs so downstream mixins (e.g., WandbMixin)
+        # receive configuration such as `use_wandb`, `wandb_project`, etc.
+        super().__init__(**kwargs)
         
     def log(self, message: str, level: str = "info") -> None:
         """Log a message if verbose mode is enabled."""
@@ -66,10 +67,11 @@ class CacheMixin:
 class ErrorHandlingMixin:
     """Mixin for consistent error handling across pipeline stages."""
     
-    def __init__(self, *, fail_fast: bool = False, **_):
+    def __init__(self, *, fail_fast: bool = False, **kwargs):
         self.fail_fast = fail_fast
         self.errors    = []
-        super().__init__()
+        # Forward remaining kwargs (e.g., wandb flags) to next mixin
+        super().__init__(**kwargs)
     
     def handle_error(self, error: Exception, context: str = "") -> None:
         """Handle an error based on the fail_fast setting."""
@@ -111,23 +113,24 @@ class WandbMixin:
         if not self.use_wandb:
             return
             
-        # Check if wandb is already initialized globally
-        if wandb.run is not None:
-            # Mark that wandb is available for this stage
-            self._wandb_ok = True
-            if hasattr(self, 'log'):
-                self.log(f"Using existing wandb run: {wandb.run.name}", level="debug")
-            return
-            
-        # Check if this stage already marked wandb as available
-        if self._wandb_ok:
-            return
-            
-        # Only initialize if no existing run
-        if run_name is None:
-            run_name = f"{self.name}_{int(time.time())}"
-            
         try:
+            import wandb
+            # Check if wandb is already initialized globally
+            if wandb.run is not None:
+                # Mark that wandb is available for this stage
+                self._wandb_ok = True
+                if hasattr(self, 'log'):
+                    self.log(f"Using existing wandb run: {wandb.run.name}", level="debug")
+                return
+                
+            # Check if this stage already marked wandb as available
+            if self._wandb_ok:
+                return
+                
+            # Only initialize if no existing run
+            if run_name is None:
+                run_name = f"{self.name}_{int(time.time())}"
+                
             wandb.init(
                 project=project or self.wandb_project or "lmm-vibes",
                 name=run_name,
@@ -155,49 +158,59 @@ class WandbMixin:
         if not self.use_wandb:
             return
             
-        # Check if wandb is available globally
-        if wandb.run is not None:
-            try:
-                if is_summary:
-                    # Accumulate summary metrics for later logging
-                    self._summary_metrics.update(data)
-                else:
-                    # Log immediately for non-summary data (tables, artifacts, etc.)
-                    wandb.log(data, step=step)
-                # Mark that wandb is working for this stage
-                self._wandb_ok = True
-            except Exception as e:
+        try:
+            import wandb
+            # Check if wandb is available globally
+            if wandb.run is not None:
+                try:
+                    if is_summary:
+                        # Accumulate summary metrics for later logging
+                        self._summary_metrics.update(data)
+                    else:
+                        # Log immediately for non-summary data (tables, artifacts, etc.)
+                        wandb.log(data, step=step)
+                    # Mark that wandb is working for this stage
+                    self._wandb_ok = True
+                except Exception as e:
+                    if hasattr(self, 'log'):
+                        self.log(f"Failed to log to wandb: {e}", level="warning")
+            else:
+                # If no global wandb run, log warning
                 if hasattr(self, 'log'):
-                    self.log(f"Failed to log to wandb: {e}", level="warning")
-        else:
-            # If no global wandb run, log warning
-            if hasattr(self, 'log'):
-                self.log("wandb not initialized, skipping logging", level="warning")
+                    self.log("wandb not initialized, skipping logging", level="warning")
+        except ImportError:
+            # wandb not installed or not available
+            self.use_wandb = False
     
     def log_summary_metrics(self) -> None:
         """Log accumulated summary metrics to wandb run summary."""
         if not self.use_wandb or not self._summary_metrics:
             return
             
-        # Check if wandb is available globally
-        if wandb.run is not None:
-            try:
-                # Log summary metrics to run summary (not as regular metrics)
-                for key, value in self._summary_metrics.items():
-                    wandb.run.summary[key] = value
-                
+        try:
+            import wandb
+            # Check if wandb is available globally
+            if wandb.run is not None:
+                try:
+                    # Log summary metrics to run summary (not as regular metrics)
+                    for key, value in self._summary_metrics.items():
+                        wandb.run.summary[key] = value
+                    
+                    if hasattr(self, 'log'):
+                        self.log(f"Logged {len(self._summary_metrics)} summary metrics to wandb", level="debug")
+                    
+                    # Clear accumulated metrics after logging
+                    self._summary_metrics.clear()
+                    
+                except Exception as e:
+                    if hasattr(self, 'log'):
+                        self.log(f"Failed to log summary metrics to wandb: {e}", level="warning")
+            else:
                 if hasattr(self, 'log'):
-                    self.log(f"Logged {len(self._summary_metrics)} summary metrics to wandb", level="debug")
-                
-                # Clear accumulated metrics after logging
-                self._summary_metrics.clear()
-                
-            except Exception as e:
-                if hasattr(self, 'log'):
-                    self.log(f"Failed to log summary metrics to wandb: {e}", level="warning")
-        else:
-            if hasattr(self, 'log'):
-                self.log("wandb not initialized, skipping summary logging", level="warning")
+                    self.log("wandb not initialized, skipping summary logging", level="warning")
+        except ImportError:
+            # wandb not installed or not available
+            self.use_wandb = False
     
     def get_summary_metrics(self) -> Dict[str, Any]:
         """Get accumulated summary metrics without logging them."""
@@ -212,29 +225,35 @@ class WandbMixin:
         if not self.use_wandb:
             return
             
-        # Check if wandb is available globally
-        if wandb.run is not None:
-            try:
-                artifact = wandb.Artifact(artifact_name, type=artifact_type)
-                artifact.add_file(file_path)
-                wandb.log_artifact(artifact)
-                # Mark that wandb is working for this stage
-                self._wandb_ok = True
-            except Exception as e:
+        try:
+            import wandb
+            # Check if wandb is available globally
+            if wandb.run is not None:
+                try:
+                    artifact = wandb.Artifact(artifact_name, type=artifact_type)
+                    artifact.add_file(file_path)
+                    wandb.log_artifact(artifact)
+                    # Mark that wandb is working for this stage
+                    self._wandb_ok = True
+                except Exception as e:
+                    if hasattr(self, 'log'):
+                        self.log(f"Failed to log artifact to wandb: {e}", level="warning")
+            else:
+                # If no global wandb run, log warning
                 if hasattr(self, 'log'):
-                    self.log(f"Failed to log artifact to wandb: {e}", level="warning")
-        else:
-            # If no global wandb run, log warning
-            if hasattr(self, 'log'):
-                self.log("wandb not initialized, skipping artifact logging", level="warning")
+                    self.log("wandb not initialized, skipping artifact logging", level="warning")
+        except ImportError:
+            # wandb not installed or not available
+            self.use_wandb = False
 
 
 class TimingMixin:
     """Mixin for timing stage execution."""
     
-    def __init__(self, **_):
+    def __init__(self, **kwargs):
         self._start = None
-        super().__init__()
+        # Forward remaining kwargs to next mixin
+        super().__init__(**kwargs)
     
     def start_timer(self) -> None:
         """Start timing the execution."""

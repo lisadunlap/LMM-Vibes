@@ -65,10 +65,10 @@ clustered_df, model_stats = explain(
 )
 ```
 
-### Viewing Results in Gradio
+### Viewing Results in Dashboard
 ```bash
 # View clusters, examples, and metrics
-python -m stringsight.vis_gradio.launcher --share
+python -m stringsight.dashboard.launcher --share
 ```
 
 ## Outputs

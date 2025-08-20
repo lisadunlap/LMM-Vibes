@@ -28,7 +28,7 @@ def explain(
     clusterer: Union[str, "PipelineStage"] = "hdbscan",
     min_cluster_size: int = 30,
     embedding_model: str = "openai",
-    prettify_labels: bool = True,
+    prettify_labels: bool = False,
     hierarchical: bool = False,
     assign_outliers: bool = False,
     max_coarse_clusters: int = 25,
@@ -166,57 +166,70 @@ def explain(
             print(f"   • Model names: {', '.join(sorted(dataset.all_models))}")
         print()
     
+    # 2️⃣  Initialize wandb if enabled (and explicitly disable via env when off)
+    # Ensure environment flag aligns with the provided setting to prevent
+    # accidental logging by submodules that import wandb directly.
+    import os as _os
+    if not use_wandb:
+        _os.environ["WANDB_DISABLED"] = "true"
+    else:
+        _os.environ.pop("WANDB_DISABLED", None)
+
     # 2️⃣  Initialize wandb if enabled
     # Create run name based on input filename if available
     if use_wandb:
-        import wandb
-        import os
-        
-        # Try to get input filename from the DataFrame or use a default
-        input_filename = "unknown_dataset"
-        if hasattr(df, 'name') and df.name:
-            input_filename = df.name
-        elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
-            input_filename = df._metadata['filename']
-        else:
-            # Try to infer from the DataFrame source if it has a path attribute
-            # This is a fallback for when we can't determine the filename
-            input_filename = f"dataset_{len(df)}_rows"
-        
-        # Clean the filename for wandb (remove extension, replace spaces/special chars)
-        if isinstance(input_filename, str):
-            # Remove file extension and clean up the name
-            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
-            # Replace spaces and special characters with underscores
-            input_filename = input_filename.replace(' ', '_').replace('-', '_')
-            # Remove any remaining special characters
-            import re
-            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
-        
-        wandb_run_name = f"{input_filename}_{method}"
-        
-        wandb.init(
-            project=wandb_project or "lmm-vibes",
-            name=wandb_run_name,
-            config={
-                "method": method,
-                "system_prompt": system_prompt,
-                "model_name": model_name,
-                "temperature": temperature,
-                "top_p": top_p,
-                "max_tokens": max_tokens,
-                "max_workers": max_workers,
-                "clusterer": clusterer,
-                "min_cluster_size": min_cluster_size,
-                "embedding_model": embedding_model,
-                "hierarchical": hierarchical,
-                "assign_outliers": assign_outliers,
-                "max_coarse_clusters": max_coarse_clusters,
-                "include_embeddings": include_embeddings,
-                "output_dir": output_dir,
-            },
-            reinit=False  # Don't reinitialize if already exists
-        )
+        try:
+            import wandb
+            import os
+            
+            # Try to get input filename from the DataFrame or use a default
+            input_filename = "unknown_dataset"
+            if hasattr(df, 'name') and df.name:
+                input_filename = df.name
+            elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
+                input_filename = df._metadata['filename']
+            else:
+                # Try to infer from the DataFrame source if it has a path attribute
+                # This is a fallback for when we can't determine the filename
+                input_filename = f"dataset_{len(df)}_rows"
+            
+            # Clean the filename for wandb (remove extension, replace spaces/special chars)
+            if isinstance(input_filename, str):
+                # Remove file extension and clean up the name
+                input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+                # Replace spaces and special characters with underscores
+                input_filename = input_filename.replace(' ', '_').replace('-', '_')
+                # Remove any remaining special characters
+                import re
+                input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+            
+            wandb_run_name = f"{input_filename}_{method}"
+            
+            wandb.init(
+                project=wandb_project or "lmm-vibes",
+                name=wandb_run_name,
+                config={
+                    "method": method,
+                    "system_prompt": system_prompt,
+                    "model_name": model_name,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "max_tokens": max_tokens,
+                    "max_workers": max_workers,
+                    "clusterer": clusterer,
+                    "min_cluster_size": min_cluster_size,
+                    "embedding_model": embedding_model,
+                    "hierarchical": hierarchical,
+                    "assign_outliers": assign_outliers,
+                    "max_coarse_clusters": max_coarse_clusters,
+                    "include_embeddings": include_embeddings,
+                    "output_dir": output_dir,
+                },
+                reinit=False  # Don't reinitialize if already exists
+            )
+        except ImportError:
+            # wandb not installed or not available
+            use_wandb = False
     
     # Use custom pipeline if provided, otherwise build default pipeline
     if custom_pipeline is not None:
@@ -242,6 +255,7 @@ def explain(
             embedding_model=embedding_model,
             hierarchical=hierarchical,
             assign_outliers=assign_outliers,
+            prettify_labels=prettify_labels,
             metrics_kwargs=metrics_kwargs,
             use_wandb=use_wandb,
             wandb_project=wandb_project,
@@ -304,7 +318,12 @@ def explain(
     
     # Log final results to wandb if enabled
     if use_wandb:
-        _log_final_results_to_wandb(clustered_df, model_stats)
+        try:
+            import wandb
+            _log_final_results_to_wandb(clustered_df, model_stats)
+        except ImportError:
+            # wandb not installed or not available
+            use_wandb = False
     
     return clustered_df, model_stats
 
@@ -352,6 +371,7 @@ def _build_default_pipeline(
     embedding_model: str,
     hierarchical: bool,
     assign_outliers: bool,
+    prettify_labels: bool,
     metrics_kwargs: Optional[Dict[str, Any]],
     use_wandb: bool,
     wandb_project: Optional[str],
@@ -440,6 +460,7 @@ def _build_default_pipeline(
         'hierarchical': hierarchical,
         'assign_outliers': assign_outliers,
         'include_embeddings': include_embeddings,
+        'prettify_labels': prettify_labels,
         'output_dir': clustering_output,
         **common_config
     }
@@ -491,75 +512,79 @@ def _build_default_pipeline(
 
 def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
     """Log final results to wandb."""
-    import wandb
-    
-    # Log dataset summary as summary metrics (not regular metrics)
-    if wandb.run is not None:
-        wandb.run.summary["final_dataset_shape"] = str(df.shape)
-        wandb.run.summary["final_total_conversations"] = len(df['question_id'].unique()) if 'question_id' in df.columns else len(df)
-        wandb.run.summary["final_total_properties"] = len(df)
-        wandb.run.summary["final_unique_models"] = len(df['model'].unique()) if 'model' in df.columns else 0
-    
-    # Log clustering results if present
-    cluster_cols = [col for col in df.columns if 'cluster' in col.lower()]
-    if cluster_cols:
-        for col in cluster_cols:
-            if col.endswith('_id'):
-                cluster_ids = df[col].unique()
-                n_clusters = len([c for c in cluster_ids if c != -1])
-                n_outliers = sum(1 for c in cluster_ids if c == -1)
-                
-                level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
-                # Log these as summary metrics
-                if wandb.run is not None:
-                    wandb.run.summary[f"final_{level}_clusters"] = n_clusters
-                    wandb.run.summary[f"final_{level}_outliers"] = n_outliers
-                    wandb.run.summary[f"final_{level}_outlier_rate"] = n_outliers / len(df) if len(df) > 0 else 0
-
-    # Handle new functional metrics format
-    if model_stats and "functional_metrics" in model_stats:
-        functional_metrics = model_stats["functional_metrics"]
+    try:
+        import wandb
         
-        # Log summary statistics for functional metrics
+        # Log dataset summary as summary metrics (not regular metrics)
         if wandb.run is not None:
-            model_cluster_scores = functional_metrics.get("model_cluster_scores", {})
-            cluster_scores = functional_metrics.get("cluster_scores", {})
-            model_scores = functional_metrics.get("model_scores", {})
-            
-            wandb.run.summary["final_models_analyzed"] = len(model_scores)
-            wandb.run.summary["final_clusters_analyzed"] = len(cluster_scores)
-            
-            # Log model-level summary statistics
-            for model_name, model_data in model_scores.items():
-                if isinstance(model_data, dict):
-                    size = model_data.get("size", 0)
-                    quality = model_data.get("quality", {})
-                    
-                    wandb.run.summary[f"model_{model_name}_total_size"] = size
-                    
-                    # Log quality metrics
-                    for metric_name, metric_value in quality.items():
-                        if isinstance(metric_value, (int, float)):
-                            wandb.run.summary[f"model_{model_name}_avg_{metric_name}"] = metric_value
-            
-            # Log cluster-level summary statistics
-            for cluster_name, cluster_data in cluster_scores.items():
-                if isinstance(cluster_data, dict):
-                    size = cluster_data.get("size", 0)
-                    quality = cluster_data.get("quality", {})
-                    
-                    wandb.run.summary[f"cluster_{cluster_name}_total_size"] = size
-                    
-                    # Log quality metrics
-                    for metric_name, metric_value in quality.items():
-                        if isinstance(metric_value, (int, float)):
-                            wandb.run.summary[f"cluster_{cluster_name}_avg_{metric_name}"] = metric_value
+            wandb.run.summary["final_dataset_shape"] = str(df.shape)
+            wandb.run.summary["final_total_conversations"] = len(df['question_id'].unique()) if 'question_id' in df.columns else len(df)
+            wandb.run.summary["final_total_properties"] = len(df)
+            wandb.run.summary["final_unique_models"] = len(df['model'].unique()) if 'model' in df.columns else 0
         
-        print("✅ Successfully logged functional metrics to wandb")
-        print(f"   • Dataset summary metrics")
-        print(f"   • Clustering results")
-        print(f"   • Functional metrics: {len(model_scores) if 'model_scores' in functional_metrics else 0} models, {len(cluster_scores) if 'cluster_scores' in functional_metrics else 0} clusters")
-        print(f"   • Summary metrics logged to run summary")
+        # Log clustering results if present
+        cluster_cols = [col for col in df.columns if 'cluster' in col.lower()]
+        if cluster_cols:
+            for col in cluster_cols:
+                if col.endswith('_id'):
+                    cluster_ids = df[col].unique()
+                    n_clusters = len([c for c in cluster_ids if c != -1])
+                    n_outliers = sum(1 for c in cluster_ids if c == -1)
+                    
+                    level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
+                    # Log these as summary metrics
+                    if wandb.run is not None:
+                        wandb.run.summary[f"final_{level}_clusters"] = n_clusters
+                        wandb.run.summary[f"final_{level}_outliers"] = n_outliers
+                        wandb.run.summary[f"final_{level}_outlier_rate"] = n_outliers / len(df) if len(df) > 0 else 0
+
+        # Handle new functional metrics format
+        if model_stats and "functional_metrics" in model_stats:
+            functional_metrics = model_stats["functional_metrics"]
+            
+            # Log summary statistics for functional metrics
+            if wandb.run is not None:
+                model_cluster_scores = functional_metrics.get("model_cluster_scores", {})
+                cluster_scores = functional_metrics.get("cluster_scores", {})
+                model_scores = functional_metrics.get("model_scores", {})
+                
+                wandb.run.summary["final_models_analyzed"] = len(model_scores)
+                wandb.run.summary["final_clusters_analyzed"] = len(cluster_scores)
+                
+                # Log model-level summary statistics
+                for model_name, model_data in model_scores.items():
+                    if isinstance(model_data, dict):
+                        size = model_data.get("size", 0)
+                        quality = model_data.get("quality", {})
+                        
+                        wandb.run.summary[f"model_{model_name}_total_size"] = size
+                        
+                        # Log quality metrics
+                        for metric_name, metric_value in quality.items():
+                            if isinstance(metric_value, (int, float)):
+                                wandb.run.summary[f"model_{model_name}_avg_{metric_name}"] = metric_value
+                
+                # Log cluster-level summary statistics
+                for cluster_name, cluster_data in cluster_scores.items():
+                    if isinstance(cluster_data, dict):
+                        size = cluster_data.get("size", 0)
+                        quality = cluster_data.get("quality", {})
+                        
+                        wandb.run.summary[f"cluster_{cluster_name}_total_size"] = size
+                        
+                        # Log quality metrics
+                        for metric_name, metric_value in quality.items():
+                            if isinstance(metric_value, (int, float)):
+                                wandb.run.summary[f"cluster_{cluster_name}_avg_{metric_name}"] = metric_value
+            
+            print("✅ Successfully logged functional metrics to wandb")
+            print(f"   • Dataset summary metrics")
+            print(f"   • Clustering results")
+            print(f"   • Functional metrics: {len(model_scores) if 'model_scores' in functional_metrics else 0} models, {len(cluster_scores) if 'cluster_scores' in functional_metrics else 0} clusters")
+            print(f"   • Summary metrics logged to run summary")
+    except ImportError:
+        # wandb not installed or not available
+        return
     
     # Handle legacy format for backward compatibility (commented out but kept for reference)
     # if model_stats:
@@ -748,6 +773,13 @@ def label(
     """
 
     method = "single_model"  # hard-coded, we only support single-model here
+
+    # Align environment with wandb toggle early to avoid accidental logging on import
+    import os as _os
+    if not use_wandb:
+        _os.environ["WANDB_DISABLED"] = "true"
+    else:
+        _os.environ.pop("WANDB_DISABLED", None)
     if "model_b" in df.columns:
         raise ValueError("label() currently supports only single-model data.  Use explain() for side-by-side analyses.")
 
@@ -758,48 +790,52 @@ def label(
 
     # Initialize wandb if enabled
     if use_wandb:
-        import wandb
-        import os
-        
-        # Try to get input filename from the DataFrame or use a default
-        input_filename = "unknown_dataset"
-        if hasattr(df, 'name') and df.name:
-            input_filename = df.name
-        elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
-            input_filename = df._metadata['filename']
-        else:
-            # Try to infer from the DataFrame source if it has a path attribute
-            # This is a fallback for when we can't determine the filename
-            input_filename = f"dataset_{len(df)}_rows"
-        
-        # Clean the filename for wandb (remove extension, replace spaces/special chars)
-        if isinstance(input_filename, str):
-            # Remove file extension and clean up the name
-            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
-            # Replace spaces and special characters with underscores
-            input_filename = input_filename.replace(' ', '_').replace('-', '_')
-            # Remove any remaining special characters
-            import re
-            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
-        
-        wandb_run_name = f"{input_filename}_label"
-        
-        wandb.init(
-            project=wandb_project or "lmm-vibes",
-            name=wandb_run_name,
-            config={
-                "method": method,
-                "model_name": model_name,
-                "temperature": temperature,
-                "top_p": top_p,
-                "max_tokens": max_tokens,
-                "max_workers": max_workers,
-                "taxonomy_size": len(taxonomy),
-                "include_embeddings": include_embeddings,
-                "output_dir": output_dir,
-            },
-            reinit=False  # Don't reinitialize if already exists
-        )
+        try:
+            import wandb
+            import os
+            
+            # Try to get input filename from the DataFrame or use a default
+            input_filename = "unknown_dataset"
+            if hasattr(df, 'name') and df.name:
+                input_filename = df.name
+            elif hasattr(df, '_metadata') and df._metadata and 'filename' in df._metadata:
+                input_filename = df._metadata['filename']
+            else:
+                # Try to infer from the DataFrame source if it has a path attribute
+                # This is a fallback for when we can't determine the filename
+                input_filename = f"dataset_{len(df)}_rows"
+            
+            # Clean the filename for wandb (remove extension, replace spaces/special chars)
+            if isinstance(input_filename, str):
+                # Remove file extension and clean up the name
+                input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+                # Replace spaces and special characters with underscores
+                input_filename = input_filename.replace(' ', '_').replace('-', '_')
+                # Remove any remaining special characters
+                import re
+                input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+            
+            wandb_run_name = f"{input_filename}_label"
+            
+            wandb.init(
+                project=wandb_project or "lmm-vibes",
+                name=wandb_run_name,
+                config={
+                    "method": method,
+                    "model_name": model_name,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "max_tokens": max_tokens,
+                    "max_workers": max_workers,
+                    "taxonomy_size": len(taxonomy),
+                    "include_embeddings": include_embeddings,
+                    "output_dir": output_dir,
+                },
+                reinit=False  # Don't reinitialize if already exists
+            )
+        except ImportError:
+            # wandb not installed or not available
+            use_wandb = False
 
     pipeline = _build_fixed_axes_pipeline(
         taxonomy=taxonomy,
@@ -952,6 +988,13 @@ def compute_metrics_only(
     from .metrics import get_metrics
     from .pipeline import Pipeline
     import json
+
+    # Align environment with wandb toggle early to avoid accidental logging on import
+    import os as _os
+    if not use_wandb:
+        _os.environ["WANDB_DISABLED"] = "true"
+    else:
+        _os.environ.pop("WANDB_DISABLED", None)
     
     input_path = Path(input_path)
     
@@ -1028,54 +1071,58 @@ def compute_metrics_only(
     
     # Initialize wandb if enabled
     if use_wandb:
-        import wandb
-        import os
-        
-        # Try to get input filename from the input path
-        input_filename = "unknown_dataset"
-        if input_path.is_file():
-            input_filename = input_path.name
-        elif input_path.is_dir():
-            # Try to find a recognizable dataset file in the directory
-            possible_files = [
-                input_path / "full_dataset.json",
-                input_path / "full_dataset.parquet", 
-                input_path / "clustered_results.parquet",
-                input_path / "dataset.json",
-                input_path / "dataset.parquet"
-            ]
+        try:
+            import wandb
+            import os
             
-            for file_path in possible_files:
-                if file_path.exists():
-                    input_filename = file_path.name
-                    break
-            else:
-                # If no recognizable file found, use the directory name
+            # Try to get input filename from the input path
+            input_filename = "unknown_dataset"
+            if input_path.is_file():
                 input_filename = input_path.name
-        
-        # Clean the filename for wandb (remove extension, replace spaces/special chars)
-        if isinstance(input_filename, str):
-            # Remove file extension and clean up the name
-            input_filename = os.path.splitext(os.path.basename(input_filename))[0]
-            # Replace spaces and special characters with underscores
-            input_filename = input_filename.replace(' ', '_').replace('-', '_')
-            # Remove any remaining special characters
-            import re
-            input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
-        
-        wandb_run_name = f"{input_filename}_metrics_only"
-        
-        wandb.init(
-            project="lmm-vibes",
-            name=wandb_run_name,
-            config={
-                "method": method,
-                "input_path": str(input_path),
-                "output_dir": output_dir,
-                "metrics_kwargs": metrics_kwargs,
-            },
-            reinit=False  # Don't reinitialize if already exists
-        )
+            elif input_path.is_dir():
+                # Try to find a recognizable dataset file in the directory
+                possible_files = [
+                    input_path / "full_dataset.json",
+                    input_path / "full_dataset.parquet", 
+                    input_path / "clustered_results.parquet",
+                    input_path / "dataset.json",
+                    input_path / "dataset.parquet"
+                ]
+                
+                for file_path in possible_files:
+                    if file_path.exists():
+                        input_filename = file_path.name
+                        break
+                else:
+                    # If no recognizable file found, use the directory name
+                    input_filename = input_path.name
+            
+            # Clean the filename for wandb (remove extension, replace spaces/special chars)
+            if isinstance(input_filename, str):
+                # Remove file extension and clean up the name
+                input_filename = os.path.splitext(os.path.basename(input_filename))[0]
+                # Replace spaces and special characters with underscores
+                input_filename = input_filename.replace(' ', '_').replace('-', '_')
+                # Remove any remaining special characters
+                import re
+                input_filename = re.sub(r'[^a-zA-Z0-9_]', '', input_filename)
+            
+            wandb_run_name = f"{input_filename}_metrics_only"
+            
+            wandb.init(
+                project="lmm-vibes",
+                name=wandb_run_name,
+                config={
+                    "method": method,
+                    "input_path": str(input_path),
+                    "output_dir": output_dir,
+                    "metrics_kwargs": metrics_kwargs,
+                },
+                reinit=False  # Don't reinitialize if already exists
+            )
+        except ImportError:
+            # wandb not installed or not available
+            use_wandb = False
     
     metrics_stage = get_metrics(**metrics_config)
     

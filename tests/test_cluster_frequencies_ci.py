@@ -146,7 +146,7 @@ def test_frequency_table_with_quality_cis():
     print("\n🧪 Testing frequency table with quality CIs and global sizes...")
     
     # Import the function we want to test
-    from stringsight.vis_gradio.utils import create_frequency_comparison_table
+    from stringsight.dashboard.utils import create_frequency_comparison_table
     
     # Create test data with quality confidence intervals
     test_model_stats = {
