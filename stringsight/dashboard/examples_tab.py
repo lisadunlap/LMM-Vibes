@@ -1,7 +1,7 @@
 """Logic for the **View Examples** tab – dropdown population + example renderer."""
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 import gradio as gr
 import ast
@@ -27,23 +27,34 @@ __all__: List[str] = [
 # Dropdown helpers
 # ---------------------------------------------------------------------------
 
-def get_dropdown_choices() -> Tuple[List[str], List[str], List[str], List[str]]:
+def get_dropdown_choices(selected_models: Optional[List[str]] = None) -> Tuple[List[str], List[str], List[str], List[str]]:
     if app_state["clustered_df"] is None:
         return [], [], [], []
 
     choices = get_unique_values_for_dropdowns(app_state["clustered_df"])
     prompts = ["All Prompts"] + choices["prompts"]
-    models = ["All Models"] + choices["models"]
+    # If a sidebar selection is provided, filter models to that subset (ignoring the pseudo 'all')
+    if selected_models:
+        subset = [m for m in choices["models"] if m in [sm for sm in selected_models if sm != "all"]]
+        models = ["All Models"] + (subset if subset else choices["models"])  # fallback to all available if subset empty
+    else:
+        models = ["All Models"] + choices["models"]
     properties = ["All Clusters"] + choices["properties"]
     tags = ["All Tags"] + choices.get("tags", []) if choices.get("tags") else []
     return prompts, models, properties, tags
 
 
-def update_example_dropdowns() -> Tuple[Any, Any, Any, Any]:
-    prompts, models, properties, tags = get_dropdown_choices()
+def update_example_dropdowns(selected_models: Optional[List[str]] = None) -> Tuple[Any, Any, Any, Any]:
+    prompts, models, properties, tags = get_dropdown_choices(selected_models)
+    # If exactly one concrete model selected in sidebar, preselect it; else default to All Models
+    preselect_model = "All Models"
+    if selected_models:
+        concrete = [m for m in selected_models if m != "all"]
+        if len(concrete) == 1 and concrete[0] in models:
+            preselect_model = concrete[0]
     return (
         gr.update(choices=prompts, value="All Prompts" if prompts else None),
-        gr.update(choices=models, value="All Models" if models else None),
+        gr.update(choices=models, value=(preselect_model if models else None)),
         gr.update(choices=properties, value="All Clusters" if properties else None),
         gr.update(choices=tags, value="All Tags" if tags else None, visible=bool(tags)),
     )
@@ -63,6 +74,7 @@ def view_examples(
     pretty_print_dicts: bool = True,
     search_term: str = "",
     show_unexpected_behavior: bool = False,
+    selected_models_sidebar: Optional[List[str]] = None,
 ) -> str:
     if app_state["clustered_df"] is None:
         return (
@@ -72,6 +84,14 @@ def view_examples(
 
     # Apply search filter first if search term is provided
     df = app_state["clustered_df"]
+
+    # Apply sidebar-selected model filter if provided (ignoring pseudo 'all') before dropdown filters
+    if selected_models_sidebar:
+        concrete = [m for m in selected_models_sidebar if m != "all"]
+        if concrete:
+            df = df[df["model"].isin(concrete)]
+            if df.empty:
+                return "<p style='color: #e74c3c; padding: 20px;'>❌ No examples for the selected model subset.</p>"
     if search_term and isinstance(search_term, str) and search_term.strip():
         df = search_clusters_by_text(df, search_term.strip(), 'description')
         if df.empty:

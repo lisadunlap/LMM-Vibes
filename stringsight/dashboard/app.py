@@ -588,6 +588,9 @@ def create_app() -> gr.Blocks:
                 gr.update(visible=True),  # metrics_acc
                 gr.update(visible=True),  # refresh_overview_btn
             )
+        def select_overview_tab():
+            # Switch main tabs to the Overview tab (id=1)
+            return gr.Tabs(selected=1)
         def compute_plots_quality_metric(plot_type: str, dropdown_value: str | None):
             # Ensure we always pass a valid metric to the plot function during chained updates
             if plot_type != "quality":
@@ -790,6 +793,7 @@ def create_app() -> gr.Blocks:
                     outputs=[current_experiment_badge]
                 ).then(
                     fn=update_example_dropdowns,
+                    inputs=[selected_models],
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
                 ).then(
                     fn=update_cluster_tag_dropdown,
@@ -809,6 +813,7 @@ def create_app() -> gr.Blocks:
                         pretty_print_checkbox,
                         search_examples,
                         show_unexpected_behavior_checkbox,
+                        selected_models,
                     ],
                     outputs=[examples_display]
                 ).then(
@@ -841,6 +846,9 @@ def create_app() -> gr.Blocks:
                     fn=create_plot_with_toggle,
                     inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
+                ).then(
+                    fn=select_overview_tab,
+                    outputs=[main_tabs]
                 ))
         else:
             # Use textbox for manual path entry
@@ -854,6 +862,7 @@ def create_app() -> gr.Blocks:
                     outputs=[current_experiment_badge]
                 ).then(
                     fn=update_example_dropdowns,
+                    inputs=[selected_models],
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
                 ).then(
                     fn=update_cluster_tag_dropdown,
@@ -873,6 +882,7 @@ def create_app() -> gr.Blocks:
                         pretty_print_checkbox,
                         search_examples,
                         show_unexpected_behavior_checkbox,
+                        selected_models,
                     ],
                     outputs=[examples_display]
                 ).then(
@@ -905,6 +915,9 @@ def create_app() -> gr.Blocks:
                     fn=create_plot_with_toggle,
                     inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
+                ).then(
+                    fn=select_overview_tab,
+                    outputs=[main_tabs]
                 ))
         
         # Tab switching should not trigger any updates - content should persist
@@ -955,46 +968,46 @@ def create_app() -> gr.Blocks:
         # View Examples handlers
         view_examples_btn.click(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when dropdowns change
         example_prompt_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         example_model_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         example_property_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         example_tag_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when search term changes
         search_examples.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when unexpected behavior checkbox changes
         show_unexpected_behavior_checkbox.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
             outputs=[examples_display]
         )
         
@@ -1083,6 +1096,24 @@ def create_app() -> gr.Blocks:
             fn=view_clusters_interactive,
             inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
             outputs=[clusters_display]
+        ).then(
+            fn=update_example_dropdowns,
+            inputs=[selected_models],
+            outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
+        ).then(
+            fn=view_examples,
+            inputs=[
+                example_prompt_dropdown,
+                example_model_dropdown,
+                example_property_dropdown,
+                example_tag_dropdown,
+                max_examples_slider,
+                use_accordion_checkbox,
+                pretty_print_checkbox,
+                search_examples,
+                show_unexpected_behavior_checkbox,
+            ],
+            outputs=[examples_display]
         ).then(
             fn=update_cluster_selection,
             inputs=[selected_models],
