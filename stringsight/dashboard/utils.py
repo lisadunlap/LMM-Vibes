@@ -1705,6 +1705,7 @@ def get_example_data(
             "impact": row.get("impact", "N/A"),
             "reason": row.get("reason", "N/A"),
             "evidence": row.get("evidence", "N/A"),
+            "meta": row.get("meta", None),
             "user_preference_direction": row.get("user_preference_direction", "N/A"),
             "raw_response": row.get("raw_response", "N/A"),
             "contains_errors": row.get("contains_errors", "N/A"),
@@ -1771,7 +1772,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
         </div>
         """
 
-    html = f"""
+    html_out = f"""
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
         <h3 style="color: #333; margin-bottom: 15px;">📋 Examples ({len(examples)} found)</h3>
 {filter_summary}
@@ -1805,14 +1806,40 @@ def format_examples_display(examples: List[Dict[str, Any]],
             else:
                 conversation_html = "<p style='color: #dc3545; font-style: italic;'>No response data available</p>"
         
-        # Determine cluster info
-        cluster_info = ""
+        # Compact cluster badge for header row
+        cluster_badge = ""
         if example['fine_cluster_label'] != 'N/A':
-            cluster_info = f"""
-            <div style="margin-top: 10px; font-size: 13px; color: #666;">
-                <strong>🏷️ Cluster:</strong> {example['fine_cluster_label']} (ID: {example['fine_cluster_id']})
-            </div>
-            """
+            cluster_badge = (
+                f"<span style=\"display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#eef2ff; color:#4f46e5; border:1px solid #e0e7ff;\">"
+                f"Cluster: {html.escape(str(example['fine_cluster_label']))}"
+                f"</span>"
+            )
+        
+        # Tag badge derived from meta (first value)
+        tag_badge = ""
+        tag_value = None
+        meta_obj = example.get('meta')
+        if isinstance(meta_obj, str):
+            try:
+                parsed = ast.literal_eval(meta_obj)
+                meta_obj = parsed
+            except Exception:
+                pass
+        if isinstance(meta_obj, dict) and len(meta_obj) > 0:
+            try:
+                tag_value = next(iter(meta_obj.values()))
+            except Exception:
+                tag_value = None
+        elif isinstance(meta_obj, (list, tuple)) and len(meta_obj) > 0:
+            tag_value = meta_obj[0]
+        elif isinstance(meta_obj, str) and meta_obj.strip() not in ("", "None", "N/A", "{}", "[]"):
+            tag_value = meta_obj.strip()
+        if tag_value is not None:
+            tag_badge = (
+                f"<span style=\"display:inline-block; padding:2px 8px; border-radius:999px; background:#faf5ff; color:#6d28d9; border:1px solid #ede9fe;\">"
+                f"Tag: {html.escape(str(tag_value))}"
+                f"</span>"
+            )
         
         # Score display for summary (only for non-side-by-side or when not shown in side-by-side)
         score_badge = ""
@@ -1843,7 +1870,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
         # First example is expanded by default
         open_attr = "open" if i == 1 else ""
         
-        html += f"""
+        html_out += f"""
         <details {open_attr} style="border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 15px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <summary style="
                 padding: 15px; 
@@ -1867,22 +1894,30 @@ def format_examples_display(examples: List[Dict[str, Any]],
             </summary>
             
             <div style="padding: 20px;">
-                <div style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #17a2b8;">
-                    
-                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; font-size: 15px; color: #666;">
-                        <div><strong>Model:</strong> {example['model']}</div>
-                        <div><strong>ID:</strong> {example['id']}</div>
-                        {f'<div><strong>Category:</strong> {example["category"]}</div>' if example["category"] not in ["N/A", "None"] else ""}
-                        {f'<div><strong>Type:</strong> {example["type"]}</div>' if example["type"] not in ["N/A", "None"] else ""}
-                        {f'<div><strong>Impact:</strong> {example["impact"]}</div>' if example["impact"] not in ["N/A", "None"] else ""}
-                    </div>
-                    
-                    <div style="margin-top: 10px;">
-                        {f'<div style="margin-top: 10px;"><strong>Property:</strong> {example["property_description"]}</div>' if example["property_description"] not in ["N/A", "None"] else ""}
-                        {f'<div style="margin-top: 10px;"><strong>Reason:</strong> {example["reason"]}</div>' if example["reason"] not in ["N/A", "None"] else ""}
-                        {f'<div style="margin-top: 10px;"><strong>Evidence:</strong> {example["evidence"]}</div>' if example["evidence"] not in ["N/A", "None"] else ""}
-                    </div>
+                <!-- Compact metadata badges row -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom: 16px; font-size:12px; color:#6b7280;">
+                    <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; border:1px solid #e5e7eb;">ID: {html.escape(str(example['id']))}</span>
+                    <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; border:1px solid #e5e7eb;">Model: {html.escape(str(example['model']))}</span>
+                    {tag_badge}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; color:#047857; border:1px solid #bbf7d0;">Category: {html.escape(str(example["category"]))}</span>' if example["category"] not in ["N/A", "None"] else '')}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe;">Type: {html.escape(str(example["type"]))}</span>' if example["type"] not in ["N/A", "None"] else '')}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">Impact: {html.escape(str(example["impact"]))}</span>' if example["impact"] not in ["N/A", "None"] else '')}
                 </div>
+
+                <!-- Readable text block for Cluster / Tag / Property / Reason / Evidence (markdown-enabled) -->
+                {(
+                    f'''<div style="margin-bottom:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px;">
+                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))} <span style="color:#6b7280;">(ID: {html.escape(str(example["fine_cluster_id"]))})</span></div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None"] else '')}
+                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Property</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["property_description"]))}</div></div>' if example["property_description"] not in ["N/A", "None"] else '')}
+                        {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Reason</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["reason"]))}</div></div>' if example["reason"] not in ["N/A", "None"] else '')}
+                        {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Evidence</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["evidence"]))}</div></div>' if example["evidence"] not in ["N/A", "None"] else '')}
+                    </div>'''
+                 ) if any([
+                    str(example.get("fine_cluster_label", "N/A")) not in ["N/A", "None"],
+                    str(example.get("property_description", "N/A")) not in ["N/A", "None"],
+                    str(example.get("reason", "N/A")) not in ["N/A", "None"],
+                    str(example.get("evidence", "N/A")) not in ["N/A", "None"],
+                 ]) else ''}
 
                 <div style="margin-bottom: 15px;">
                     <div style="border-radius: 6px; font-size: 15px; line-height: 1.5;">
@@ -1893,8 +1928,8 @@ def format_examples_display(examples: List[Dict[str, Any]],
         </details>
         """
     
-    html += "</div>"
-    return html
+    html_out += "</div>"
+    return html_out
 
 # ---------------------------------------------------------------------------
 # Legacy function aliases (backward compatibility)

@@ -472,14 +472,13 @@ def create_app() -> gr.Blocks:
                     # Tab 2: View Clusters
                     with gr.TabItem("📋 View Clusters", id=2) as clusters_tab:
                         # gr.Markdown("### Interactive Cluster Viewer")
-                        gr.Markdown("Explore clusters with detailed property descriptions. Click on clusters to expand and view all properties within each cluster.")
                         
                         with gr.Row():
                             search_clusters = gr.Textbox(
                                 label="Search Properties",
                                 show_label=False,
                                 placeholder="Search in property clusters...",
-                                # info="Search for specific terms in property clusters"
+                                info="Search for specific terms in property clusters"
                             )
                             cluster_tag_dropdown = gr.Dropdown(
                                 label="Filter by Tag",
@@ -487,7 +486,7 @@ def create_app() -> gr.Blocks:
                                 choices=[],
                                 value=None,
                                 visible=False,
-                                # info="Filter clusters by tag derived from metadata"
+                                info="Filter clusters by tag derived from metadata"
                             )
                         
                         clusters_display = gr.HTML(
@@ -588,9 +587,6 @@ def create_app() -> gr.Blocks:
                 gr.update(visible=True),  # metrics_acc
                 gr.update(visible=True),  # refresh_overview_btn
             )
-        def select_overview_tab():
-            # Switch main tabs to the Overview tab (id=1)
-            return gr.Tabs(selected=1)
         def compute_plots_quality_metric(plot_type: str, dropdown_value: str | None):
             # Ensure we always pass a valid metric to the plot function during chained updates
             if plot_type != "quality":
@@ -846,9 +842,6 @@ def create_app() -> gr.Blocks:
                     fn=create_plot_with_toggle,
                     inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
-                ).then(
-                    fn=select_overview_tab,
-                    outputs=[main_tabs]
                 ))
         else:
             # Use textbox for manual path entry
@@ -915,9 +908,6 @@ def create_app() -> gr.Blocks:
                     fn=create_plot_with_toggle,
                     inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
-                ).then(
-                    fn=select_overview_tab,
-                    outputs=[main_tabs]
                 ))
         
         # Tab switching should not trigger any updates - content should persist

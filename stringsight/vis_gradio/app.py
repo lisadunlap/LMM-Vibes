@@ -182,7 +182,6 @@ def create_app() -> gr.Blocks:
             # Tab 3: View Clusters
             with gr.TabItem("📋 View Clusters"):
                 gr.Markdown("### Interactive Cluster Viewer")
-                gr.Markdown("Explore clusters with detailed property descriptions. Click on clusters to expand and view all properties within each cluster.")
                 
                 with gr.Row():
                     search_clusters = gr.Textbox(
