@@ -774,6 +774,29 @@ def create_app() -> gr.Blocks:
                     gr.Tabs(),  # No tab change
                     gr.update()  # No dropdown change
                 )
+
+        # Enhanced labeling handler with tab switching and dropdown refresh
+        def enhanced_label_handler(*args):
+            from .run_pipeline_tab import run_label_pipeline_handler
+            from .load_data_tab import get_experiment_choices
+            status_html, results_preview_html = run_label_pipeline_handler(*args)
+            pipeline_success = "<!-- SUCCESS -->" in status_html
+            if pipeline_success:
+                status_html = status_html.replace("<!-- SUCCESS -->", "")
+                experiment_choices = get_experiment_choices()
+                return (
+                    status_html,
+                    results_preview_html,
+                    gr.Tabs(selected=1),
+                    gr.update(choices=experiment_choices, value=experiment_choices[1] if len(experiment_choices) > 1 else None) if experiment_choices else gr.update()
+                )
+            else:
+                return (
+                    status_html,
+                    results_preview_html,
+                    gr.Tabs(),
+                    gr.update()
+                )
         
         # Event handlers
         from . import state
@@ -1133,15 +1156,26 @@ def create_app() -> gr.Blocks:
 
         # (No global header search)
     
-            # Wire up the enhanced pipeline handler with tab switching (works for both BASE_RESULTS_DIR and manual modes)
-        pipeline_components["run_button"].click(
+            # Wire up enhanced handlers for Explain and Label with tab switching
+        pipeline_components["run_button_explain"].click(
             fn=enhanced_pipeline_handler,
-            inputs=pipeline_components["inputs"],  # Use the inputs exposed by run_pipeline_tab
+            inputs=pipeline_components["inputs_explain"],
             outputs=[
                 pipeline_components["status_display"],
                 pipeline_components["results_preview"],
-                main_tabs,  # For tab switching
-                experiment_dropdown if 'experiment_dropdown' in locals() else results_dir_input  # For dropdown refresh
+                main_tabs,
+                experiment_dropdown if 'experiment_dropdown' in locals() else results_dir_input
+            ],
+            show_progress="full"
+        )
+        pipeline_components["run_button_label"].click(
+            fn=enhanced_label_handler,
+            inputs=pipeline_components["inputs_label"],
+            outputs=[
+                pipeline_components["status_display"],
+                pipeline_components["results_preview"],
+                main_tabs,
+                experiment_dropdown if 'experiment_dropdown' in locals() else results_dir_input
             ],
             show_progress="full"
         )

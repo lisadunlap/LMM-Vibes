@@ -107,12 +107,32 @@ class LLMUtils:
                         if cached_response is not None:
                             return idx, cached_response["choices"][0]["message"]["content"]
                     
-                    # Make API call
-                    response = litellm.completion(
-                        **request_data,
-                        caching=False,  # Use our own caching
-                        timeout=config.timeout
-                    )
+                    # Make API call with graceful fallback for provider-specific unsupported params
+                    try:
+                        response = litellm.completion(
+                            **request_data,
+                            caching=False,  # Use our own caching
+                            timeout=config.timeout
+                        )
+                    except litellm.BadRequestError as api_err:
+                        # Some models only accept default temperature/top_p; drop unsupported args and retry once
+                        err_text = str(api_err).lower()
+                        safe_request = dict(request_data)
+                        retried = False
+                        if "temperature" in err_text:
+                            safe_request.pop("temperature", None)
+                            retried = True
+                        if "top_p" in err_text:
+                            safe_request.pop("top_p", None)
+                            retried = True
+                        if retried:
+                            response = litellm.completion(
+                                **safe_request,
+                                caching=False,
+                                timeout=config.timeout
+                            )
+                        else:
+                            raise
                     
                     content = response.choices[0].message.content
                     

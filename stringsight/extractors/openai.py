@@ -14,6 +14,7 @@ from ..core.data_objects import PropertyDataset, Property
 from ..core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin
 from ..prompts import extractor_prompts as _extractor_prompts
 from ..core.caching import LMDBCache
+from ..core.llm_utils import parallel_completions
 
 
 class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, PipelineStage):
@@ -63,6 +64,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         self.top_p = top_p
         self.max_tokens = max_tokens
         self.max_workers = max_workers
+        # Keep cache instance for other potential uses, but LLM calls will go through llm_utils
         self.cache = LMDBCache(cache_dir=cache_dir)
 
     def __del__(self):
@@ -116,9 +118,19 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             user_messages.append(self.prompt_builder(conv))
 
         # ------------------------------------------------------------------
-        # 2️⃣  Call the OpenAI API in parallel batches
+        # 2️⃣  Call the OpenAI API in parallel batches via shared LLM utils
         # ------------------------------------------------------------------
-        raw_responses = self._extract_properties_batch(user_messages)
+        raw_responses = parallel_completions(
+            user_messages,
+            model=self.model,
+            system_prompt=self.system_prompt,
+            max_workers=self.max_workers,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            max_tokens=self.max_tokens,
+            show_progress=True,
+            progress_desc="Property extraction"
+        )
 
         # ------------------------------------------------------------------
         # 3️⃣  Wrap raw responses in placeholder Property objects
@@ -179,70 +191,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
     # Helper methods
     # ----------------------------------------------------------------------
 
-    def _call_openai_api(self, message: str) -> str:
-        """Single threaded call with basic retry / error handling."""
-        try:
-            # Build request data for caching
-            request_data = {
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": message},
-                ],
-                "temperature": self.temperature,
-                "top_p": self.top_p,
-                "max_completion_tokens": self.max_tokens,
-            }
-
-            # Check cache first
-            cached_response = self.cache.get_completion(request_data)
-            if cached_response is not None:
-                self.log("Cache hit!", level="debug")
-                return cached_response["choices"][0]["message"]["content"]
-
-            # Call API if not in cache
-            self.log("Cache miss - calling API", level="debug")
-            response = litellm.completion(
-                **request_data,
-                caching=False,  # Disable litellm caching since we're using our own
-            )
-            
-            # Cache the response
-            response_dict = {
-                "choices": [{
-                    "message": {
-                        "content": response.choices[0].message.content
-                    }
-                }]
-            }
-            self.cache.set_completion(request_data, response_dict)
-            
-            return response.choices[0].message.content
-        except litellm.ContextWindowExceededError as e:
-            self.handle_error(e, "Context window exceeded – returning error string")
-            return "ERROR: Context window exceeded. Input is too long."
-        except Exception as e:
-            # litellm may wrap OpenAI errors; include the message for debugging
-            self.handle_error(e, "OpenAI API call failed – returning error string")
-            return f"ERROR: {e}"
-
-    def _extract_properties_batch(self, messages: List[str]) -> List[str]:
-        """Call OpenAI for *messages* in parallel and preserve order."""
-
-        results: List[str] = ["" for _ in messages]
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_idx = {
-                executor.submit(self._call_openai_api, msg): idx for idx, msg in enumerate(messages)
-            }
-            for fut in as_completed(future_to_idx):
-                idx = future_to_idx[fut]
-                try:
-                    results[idx] = fut.result()
-                except Exception as e:
-                    # _call_openai_api already logged the error; store generic msg
-                    results[idx] = f"ERROR: {e}"
-        return results
+    # Legacy helpers removed in favor of centralized llm_utils
     
     def _default_prompt_builder(self, conversation) -> str:
         """

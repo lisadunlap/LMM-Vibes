@@ -53,7 +53,6 @@ class DummyClusterer(BaseClusterer):
             min_cluster_size=1,
             embedding_model="dummy",
             hierarchical=False,
-            prettify_labels=False,
             assign_outliers=False,
             use_wandb=False,
             wandb_project=None,
