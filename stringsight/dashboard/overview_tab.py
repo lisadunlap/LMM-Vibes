@@ -395,28 +395,28 @@ def create_model_quality_table(
         
         table_rows.append(f"""
         <tr>
-            <td style="text-align: center; padding: 8px; font-weight: bold; color: #2c3e50;">{rank}</td>
-            <td style="padding: 8px; color: #2c3e50;">{model_name}</td>
-            <td style="text-align: center; padding: 8px; color: #2c3e50;">{quality_score:.3f}{ci_text}</td>
+            <td style=\"text-align: center; padding: 6px 8px; font-weight: bold; color: #2c3e50;\">{rank}</td>
+            <td style=\"padding: 6px 8px; color: #2c3e50;\">{model_name}</td>
+            <td style=\"text-align: center; padding: 6px 8px; color: #2c3e50;\">{quality_score:.3f}{ci_text}</td>
         </tr>
         """)
     
     # Create HTML table
     html_table = f"""
-    <div style="width: 100%; margin: 0;">
-        <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 4px;">
+    <div style="width: 100%; margin: 0; max-height: 340px; overflow: auto;">
+        <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
             <thead>
                 <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                    <th style="padding: 10px; text-align: center; font-weight: bold; color: #495057; border-right: 1px solid #dee2e6;">Rank</th>
-                    <th style="padding: 10px; text-align: left; font-weight: bold; color: #495057; border-right: 1px solid #dee2e6;">Model</th>
-                    <th style="padding: 10px; text-align: center; font-weight: bold; color: #495057;">{metric_display_name}</th>
+                    <th style="padding: 6px 8px; text-align: center; font-weight: bold; color: #495057; border-right: 1px solid #dee2e6;">Rank</th>
+                    <th style="padding: 6px 8px; text-align: left; font-weight: bold; color: #495057; border-right: 1px solid #dee2e6;">Model</th>
+                    <th style="padding: 6px 8px; text-align: center; font-weight: bold; color: #495057;">{metric_display_name}</th>
                 </tr>
             </thead>
             <tbody>
                 {''.join(table_rows)}
             </tbody>
         </table>
-        <p style="text-align: center; color: #6c757d; font-size: 12px; margin-top: 10px; font-family: Arial, sans-serif;">
+        <p style="text-align: center; color: #6c757d; font-size: 11px; margin-top: 8px; font-family: Arial, sans-serif;">
             {f"Ranks based on confidence intervals (non-overlapping CIs). Models with overlapping CIs may have the same rank." if has_ci else "Ranks based on quality scores (confidence intervals not available)."}
         </p>
     </div>
