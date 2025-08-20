@@ -477,15 +477,17 @@ def create_app() -> gr.Blocks:
                         with gr.Row():
                             search_clusters = gr.Textbox(
                                 label="Search Properties",
-                                placeholder="Search in property descriptions...",
-                                info="Search for specific terms in property descriptions"
+                                show_label=False,
+                                placeholder="Search in property clusters...",
+                                # info="Search for specific terms in property clusters"
                             )
                             cluster_tag_dropdown = gr.Dropdown(
                                 label="Filter by Tag",
+                                show_label=False,
                                 choices=[],
                                 value=None,
                                 visible=False,
-                                info="Filter clusters by tag derived from metadata"
+                                # info="Filter clusters by tag derived from metadata"
                             )
                         
                         clusters_display = gr.HTML(
@@ -502,6 +504,7 @@ def create_app() -> gr.Blocks:
                         with gr.Row():
                                 search_examples = gr.Textbox(
                                     label="Search Properties",
+                                    show_label=False,
                                     placeholder="Search in property descriptions...",
                                     info="Search for specific terms in property descriptions to filter examples"
                                 )
@@ -512,6 +515,7 @@ def create_app() -> gr.Blocks:
                                 with gr.Column(scale=1):
                                     example_prompt_dropdown = gr.Dropdown(
                                         label="Select Prompt",
+                                        show_label=False,
                                         choices=["All Prompts"],
                                         value="All Prompts",
                                         info="Choose a specific prompt or 'All Prompts'"
@@ -519,6 +523,7 @@ def create_app() -> gr.Blocks:
                                 with gr.Column(scale=1):
                                     example_model_dropdown = gr.Dropdown(
                                         label="Select Model", 
+                                        show_label=False,
                                         choices=["All Models"],
                                         value="All Models",
                                         info="Choose a specific model or 'All Models'"
@@ -526,6 +531,7 @@ def create_app() -> gr.Blocks:
                                 with gr.Column(scale=1):
                                     example_property_dropdown = gr.Dropdown(
                                         label="Select Cluster",
+                                        show_label=False,
                                         choices=["All Clusters"],
                                         value="All Clusters", 
                                         info="Choose a specific cluster or 'All Clusters'"
@@ -533,6 +539,7 @@ def create_app() -> gr.Blocks:
                                 with gr.Column(scale=1):
                                     example_tag_dropdown = gr.Dropdown(
                                         label="Filter by Tag",
+                                        show_label=False,
                                         choices=[],
                                         value=None,
                                         visible=False,
@@ -542,6 +549,7 @@ def create_app() -> gr.Blocks:
                             with gr.Row():
                                 max_examples_slider = gr.Slider(
                                     label="Max Examples",
+                                    show_label=False,
                                     minimum=1, maximum=20, value=5, step=1,
                                     info="Maximum number of examples to display"
                                 )

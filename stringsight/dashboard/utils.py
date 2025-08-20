@@ -344,7 +344,7 @@ def create_model_summary_card_new(
         if tag_val:
             color = tag_to_color.get(tag_val, '#4c6ef5')
             tag_badge_html = (
-                f"<span style=\"display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:{color}12; color:{color};\">{html.escape(str(tag_val))}</span>"
+                f"<span style=\"display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:{color}12; color:{color}; border:1px solid {color}26;\">{html.escape(str(tag_val))}</span>"
             )
             stripe_color = color
 
@@ -427,9 +427,9 @@ def create_model_summary_card_new(
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap: 12px;">
             <div style="font-size:12px; color:#555; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
-              <span>{freq_with_delta_text} frequency ({size} out of {total_battles} total)</span>{(f"<span> · </span>{tag_badge_html}" if tag_badge_html else '')}
+              <span>{freq_with_delta_text} frequency ({size} out of {total_battles} total)</span>
             </div>
-            <div style="text-align:right;">{significance_html}</div>
+            <div style="text-align:right; display:flex; align-items:center; gap:8px;">{(tag_badge_html if tag_badge_html else '')}{significance_html}</div>
           </div>
         </div>
         """)
@@ -1288,7 +1288,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
                 tag_badge_html = (
                     f"<span style=\"display:inline-block; margin-left:10px; padding:3px 8px; "
                     f"border-radius:12px; font-size:11px; font-weight:600; "
-                    f"background:{color}1A; color:{color};\">"
+                    f"background:{color}1A; color:{color}; border:1px solid {color}33;\">"
                     f"{html.escape(str(tag_value))}</span>"
                 )
         # Use sanitized label for display then render markdown (no extra <strong>)

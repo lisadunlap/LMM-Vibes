@@ -69,7 +69,12 @@ def create_overview(
                 The <span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#cc6699; border:1px solid #cc669933; background:#cc669912;">F</span> and <span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#007bff; border:1px solid #007bff33; background:#007bff12;">Q</span> tags indicate <em>statistical significance</em> based on bootstraped confidence intervals:<br>
                 • <strong>F</strong> (pink): The proportion delta is statistically significant (confidence interval doesn't include zero)<br>
                 • <strong>Q</strong> (blue): At least one quality metric delta is statistically significant<br>
-                These tags help identify which behavioral patterns are reliably different from the model's baseline performance.
+                These tags help identify which behavioral patterns are reliably different from the model's baseline performance.<br><br>
+                <strong>Cluster Tags</strong><br>
+                We sometimes annotate clusters with a short tag (e.g., group or category) to aid scanning. Example tags:
+                <span style="display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#28a74512; color:#28a745; border:1px solid #28a74533;">Positive</span>
+                <span style="display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#9467bd12; color:#9467bd; border:1px solid #9467bd33;">Style</span>
+                <span style="display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#dc354512; color:#dc3545; border:1px solid #dc354533;">Negative (critical)</span>
             </div>
         </details>
     """
