@@ -13,7 +13,7 @@ from typing import Tuple, List, Optional, Any
 from .state import app_state
 
 
-def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False) -> Tuple[go.Figure, str]:
+def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of proportion by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -30,6 +30,12 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     
     # Ensure proportion values are numeric and in reasonable range
     model_cluster_df = model_cluster_df.copy()
+
+    # Optional: filter to selected models (ignore the pseudo 'all' entry if present)
+    if selected_models:
+        concrete_models = [m for m in selected_models if m != "all"]
+        if concrete_models:
+            model_cluster_df = model_cluster_df[model_cluster_df["model"].isin(concrete_models)]
     model_cluster_df['proportion'] = pd.to_numeric(model_cluster_df['proportion'], errors='coerce')
     
     # Check for any unreasonable values
@@ -109,7 +115,7 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     return fig, mapping_text
 
 
-def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False) -> Tuple[go.Figure, str]:
+def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of quality by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -132,6 +138,12 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     
     # Create a copy for plotting
     plot_df = model_cluster_df.copy()
+
+    # Optional: filter to selected models (ignore the pseudo 'all' entry if present)
+    if selected_models:
+        concrete_models = [m for m in selected_models if m != "all"]
+        if concrete_models:
+            plot_df = plot_df[plot_df["model"].isin(concrete_models)]
     
     # Ensure quality values are numeric
     plot_df[quality_col] = pd.to_numeric(plot_df[quality_col], errors='coerce')
@@ -145,7 +157,7 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
 
     # Determine which clusters to include: user-selected or default top 15 by aggregated frequency
     cluster_freq = (
-        model_cluster_df[model_cluster_df['cluster'] != "No properties"]
+        plot_df[plot_df['cluster'] != "No properties"]
         .groupby('cluster', as_index=False)['proportion']
         .sum()
         .sort_values('proportion', ascending=False)
@@ -265,12 +277,12 @@ def update_quality_metric_visibility(plot_type: str) -> gr.Dropdown:
     return gr.update(choices=[], value=None, visible=False)
 
 
-def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False) -> Tuple[go.Figure, str]:
+def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a plot based on the selected type (frequency or quality)."""
     if plot_type == "frequency":
-        return create_proportion_plot(selected_clusters, show_ci)
+        return create_proportion_plot(selected_clusters, show_ci, selected_models)
     elif plot_type == "quality":
-        return create_quality_plot(quality_metric, selected_clusters, show_ci)
+        return create_quality_plot(quality_metric, selected_clusters, show_ci, selected_models)
     else:
         return None, f"Unknown plot type: {plot_type}"
 
@@ -326,11 +338,19 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
     return plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector
 
 
-def update_cluster_selection() -> Any:
-    """Populate the cluster selector choices and default selection (top 15 by frequency)."""
+def update_cluster_selection(selected_models: Optional[List[str]] = None) -> Any:
+    """Populate the cluster selector choices and default selection (top 15 by frequency).
+
+    If selected_models is provided, restrict clusters to those computed from the selected models.
+    """
     if app_state.get("model_cluster_df") is None:
         return gr.update(choices=[], value=[])
     df = app_state["model_cluster_df"]
+    # Optional: filter to selected models (ignore the pseudo 'all' entry if present)
+    if selected_models:
+        concrete_models = [m for m in selected_models if m != "all"]
+        if concrete_models:
+            df = df[df["model"].isin(concrete_models)]
     if df.empty or 'cluster' not in df.columns or 'proportion' not in df.columns:
         return gr.update(choices=[], value=[])
     # Exclude "No properties"

@@ -827,6 +827,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
+                    inputs=[selected_models],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -838,7 +839,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
                 ))
         else:
@@ -890,6 +891,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
+                    inputs=[selected_models],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -901,7 +903,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
                     outputs=[plot_display, plot_info]
                 ))
         
@@ -1003,21 +1005,21 @@ def create_app() -> gr.Blocks:
         # Plots Tab Handlers
         show_ci_checkbox.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
             outputs=[plot_display, plot_info]
         )
         
         # Quality metric dropdown handlers (only for quality plots)
         quality_metric_dropdown.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
             outputs=[plot_display, plot_info]
         )
         
         # Cluster selector change updates the plot and mapping text
         cluster_selector.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
             outputs=[plot_display, plot_info]
         )
 
@@ -1032,7 +1034,7 @@ def create_app() -> gr.Blocks:
             outputs=[quality_metric_state]
         ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
             outputs=[plot_display, plot_info]
         )
         
@@ -1081,6 +1083,18 @@ def create_app() -> gr.Blocks:
             fn=view_clusters_interactive,
             inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
             outputs=[clusters_display]
+        ).then(
+            fn=update_cluster_selection,
+            inputs=[selected_models],
+            outputs=[cluster_selector]
+        ).then(
+            fn=compute_plots_quality_metric,
+            inputs=[plot_type_dropdown, quality_metric_dropdown],
+            outputs=[quality_metric_state]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
+            outputs=[plot_display, plot_info]
         )
         
         # Auto-refresh clusters when search term changes (with debouncing)
