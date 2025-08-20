@@ -12,6 +12,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+import logging
 
 def main():
     parser = argparse.ArgumentParser(
@@ -92,6 +93,10 @@ Examples:
             print(f"❌ Error: Path is not a directory: {args.results_dir}")
             sys.exit(1)
     
+    # Configure logging level when --debug is set
+    if args.debug:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
     # Import and launch the app
     try:
         from .app import launch_app

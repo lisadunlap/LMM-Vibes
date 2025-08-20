@@ -25,7 +25,7 @@ def view_clusters_interactive(
     selected_models: List[str],
     cluster_level: str,
     search_term: str = "",
-    selected_tag: str = None,
+    selected_tags: List[str] | None = None,
 ) -> str:
     if app_state["clustered_df"] is None:
         return (
@@ -39,8 +39,8 @@ def view_clusters_interactive(
     if search_term and search_term.strip():
         df = search_clusters_only(df, search_term.strip(), cluster_level)
 
-    # Optional tag filter (derived from meta first value)
-    if selected_tag and selected_tag != "All Tags" and 'meta' in df.columns:
+    # Optional tags filter (derived from meta first value)
+    if selected_tags and len(selected_tags) > 0 and 'meta' in df.columns:
         def _parse_meta(obj):
             if isinstance(obj, str):
                 try:
@@ -67,7 +67,8 @@ def view_clusters_interactive(
             len(non_null_parsed) > 0 and all(isinstance(m, dict) and len(m) == 0 for m in non_null_parsed)
         )
         if not all_empty_dicts:
-            df = df[df['meta'].apply(_first_val).astype(str) == str(selected_tag)]
+            allowed = set(map(str, selected_tags))
+            df = df[df['meta'].apply(_first_val).astype(str).isin(allowed)]
 
     # Build interactive viewer
     cluster_html = create_interactive_cluster_viewer(df, selected_models, cluster_level)
@@ -188,7 +189,7 @@ def view_clusters_interactive(
         </div>
         """
 
-    if selected_tag and selected_tag != "All Tags":
+    if selected_tags and len(selected_tags) > 0:
         filter_info += f"""
         <div style="
             background: #e8f5e9;
@@ -197,7 +198,7 @@ def view_clusters_interactive(
             margin-bottom: 15px;
             border-radius: 4px;
         ">
-            🏷️ <strong>Tag Filter:</strong> {selected_tag}
+            🏷️ <strong>Tag Filter:</strong> {', '.join(selected_tags)}
         </div>
         """
 

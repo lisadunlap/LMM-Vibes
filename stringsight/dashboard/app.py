@@ -379,6 +379,15 @@ def create_app() -> gr.Blocks:
                     info="Choose which models to include in comparisons",
                     elem_id="selected-models"
                 )
+                # Consolidated Tag selection (hidden until data provides tags)
+                selected_tags = gr.CheckboxGroup(
+                    label="Filter by Tags",
+                    show_label=False,
+                    choices=[],
+                    value=[],
+                    info="Filter clusters/examples/plots by tags (derived from metadata)",
+                    visible=False,
+                )
             
             # Main content area with reduced margins
             with gr.Column(scale=6, elem_classes=["main-content"]):
@@ -393,7 +402,7 @@ def create_app() -> gr.Blocks:
                     # Tab 1: Overview
                     with gr.TabItem("📊 Overview", id=1) as overview_tab:
                         # Accordion for Filter Controls
-                        with gr.Accordion("🔧 Filter Controls", open=False, visible=True) as filter_controls_acc:
+                        with gr.Accordion("Filter Controls", open=False, visible=True) as filter_controls_acc:
                             with gr.Row():
                                 min_cluster_size = gr.Slider(
                                     label="Minimum Cluster Size",
@@ -480,14 +489,6 @@ def create_app() -> gr.Blocks:
                                 placeholder="Search in property clusters...",
                                 info="Search for specific terms in property clusters"
                             )
-                            cluster_tag_dropdown = gr.Dropdown(
-                                label="Filter by Tag",
-                                show_label=False,
-                                choices=[],
-                                value=None,
-                                visible=False,
-                                info="Filter clusters by tag derived from metadata"
-                            )
                         
                         clusters_display = gr.HTML(
                             label="Interactive Cluster Viewer",
@@ -535,15 +536,7 @@ def create_app() -> gr.Blocks:
                                         value="All Clusters", 
                                         info="Choose a specific cluster or 'All Clusters'"
                                     )
-                                with gr.Column(scale=1):
-                                    example_tag_dropdown = gr.Dropdown(
-                                        label="Filter by Tag",
-                                        show_label=False,
-                                        choices=[],
-                                        value=None,
-                                        visible=False,
-                                        info="Filter examples by tag derived from metadata"
-                                    )
+                                # Tags are consolidated in the sidebar
                             
                             with gr.Row():
                                 max_examples_slider = gr.Slider(
@@ -654,13 +647,19 @@ def create_app() -> gr.Blocks:
             )
             return overview_html
 
-        def update_cluster_tag_dropdown():
-            # Populate cluster tag dropdown based on metadata, similar to examples tab
+        def update_sidebar_tags(selected_models_current: Optional[List[str]] = None):
+            # Populate sidebar tag checkboxes from clustered_df (respect selected models if provided)
             if app_state.get("clustered_df") is None:
-                return gr.update(choices=[], value=None, visible=False)
-            choices = get_unique_values_for_dropdowns(app_state["clustered_df"])
-            tags = ["All Tags"] + choices.get("tags", []) if choices.get("tags") else []
-            return gr.update(choices=tags, value=("All Tags" if tags else None), visible=bool(tags))
+                return gr.update(choices=[], value=[], visible=False)
+            df = app_state["clustered_df"]
+            if selected_models_current:
+                concrete = [m for m in selected_models_current if m != "all"]
+                if concrete:
+                    df = df[df["model"].isin(concrete)]
+            choices = get_unique_values_for_dropdowns(df)
+            tags = choices.get("tags", []) or []
+            # Default select all tags (no filter)
+            return gr.update(choices=tags, value=tags, visible=bool(tags))
 
 
         def create_overview_page(selected_models,
@@ -813,10 +812,11 @@ def create_app() -> gr.Blocks:
                 ).then(
                     fn=update_example_dropdowns,
                     inputs=[selected_models],
-                    outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
+                    outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=update_cluster_tag_dropdown,
-                    outputs=[cluster_tag_dropdown]
+                    fn=update_sidebar_tags,
+                    inputs=[selected_models],
+                    outputs=[selected_tags]
                 ).then(
                     fn=update_quality_metric_dropdown,
                     outputs=[quality_metric_overview]
@@ -826,13 +826,13 @@ def create_app() -> gr.Blocks:
                         example_prompt_dropdown,
                         example_model_dropdown,
                         example_property_dropdown,
-                        example_tag_dropdown,
                         max_examples_slider,
                         use_accordion_checkbox,
                         pretty_print_checkbox,
                         search_examples,
                         show_unexpected_behavior_checkbox,
                         selected_models,
+                        selected_tags,
                     ],
                     outputs=[examples_display]
                 ).then(
@@ -843,7 +843,7 @@ def create_app() -> gr.Blocks:
                     outputs=[search_clusters, search_examples]
                 ).then(
                     fn=view_clusters_interactive,
-                    inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+                    inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
                     outputs=[clusters_display]
                 ).then(
                     fn=create_overview_page,
@@ -851,7 +851,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
-                    inputs=[selected_models],
+                    inputs=[selected_models, selected_tags],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -863,7 +863,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
                     outputs=[plot_display, plot_info]
                 ))
         else:
@@ -879,10 +879,11 @@ def create_app() -> gr.Blocks:
                 ).then(
                     fn=update_example_dropdowns,
                     inputs=[selected_models],
-                    outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
+                    outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
                 ).then(
-                    fn=update_cluster_tag_dropdown,
-                    outputs=[cluster_tag_dropdown]
+                    fn=update_sidebar_tags,
+                    inputs=[selected_models],
+                    outputs=[selected_tags]
                 ).then(
                     fn=update_quality_metric_dropdown,
                     outputs=[quality_metric_overview]
@@ -892,13 +893,13 @@ def create_app() -> gr.Blocks:
                         example_prompt_dropdown,
                         example_model_dropdown,
                         example_property_dropdown,
-                        example_tag_dropdown,
                         max_examples_slider,
                         use_accordion_checkbox,
                         pretty_print_checkbox,
                         search_examples,
                         show_unexpected_behavior_checkbox,
                         selected_models,
+                        selected_tags,
                     ],
                     outputs=[examples_display]
                 ).then(
@@ -909,7 +910,7 @@ def create_app() -> gr.Blocks:
                     outputs=[search_clusters, search_examples]
                 ).then(
                     fn=view_clusters_interactive,
-                    inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+                    inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
                     outputs=[clusters_display]
                 ).then(
                     fn=create_overview_page,
@@ -917,7 +918,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
-                    inputs=[selected_models],
+                    inputs=[selected_models, selected_tags],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -929,7 +930,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
                     outputs=[plot_display, plot_info]
                 ))
         
@@ -974,53 +975,49 @@ def create_app() -> gr.Blocks:
         
         refresh_clusters_btn.click(
             fn=view_clusters_interactive,
-            inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+            inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
             outputs=[clusters_display]
         )
         
         # View Examples handlers
         view_examples_btn.click(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when dropdowns change
         example_prompt_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
         example_model_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
         example_property_dropdown.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
-        example_tag_dropdown.change(
-            fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
-            outputs=[examples_display]
-        )
+        # Removed per-tab tag dropdown; using sidebar tags
         
         # Auto-refresh examples when search term changes
         search_examples.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
         # Auto-refresh examples when unexpected behavior checkbox changes
         show_unexpected_behavior_checkbox.change(
             fn=view_examples,
-            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models],
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
             outputs=[examples_display]
         )
         
@@ -1031,21 +1028,21 @@ def create_app() -> gr.Blocks:
         # Plots Tab Handlers
         show_ci_checkbox.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
             outputs=[plot_display, plot_info]
         )
         
         # Quality metric dropdown handlers (only for quality plots)
         quality_metric_dropdown.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
             outputs=[plot_display, plot_info]
         )
         
         # Cluster selector change updates the plot and mapping text
         cluster_selector.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
             outputs=[plot_display, plot_info]
         )
 
@@ -1060,7 +1057,7 @@ def create_app() -> gr.Blocks:
             outputs=[quality_metric_state]
         ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
             outputs=[plot_display, plot_info]
         )
         
@@ -1107,24 +1104,25 @@ def create_app() -> gr.Blocks:
             outputs=[overview_display]
         ).then(
             fn=view_clusters_interactive,
-            inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+            inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
             outputs=[clusters_display]
         ).then(
             fn=update_example_dropdowns,
             inputs=[selected_models],
-            outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, example_tag_dropdown]
+            outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
         ).then(
             fn=view_examples,
             inputs=[
                 example_prompt_dropdown,
                 example_model_dropdown,
                 example_property_dropdown,
-                example_tag_dropdown,
                 max_examples_slider,
                 use_accordion_checkbox,
                 pretty_print_checkbox,
                 search_examples,
                 show_unexpected_behavior_checkbox,
+                selected_models,
+                selected_tags,
             ],
             outputs=[examples_display]
         ).then(
@@ -1137,21 +1135,38 @@ def create_app() -> gr.Blocks:
             outputs=[quality_metric_state]
         ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
             outputs=[plot_display, plot_info]
         )
         
         # Auto-refresh clusters when search term changes (with debouncing)
         search_clusters.change(
             fn=view_clusters_interactive,
-            inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+            inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
             outputs=[clusters_display]
         )
 
-        cluster_tag_dropdown.change(
+        # Sidebar tags: update clusters, overview, plots, and examples
+        selected_tags.change(
             fn=view_clusters_interactive,
-            inputs=[selected_models, gr.State("fine"), search_clusters, cluster_tag_dropdown],
+            inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
             outputs=[clusters_display]
+        ).then(
+            fn=create_overview_page,
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type],
+            outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
+        ).then(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags],
+            outputs=[cluster_selector]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            outputs=[plot_display, plot_info]
+        ).then(
+            fn=view_examples,
+            inputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown, max_examples_slider, use_accordion_checkbox, pretty_print_checkbox, search_examples, show_unexpected_behavior_checkbox, selected_models, selected_tags],
+            outputs=[examples_display]
         )
 
         # (No global header search)

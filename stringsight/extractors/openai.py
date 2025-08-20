@@ -114,7 +114,6 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         # ------------------------------------------------------------------
         user_messages: List[str] = []
         for conv in data.conversations:
-            print(self.prompt_builder(conv))
             user_messages.append(self.prompt_builder(conv))
 
         # ------------------------------------------------------------------

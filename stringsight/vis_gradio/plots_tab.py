@@ -264,7 +264,7 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
     # Add checkbox for confidence intervals
     show_ci_checkbox = gr.Checkbox(
         label="Show Confidence Intervals",
-        value=True,
+        value=False,
         info="Display 95% confidence intervals as error bars (if available in data)"
     )
     

@@ -168,6 +168,7 @@ def create_model_summary_card_new(
     quality_significant_only: bool = False,
     sort_by: str = "quality_asc",
     min_cluster_size: int = 1,
+    selected_tags: Optional[List[str]] = None,
 ) -> str:
     """Generate a **styled** HTML summary card for a single model.
 
@@ -256,6 +257,13 @@ def create_model_summary_card_new(
 
     # Filter clusters ----------------------------------------------------
     all_clusters = [c for c in clusters_dict.values() if c.get("size", 0) >= min_cluster_size]
+
+    # Optional: filter clusters by sidebar-selected tags
+    if selected_tags:
+        def _cluster_tag(c: dict) -> Optional[str]:
+            return _extract_tag(c.get("metadata")) if isinstance(c, dict) else None
+        allowed = set(map(str, selected_tags))
+        all_clusters = [c for c in all_clusters if (t := _cluster_tag(c)) and str(t) in allowed]
 
     if score_significant_only:
         if model_name == "all":
@@ -1907,7 +1915,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 <!-- Readable text block for Cluster / Tag / Property / Reason / Evidence (markdown-enabled) -->
                 {(
                     f'''<div style="margin-bottom:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px;">
-                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))} <span style="color:#6b7280;">(ID: {html.escape(str(example["fine_cluster_id"]))})</span></div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None"] else '')}
+                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))}</div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None"] else '')}
                         {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Property</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["property_description"]))}</div></div>' if example["property_description"] not in ["N/A", "None"] else '')}
                         {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Reason</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["reason"]))}</div></div>' if example["reason"] not in ["N/A", "None"] else '')}
                         {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Evidence</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["evidence"]))}</div></div>' if example["evidence"] not in ["N/A", "None"] else '')}

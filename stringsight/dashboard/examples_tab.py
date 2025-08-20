@@ -27,9 +27,9 @@ __all__: List[str] = [
 # Dropdown helpers
 # ---------------------------------------------------------------------------
 
-def get_dropdown_choices(selected_models: Optional[List[str]] = None) -> Tuple[List[str], List[str], List[str], List[str]]:
+def get_dropdown_choices(selected_models: Optional[List[str]] = None) -> Tuple[List[str], List[str], List[str]]:
     if app_state["clustered_df"] is None:
-        return [], [], [], []
+        return [], [], []
 
     choices = get_unique_values_for_dropdowns(app_state["clustered_df"])
     prompts = ["All Prompts"] + choices["prompts"]
@@ -40,12 +40,11 @@ def get_dropdown_choices(selected_models: Optional[List[str]] = None) -> Tuple[L
     else:
         models = ["All Models"] + choices["models"]
     properties = ["All Clusters"] + choices["properties"]
-    tags = ["All Tags"] + choices.get("tags", []) if choices.get("tags") else []
-    return prompts, models, properties, tags
+    return prompts, models, properties
 
 
-def update_example_dropdowns(selected_models: Optional[List[str]] = None) -> Tuple[Any, Any, Any, Any]:
-    prompts, models, properties, tags = get_dropdown_choices(selected_models)
+def update_example_dropdowns(selected_models: Optional[List[str]] = None) -> Tuple[Any, Any, Any]:
+    prompts, models, properties = get_dropdown_choices(selected_models)
     # If exactly one concrete model selected in sidebar, preselect it; else default to All Models
     preselect_model = "All Models"
     if selected_models:
@@ -56,7 +55,6 @@ def update_example_dropdowns(selected_models: Optional[List[str]] = None) -> Tup
         gr.update(choices=prompts, value="All Prompts" if prompts else None),
         gr.update(choices=models, value=(preselect_model if models else None)),
         gr.update(choices=properties, value="All Clusters" if properties else None),
-        gr.update(choices=tags, value="All Tags" if tags else None, visible=bool(tags)),
     )
 
 
@@ -68,13 +66,13 @@ def view_examples(
     selected_prompt: str,
     selected_model: str,
     selected_property: str,
-    selected_tag: str | None = None,
     max_examples: int = 5,
     use_accordion: bool = True,
     pretty_print_dicts: bool = True,
     search_term: str = "",
     show_unexpected_behavior: bool = False,
     selected_models_sidebar: Optional[List[str]] = None,
+    selected_tags_sidebar: Optional[List[str]] = None,
 ) -> str:
     if app_state["clustered_df"] is None:
         return (
@@ -97,8 +95,8 @@ def view_examples(
         if df.empty:
             return f"<p style='color: #e74c3c; padding: 20px;'>❌ No clusters found matching '{search_term}'</p>"
 
-    # Optional tag filter: derive first meta value and filter to tag
-    if selected_tag and selected_tag != "All Tags" and 'meta' in df.columns:
+    # Optional tags filter (sidebar): include rows whose first meta value is in selected tags
+    if selected_tags_sidebar and len(selected_tags_sidebar) > 0 and 'meta' in df.columns:
         def _parse_meta(obj: Any) -> Any:
             if isinstance(obj, str):
                 try:
@@ -126,9 +124,10 @@ def view_examples(
         )
 
         if not all_empty_dicts:
-            df = df[df['meta'].apply(_first_val).astype(str) == str(selected_tag)]
+            allowed = set(map(str, selected_tags_sidebar))
+            df = df[df['meta'].apply(_first_val).astype(str).isin(allowed)]
         if df.empty:
-            return f"<p style='color: #e74c3c; padding: 20px;'>❌ No examples found for tag '{selected_tag}'</p>"
+            return "<p style='color: #e74c3c; padding: 20px;'>❌ No examples found for selected tags</p>"
 
     examples = get_example_data(
         df,

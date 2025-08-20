@@ -19,6 +19,9 @@ from .state import app_state, BASE_RESULTS_DIR
 from .data_loader import load_pipeline_results, get_available_models
 from .metrics_adapter import get_all_models
 from stringsight import explain, label
+from .conversation_display import display_openai_conversation_html, convert_to_openai_format
+
+EXAMPLE_FILE = "/home/lisabdunlap/LMM-Vibes/data/call-center/call_center_results_new_oai.jsonl"
 
 
 def create_run_pipeline_tab():
@@ -26,7 +29,7 @@ def create_run_pipeline_tab():
     
     with gr.Row():
         gr.Markdown("""
-        ## 🚀 Run Pipeline
+        ## Run Pipeline
         
         Upload your data and run the LMM-Vibes pipeline to analyze model behaviors and generate insights.
         
@@ -37,12 +40,13 @@ def create_run_pipeline_tab():
         with gr.Column(scale=1):
             # File input section
             with gr.Group():
-                gr.Markdown("### 📁 Data Input")
+                gr.Markdown("### Data Input")
                 
                 input_method = gr.Radio(
                     choices=["Upload File", "File Path"],
                     value="Upload File",
                     label="Input Method",
+                    show_label=False,
                     info="Choose whether to upload a file or specify a file path"
                 )
                 
@@ -51,6 +55,8 @@ def create_run_pipeline_tab():
                     file_types=[".jsonl", ".json", ".csv", ".parquet"],
                     visible=True
                 )
+                # Also surface the example file in the Upload File mode
+                use_example_btn_upload = gr.Button("Use Example File", size="sm")
                 
                 with gr.Row(visible=False) as file_path_row:
                     with gr.Column(scale=3):
@@ -60,14 +66,16 @@ def create_run_pipeline_tab():
                             info=f"Enter path relative to {os.getcwd()} or absolute path"
                         )
                     with gr.Column(scale=1):
-                        browse_button = gr.Button("📁 Browse", size="sm")
+                        browse_button = gr.Button("Browse", size="sm")
+                        load_data_btn = gr.Button("Load Data", size="sm")
+                        use_example_btn = gr.Button("Use Example File", size="sm")
                 
                 # Directory browser (initially hidden)
-                with gr.Accordion("📂 Directory Browser", open=False, visible=False) as dir_browser:
+                with gr.Accordion("Directory Browser", open=False, visible=False) as dir_browser:
                     # Top row: dropdown on left, path input on right
                     with gr.Row():
                         items_dropdown = gr.Dropdown(
-                            label="📁 Select Directory or File",
+                            label="Select Directory or File",
                             choices=[],
                             value=None,
                             interactive=True,
@@ -85,16 +93,22 @@ def create_run_pipeline_tab():
                     
                     # Bottom row: navigate button
                     with gr.Row():
-                        navigate_button = gr.Button("🔍 Navigate", variant="secondary")
+                        navigate_button = gr.Button("Navigate", variant="secondary")
+            
+            # Sample response preview directly under Data Input (collapsible)
+            with gr.Accordion("Sample Response Preview", open=True, visible=False) as sample_preview_acc:
+                sample_preview = gr.HTML(
+                    value="<div style='color:#666;padding:8px;'>No preview yet. Choose a file to preview a response.</div>",
+                )
             
             # Sub-tabs for Explain vs Label configuration
             with gr.Group():
-                gr.Markdown("### ⚙️ Pipeline Configuration")
+                gr.Markdown("### Pipeline Configuration")
                 with gr.Tabs():
                     # --------------------
                     # Explain sub-tab
                     # --------------------
-                    with gr.TabItem("🧩 Explain"):
+                    with gr.TabItem("Explain"):
                         # Core parameters
                         method = gr.Dropdown(
                             choices=["single_model", "side_by_side"],
@@ -115,7 +129,7 @@ def create_run_pipeline_tab():
                         )
                         
                         # Clustering parameters
-                        with gr.Accordion("🔗 Clustering Settings", open=False):
+                        with gr.Accordion("Clustering Settings", open=False):
                             clusterer = gr.Dropdown(
                                 choices=["hdbscan", "hierarchical", "dummy"],
                                 value="hdbscan",
@@ -161,14 +175,14 @@ def create_run_pipeline_tab():
                             )
 
                         run_button_explain = gr.Button(
-                            "🚀 Run Explain",
+                            "Run Explain",
                             variant="primary",
                         )
 
                     # --------------------
                     # Label sub-tab
                     # --------------------
-                    with gr.TabItem("🏷️ Label"):
+                    with gr.TabItem("Label"):
                         gr.Markdown(
                             "Provide a taxonomy mapping of label -> description (JSON). A sensible default is pre-filled; edit as needed."
                         )
@@ -194,12 +208,12 @@ def create_run_pipeline_tab():
                         )
 
                         run_button_label = gr.Button(
-                            "🚀 Run Label",
+                            "Run Label",
                             variant="primary",
                         )
 
                 # Advanced settings (shared)
-                with gr.Accordion("🔧 Advanced Settings", open=False):
+                with gr.Accordion("Advanced Settings", open=False):
                     sample_size = gr.Number(
                         label="Sample Size (Optional)",
                         precision=0,
@@ -228,18 +242,15 @@ def create_run_pipeline_tab():
                         value=True,
                         info="Show detailed progress information"
                     )
-        
-        with gr.Column(scale=1):
-            # Output section
+
+            # Pipeline execution at bottom of left column
             with gr.Group():
-                gr.Markdown("### 📊 Pipeline Execution")
-                
+                gr.Markdown("### Pipeline Execution")
                 # Status and progress
                 status_display = gr.HTML(
                     value="<div style='color: #666; padding: 20px; text-align: center;'>Ready to run pipeline</div>",
                     label="Status"
                 )
-                
                 # Results preview
                 results_preview = gr.HTML(
                     value="",
@@ -307,59 +318,80 @@ def create_run_pipeline_tab():
         )
     
 
-    
+    # Helper to trigger preview from the current value in file_path_input
+    def _load_data_from_textbox(current_path_value):
+        # Orchestrate full file selection when a path is typed
+        return select_file(current_path_value)
+
+    # Unified file selection orchestrator
+    def select_file(path: str):
+        if not path or not str(path).strip():
+            return (
+                gr.update(value=""),                  # path_input
+                gr.update(choices=[], value=None),     # items_dropdown
+                gr.update(),                           # file_path_input
+                gr.update(value="", visible=False),   # sample_preview
+                gr.update(visible=False),              # sample_preview_acc
+                gr.update(value="Upload File"),       # input_method
+                gr.update(visible=False),              # file_path_row
+                gr.update(visible=False),              # dir_browser
+            )
+
+        path = path.strip()
+        if not os.path.isabs(path):
+            path = os.path.join(os.getcwd(), path)
+        path = os.path.normpath(path)
+
+        if not os.path.exists(path):
+            return (
+                gr.update(value=os.path.dirname(path) if os.path.dirname(path) else ""),
+                gr.update(choices=[], value=None),
+                gr.update(value=path),
+                gr.update(visible=False),            # sample_preview
+                gr.update(visible=False),            # sample_preview_acc
+                gr.update(value="File Path"),
+                gr.update(visible=True),
+                gr.update(visible=False),
+            )
+
+        if os.path.isfile(path):
+            directory = os.path.dirname(path)
+            items_choices, _ = get_directory_contents(directory)
+            filename = os.path.basename(path)
+            preview_html = _create_sample_preview_html(path)
+            return (
+                gr.update(value=directory),
+                gr.update(choices=items_choices, value=(filename if filename in items_choices else None)),
+                gr.update(value=path),
+                gr.update(value=preview_html, visible=bool(preview_html)),  # sample_preview
+                gr.update(visible=True),                                    # sample_preview_acc (open/visible)
+                gr.update(value="File Path"),
+                gr.update(visible=True),   # file_path_row
+                gr.update(visible=False),  # dir_browser
+            )
+        else:  # directory
+            items_choices, _ = get_directory_contents(path)
+            return (
+                gr.update(value=path),
+                gr.update(choices=items_choices, value=None),
+                gr.update(),
+                gr.update(visible=False),  # sample_preview
+                gr.update(visible=True),   # sample_preview_acc (open, but empty)
+                gr.update(value="File Path"),
+                gr.update(visible=True),
+                gr.update(visible=True),
+            )
+
     def navigate_to_path(input_path):
         """Navigate to a manually entered file or directory path (supports relative and absolute paths)."""
         if not input_path or not input_path.strip():
-            return gr.update(choices=[], value=None), gr.update()
-        
-        path = input_path.strip()
-        
-        # Handle relative paths by resolving against current working directory
-        if not os.path.isabs(path):
-            path = os.path.join(os.getcwd(), path)
-        
-        # Normalize the path
-        path = os.path.normpath(path)
-        
-        # Check if it's a file
-        if os.path.isfile(path):
-            # It's a file - update the file path input and navigate to its directory
-            directory = os.path.dirname(path)
-            items_choices, _ = get_directory_contents(directory)
-            
-            # Find the matching item in the dropdown choices
-            filename = os.path.basename(path)
-            selected_item = None
-            for choice in items_choices:
-                if choice.endswith(f" {filename}") and not choice.startswith("📁"):
-                    selected_item = choice
-                    break
-            
-            return (
-                gr.update(choices=items_choices, value=selected_item),  # items_dropdown - auto-select the file
-                gr.update(value=path)  # file_path_input - update with full file path
-            )
-        
-        # Check if it's a directory
-        elif os.path.isdir(path):
-            items_choices, _ = get_directory_contents(path)
-            return (
-                gr.update(choices=items_choices, value=None),  # items_dropdown
-                gr.update()  # file_path_input (no change)
-            )
-        
-        # Path doesn't exist - just update dropdown to empty
-        else:
-            return (
-                gr.update(choices=[], value=None),  # items_dropdown
-                gr.update()  # file_path_input (no change)
-            )
+            return select_file("")
+        return select_file(input_path)
     
     def select_item(current_path, selected_item):
         """Handle selection of directory or file from dropdown."""
         if not selected_item:
-            return gr.update(), gr.update(), gr.update()
+            return gr.update(), gr.update(), gr.update(), gr.update(visible=False)
         
         # Get the current directory
         if os.path.isfile(current_path):
@@ -367,26 +399,76 @@ def create_run_pipeline_tab():
         else:
             current_dir = current_path
         
-        # Check if it's a directory (starts with 📁)
-        if selected_item.startswith("📁"):
-            # Extract directory name (remove "📁 " and trailing "/")
-            dir_name = selected_item[2:].rstrip('/')
+        # Check if it's a directory (we represent directories with trailing "/")
+        if selected_item.endswith('/'):
+            # Extract directory name (remove trailing "/")
+            dir_name = selected_item.rstrip('/')
             new_dir = os.path.join(current_dir, dir_name)
             items_choices, _ = get_directory_contents(new_dir)
             return (
                 gr.update(value=new_dir),  # path_input
                 gr.update(choices=items_choices, value=None),  # items_dropdown
-                gr.update()  # file_path_input (no change)
+                gr.update(),  # file_path_input (no change)
+                gr.update(visible=False),  # sample_preview
+                gr.update(visible=True),   # sample_preview_acc stays visible (collapsed)
             )
         else:
-            # It's a file - extract filename (remove icon and space)
-            filename = selected_item.split(" ", 1)[1]  # Split on first space, take second part
+            # It's a file - selected_item is the filename directly
+            filename = selected_item
             file_path = os.path.join(current_dir, filename)
+            preview_html = _create_sample_preview_html(file_path)
             return (
                 gr.update(),  # path_input (no change)
                 gr.update(),  # items_dropdown (no change)
-                gr.update(value=file_path)  # file_path_input
+                gr.update(value=file_path),  # file_path_input
+                gr.update(value=preview_html, visible=bool(preview_html)),  # sample_preview
+                gr.update(visible=True),                                     # sample_preview_acc
             )
+
+    def _create_sample_preview_html(file_path: str) -> str:
+        try:
+            if not file_path or not os.path.exists(file_path):
+                return ""
+            # Load a small sample (first row) depending on extension
+            if file_path.endswith('.jsonl'):
+                df = pd.read_json(file_path, lines=True, nrows=1)
+            elif file_path.endswith('.json'):
+                df = pd.read_json(file_path)
+                if len(df) > 1:
+                    df = df.head(1)
+            elif file_path.endswith('.csv'):
+                df = pd.read_csv(file_path, nrows=1)
+            elif file_path.endswith('.parquet'):
+                df = pd.read_parquet(file_path)
+                if len(df) > 1:
+                    df = df.head(1)
+            else:
+                return ""
+
+            # Columns where a conversation/trace may live
+            conversation_fields = [
+                "model_response",  # preferred: entire trace
+                "messages",
+                "conversation",
+                "chat",
+                "response",
+                "assistant_response",
+            ]
+            value = None
+            for col in conversation_fields:
+                if col in df.columns:
+                    candidate = df.iloc[0][col]
+                    if isinstance(candidate, str) and not candidate.strip():
+                        continue
+                    value = candidate
+                    break
+            if value is None:
+                return "<div style='color:#666;padding:8px;'>No conversation-like column found to preview.</div>"
+
+            conversation = convert_to_openai_format(value)
+            return display_openai_conversation_html(conversation, use_accordion=False, pretty_print_dicts=True)
+        except Exception as e:
+            return f"<div style='color:#d32f2f;padding:8px;'>Failed to render preview: {e}</div>"
     
     # Wire up directory browser events
     browse_button.click(
@@ -394,24 +476,59 @@ def create_run_pipeline_tab():
         inputs=[path_input],
         outputs=[dir_browser, items_dropdown]
     )
+
+    # Load Data button uses current textbox value
+    load_data_btn.click(
+        fn=_load_data_from_textbox,
+        inputs=[file_path_input],
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
+    )
+
+    # Use Example File button fills the textbox and renders preview
+    def _use_example_file():
+        return select_file(EXAMPLE_FILE)
+
+    use_example_btn.click(
+        fn=_use_example_file,
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
+    )
+
+    # Use example from Upload File area as well (do not switch input method)
+    def _use_example_file_upload():
+        pi_u, dd_u, fp_u, sp_u, spa_u, im_u, fpr_u, db_u = select_file(EXAMPLE_FILE)
+        return (
+            pi_u,
+            dd_u,
+            fp_u,
+            sp_u,
+            spa_u,
+            gr.update(),              # keep current input_method (do not force File Path)
+            gr.update(visible=False), # hide file_path_row in Upload mode
+            gr.update(visible=False), # hide dir_browser
+        )
+
+    use_example_btn_upload.click(
+        fn=_use_example_file_upload,
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
+    )
     
     navigate_button.click(
         fn=navigate_to_path,
         inputs=[path_input],
-        outputs=[items_dropdown, file_path_input]
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
     )
     
     # Auto-navigate when user presses Enter in the path input
     path_input.submit(
         fn=navigate_to_path,
         inputs=[path_input],
-        outputs=[items_dropdown, file_path_input]
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
     )
     
     items_dropdown.change(
         fn=select_item,
         inputs=[path_input, items_dropdown],
-        outputs=[path_input, items_dropdown, file_path_input]
+        outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc]
     )
     
     return {
@@ -419,6 +536,7 @@ def create_run_pipeline_tab():
         "run_button_label": run_button_label,
         "status_display": status_display,
         "results_preview": results_preview,
+        "sample_preview": sample_preview,
         "browse_button": browse_button,
         "file_path_input": file_path_input,
         # Expose inputs for app.py to wire up enhanced handlers
@@ -718,7 +836,7 @@ def create_error_html(message: str) -> str:
     """Create HTML for error display."""
     return f"""
     <div style='color: #d32f2f; background-color: #ffebee; padding: 16px; border-radius: 8px; border-left: 4px solid #d32f2f;'>
-        <strong>❌ Error</strong><br>
+        <strong>Error</strong><br>
         <pre style='color: #d32f2f; margin-top: 8px; white-space: pre-wrap;'>{message}</pre>
     </div>
     """
@@ -728,7 +846,7 @@ def create_running_html(original_size: int, processed_size: int, output_dir: str
     """Create HTML for running status display."""
     return f"""
     <div style='color: #1976d2; background-color: #e3f2fd; padding: 16px; border-radius: 8px; border-left: 4px solid #1976d2;'>
-        <strong>🚀 Pipeline Running</strong><br>
+        <strong>Pipeline Running</strong><br>
         <div style='margin-top: 8px;'>
             • Processing: {processed_size:,} conversations
             {f"(sampled from {original_size:,})" if processed_size < original_size else ""}
@@ -745,7 +863,7 @@ def create_success_html(output_dir: str, n_properties: int, n_models: int) -> st
     """Create HTML for success display."""
     return f"""
     <div style='color: #388e3c; background-color: #e8f5e8; padding: 16px; border-radius: 8px; border-left: 4px solid #388e3c;'>
-        <strong>🎉 Pipeline Completed Successfully!</strong><br>
+        <strong>Pipeline Completed Successfully!</strong><br>
         <div style='margin-top: 8px;'>
             • Extracted properties: {n_properties:,}
             <br>
@@ -753,16 +871,16 @@ def create_success_html(output_dir: str, n_properties: int, n_models: int) -> st
             <br>
             • Results saved to: <code>{output_dir}</code>
             <br><br>
-            <strong>✨ Results are now loaded in the dashboard!</strong><br>
+            <strong>Results are now loaded in the dashboard!</strong><br>
             Switch to other tabs to explore your results:
             <br>
-            📊 <strong>Overview</strong> - Model performance summary
+            <strong>Overview</strong> - Model performance summary
             <br>
-            📋 <strong>View Clusters</strong> - Explore behavior clusters
+            <strong>View Clusters</strong> - Explore behavior clusters
             <br>
-            🔍 <strong>View Examples</strong> - Browse specific examples
+            <strong>View Examples</strong> - Browse specific examples
             <br>
-            📊 <strong>Plots</strong> - Interactive visualizations
+            <strong>Plots</strong> - Interactive visualizations
         </div>
     </div>
     """
@@ -779,7 +897,7 @@ def create_results_preview_html(metrics: dict) -> str:
     # Get top models by some metric (if available)
     preview_html = f"""
     <div style='background-color: #f5f5f5; padding: 16px; border-radius: 8px; margin-top: 16px;'>
-        <strong>📊 Results Preview</strong><br>
+        <strong>Results Preview</strong><br>
         <div style='margin-top: 8px;'>
             <strong>Models analyzed:</strong> {n_models}<br>
     """
@@ -808,7 +926,7 @@ def get_directory_contents(directory: str) -> Tuple[List[str], str]:
         
     Returns:
         Tuple of (items_choices, empty_string)
-        items_choices contains both directories (prefixed with 📁) and files (prefixed with icon)
+        items_choices contains both directories (shown with trailing "/") and files
     """
     try:
         if not os.path.exists(directory) or not os.path.isdir(directory):
@@ -844,22 +962,11 @@ def get_directory_contents(directory: str) -> Tuple[List[str], str]:
             try:
                 if os.path.isdir(full_path):
                     directories.append(entry)
-                    items_choices.append(f"📁 {entry}/")
+                    items_choices.append(f"{entry}/")
                 elif entry.lower().endswith(('.jsonl', '.json', '.csv', '.parquet')):
                     # Only show supported file types
                     files.append(entry)
-                    # Add appropriate icon based on file type
-                    if entry.endswith('.jsonl'):
-                        icon = "📋"
-                    elif entry.endswith('.json'):
-                        icon = "📄"
-                    elif entry.endswith('.csv'):
-                        icon = "📊"
-                    elif entry.endswith('.parquet'):
-                        icon = "🗂️"
-                    else:
-                        icon = "📄"
-                    items_choices.append(f"{icon} {entry}")
+                    items_choices.append(entry)
             except (OSError, PermissionError):
                 continue  # Skip inaccessible items
         

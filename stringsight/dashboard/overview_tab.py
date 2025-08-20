@@ -19,6 +19,7 @@ def create_overview(
     quality_significant_only: bool = False,
     sort_by: str = "quality_asc",
     min_cluster_size: int = 1,
+    selected_tags: Optional[List[str]] = None,
     progress: Optional[gr.Progress] = None,
 ) -> str:
     """Return the HTML snippet that summarises model performance."""
@@ -92,6 +93,7 @@ def create_overview(
             quality_significant_only=quality_significant_only,
             sort_by=sort_by,
             min_cluster_size=min_cluster_size,
+            selected_tags=selected_tags,
         )
         overview_html += card_html
 

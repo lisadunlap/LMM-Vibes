@@ -105,10 +105,12 @@ class LLMUtils:
                     if self.cache:
                         cached_response = self.cache.get_completion(request_data)
                         if cached_response is not None:
+                            logger.info("CACHE HIT")
                             return idx, cached_response["choices"][0]["message"]["content"]
                     
                     # Make API call with graceful fallback for provider-specific unsupported params
                     try:
+                        logger.info("CACHE MISS")
                         response = litellm.completion(
                             **request_data,
                             caching=False,  # Use our own caching
@@ -144,6 +146,7 @@ class LLMUtils:
                             }]
                         }
                         self.cache.set_completion(request_data, response_dict)
+                        logger.debug("CACHE STORE (completion)")
                     
                     return idx, content
                     
@@ -221,6 +224,7 @@ class LLMUtils:
                         if self.cache:
                             cached_embedding = self.cache.get_embedding(text)
                             if cached_embedding is not None:
+                                logger.info("CACHE HIT")
                                 batch_embeddings.append(cached_embedding.tolist())
                                 continue
                         
@@ -231,6 +235,7 @@ class LLMUtils:
                     
                     # Make API call for uncached texts
                     if uncached_texts:
+                        logger.info("CACHE MISS")
                         response = litellm.embedding(
                             model=config.model,
                             input=uncached_texts
@@ -245,6 +250,7 @@ class LLMUtils:
                             # Cache the embedding
                             if self.cache:
                                 self.cache.set_embedding(uncached_texts[i], np.array(embedding))
+                                logger.debug("CACHE STORE (embedding)")
                     
                     return start_idx, batch_embeddings
                     

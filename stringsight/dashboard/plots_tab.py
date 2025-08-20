@@ -13,7 +13,7 @@ from typing import Tuple, List, Optional, Any
 from .state import app_state
 
 
-def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of proportion by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -45,6 +45,31 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     
     # Filter out "No properties" clusters
     model_cluster_df = model_cluster_df[model_cluster_df['cluster'] != "No properties"]
+
+    # Optional: filter clusters by selected tags using metrics.cluster_scores metadata
+    if selected_tags:
+        metrics = app_state.get("metrics", {})
+        cluster_scores = metrics.get("cluster_scores", {})
+        def _first_meta_val(meta_obj: Any) -> Any:
+            if meta_obj is None:
+                return None
+            if isinstance(meta_obj, str):
+                try:
+                    import ast as _ast
+                    meta_obj = _ast.literal_eval(meta_obj)
+                except Exception:
+                    return meta_obj
+            if isinstance(meta_obj, dict):
+                for _, v in meta_obj.items():
+                    return v
+                return None
+            if isinstance(meta_obj, (list, tuple)):
+                return meta_obj[0] if len(meta_obj) > 0 else None
+            return meta_obj
+        allowed = set(map(str, selected_tags))
+        allowed_clusters = {c for c, d in cluster_scores.items() if str(_first_meta_val(d.get("metadata"))) in allowed}
+        if allowed_clusters:
+            model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(allowed_clusters)]
 
     # Determine which clusters to include: user-selected or default top 15 by aggregated frequency
     cluster_freq = (
@@ -115,7 +140,7 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     return fig, mapping_text
 
 
-def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of quality by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -138,6 +163,31 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     
     # Create a copy for plotting
     plot_df = model_cluster_df.copy()
+
+    # Optional: filter clusters by selected tags using metrics.cluster_scores metadata
+    if selected_tags:
+        metrics = app_state.get("metrics", {})
+        cluster_scores = metrics.get("cluster_scores", {})
+        def _first_meta_val(meta_obj: Any) -> Any:
+            if meta_obj is None:
+                return None
+            if isinstance(meta_obj, str):
+                try:
+                    import ast as _ast
+                    meta_obj = _ast.literal_eval(meta_obj)
+                except Exception:
+                    return meta_obj
+            if isinstance(meta_obj, dict):
+                for _, v in meta_obj.items():
+                    return v
+                return None
+            if isinstance(meta_obj, (list, tuple)):
+                return meta_obj[0] if len(meta_obj) > 0 else None
+            return meta_obj
+        allowed = set(map(str, selected_tags))
+        allowed_clusters = {c for c, d in cluster_scores.items() if str(_first_meta_val(d.get("metadata"))) in allowed}
+        if allowed_clusters:
+            plot_df = plot_df[plot_df['cluster'].isin(allowed_clusters)]
 
     # Optional: filter to selected models (ignore the pseudo 'all' entry if present)
     if selected_models:
@@ -277,12 +327,12 @@ def update_quality_metric_visibility(plot_type: str) -> gr.Dropdown:
     return gr.update(choices=[], value=None, visible=False)
 
 
-def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
     """Create a plot based on the selected type (frequency or quality)."""
     if plot_type == "frequency":
-        return create_proportion_plot(selected_clusters, show_ci, selected_models)
+        return create_proportion_plot(selected_clusters, show_ci, selected_models, selected_tags)
     elif plot_type == "quality":
-        return create_quality_plot(quality_metric, selected_clusters, show_ci, selected_models)
+        return create_quality_plot(quality_metric, selected_clusters, show_ci, selected_models, selected_tags)
     else:
         return None, f"Unknown plot type: {plot_type}"
 
@@ -322,7 +372,7 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
     # Add checkbox for confidence intervals
     show_ci_checkbox = gr.Checkbox(
         label="Show Confidence Intervals",
-        value=True,
+        value=False,
         info="Display 95% confidence intervals as error bars (if available in data)"
     )
     
@@ -338,7 +388,7 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
     return plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector
 
 
-def update_cluster_selection(selected_models: Optional[List[str]] = None) -> Any:
+def update_cluster_selection(selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Any:
     """Populate the cluster selector choices and default selection (top 15 by frequency).
 
     If selected_models is provided, restrict clusters to those computed from the selected models.
@@ -351,6 +401,31 @@ def update_cluster_selection(selected_models: Optional[List[str]] = None) -> Any
         concrete_models = [m for m in selected_models if m != "all"]
         if concrete_models:
             df = df[df["model"].isin(concrete_models)]
+    # Optional: filter by selected tags using cluster_scores metadata
+    if selected_tags:
+        metrics = app_state.get("metrics", {})
+        cluster_scores = metrics.get("cluster_scores", {})
+        def _first_meta_val(meta_obj: Any) -> Any:
+            if meta_obj is None:
+                return None
+            if isinstance(meta_obj, str):
+                try:
+                    import ast as _ast
+                    meta_obj = _ast.literal_eval(meta_obj)
+                except Exception:
+                    return meta_obj
+            if isinstance(meta_obj, dict):
+                for _, v in meta_obj.items():
+                    return v
+                return None
+            if isinstance(meta_obj, (list, tuple)):
+                return meta_obj[0] if len(meta_obj) > 0 else None
+            return meta_obj
+        allowed = set(map(str, selected_tags))
+        allowed_clusters = {c for c, d in cluster_scores.items() if str(_first_meta_val(d.get("metadata"))) in allowed}
+        if allowed_clusters:
+            df = df[df['cluster'].isin(allowed_clusters)]
+
     if df.empty or 'cluster' not in df.columns or 'proportion' not in df.columns:
         return gr.update(choices=[], value=[])
     # Exclude "No properties"
