@@ -201,13 +201,13 @@ def create_model_summary_card_new(
 
     # Card header --------------------------------------------------------
     html_parts: list[str] = [f"""
-    <div style="padding: 20px; border:1px solid #e0e0e0; border-radius:8px; margin-bottom:25px;">
-      <h3 style="margin-top:0; font-size: 20px;">{html.escape(model_name)}</h3>
+    <div style="padding: 12px 8px; margin-bottom: 12px; border-bottom: 1px solid #e6e8eb;">
+      <h3 style="margin-top:0; font-size: 18px;">{html.escape(model_name)}</h3>
       <p style="margin: 4px 0 8px 0; color:#555; font-size:13px;">
         {total_battles} battles · Top clusters by frequency
       </p>
-      <p style="margin: 0 0 18px 0; color:#666; font-size:12px;">
-        📊 {significant_frequency_count} significant frequency properties · {significant_quality_count} significant quality properties
+      <p style="margin: 0 0 12px 0; color:#666; font-size:12px;">
+        {significant_frequency_count} significant frequency properties · {significant_quality_count} significant quality properties
       </p>
     """]
 
@@ -229,9 +229,9 @@ def create_model_summary_card_new(
         # Create significance indicators
         significance_indicators = []
         if is_proportion_significant:
-            significance_indicators.append('<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">FREQ</span>')
+            significance_indicators.append('<span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#cc6699; border:1px solid #cc669933; background:#cc669912;">F</span>')
         if is_quality_significant:
-            significance_indicators.append('<span style="background: #007bff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">QUAL</span>')
+            significance_indicators.append('<span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#007bff; border:1px solid #007bff33; background:#007bff12; margin-left:6px;">Q</span>')
         
         significance_html = " ".join(significance_indicators) if significance_indicators else ""
 
@@ -266,18 +266,7 @@ def create_model_summary_card_new(
         cluster_color = get_light_color_for_cluster(name, i)
 
         html_parts.append(f"""
-        <div style="border-left: 4px solid #4c6ef5; padding: 12px 16px; margin-bottom: 10px; background:{cluster_color}; border-radius: 4px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div style="max-width:80%;">
-              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                <strong style="font-size:14px;">{name}</strong>
-                {significance_html}
-              </div>
-              <span style="font-size:12px; color:#555;">{freq_pct:.1f}% frequency ({size} out of {total_battles} total) · {distinct_text}</span>
-            </div>
-            <div style="font-size:12px; font-weight:normal; white-space:nowrap; text-align:right;">{quality_delta_html}</div>
-          </div>
-        </div>
+        <div style=\"background:#fbfcfe; border:1px solid #edf1f5; border-left: 3px solid #4c6ef5; padding: 10px 10px; margin: 10px 0; border-radius: 8px; box-shadow: 0 1px 2px rgba(16,24,40,0.06);\">\n          <div style=\"display:flex; justify-content:space-between; align-items:flex-start;\">\n            <div style=\"max-width:80%;\">\n              <div style=\"display:flex; align-items:center; gap:8px; margin-bottom:4px;\">\n                <strong style=\"font-size:14px;\">{name}</strong>\n                {significance_html}\n              </div>\n              <span style=\"font-size:12px; color:#555;\">{freq_pct:.1f}% frequency ({size} out of {total_battles} total) · {distinct_text}</span>\n            </div>\n            <div style=\"font-size:12px; font-weight:normal; white-space:nowrap; text-align:right;\">{quality_delta_html}</div>\n          </div>\n        </div>
         """)
 
     # Close card div -----------------------------------------------------

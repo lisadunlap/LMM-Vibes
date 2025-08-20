@@ -62,13 +62,13 @@ def create_overview(
                 <strong>Quality Delta</strong><br>
                 The difference between the cluster's quality score(s) for this model and the model's <em>overall</em> quality baseline, shown for each individual metric (e.g., helpfulness, accuracy).<br>
                 Positive values (green) indicate the model performs better than its average in that behaviour; negative values (red) indicate that it performs worse.<br>
-                <strong>Significance Tags (FREQ/QUAL)</strong><br>
+                <strong>Significance Tags (F/Q)</strong><br>
                 <span style="color: #888; font-size: 13px;">
                     Statistical significance is determined using a bootstrap procedure on the conversations to obtain 95% confidence intervals.
                 </span><br>
-                The <span style="background: transparent; color: #cc6699; padding: 1px 6px; border: 1px solid #cc6699; border-radius: 4px; font-size: 10px; font-weight: 600;">FREQ</span> and <span style="background: transparent; color: #007bff; padding: 1px 6px; border: 1px solid #007bff; border-radius: 4px; font-size: 10px; font-weight: 600;">QUAL</span> tags indicate <em>statistical significance</em> based on bootstraped confidence intervals:<br>
-                • <strong>FREQ</strong> (pink): The proportion delta is statistically significant (confidence interval doesn't include zero)<br>
-                • <strong>QUAL</strong> (blue): At least one quality metric delta is statistically significant<br>
+                The <span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#cc6699; border:1px solid #cc669933; background:#cc669912;">F</span> and <span style="display:inline-block; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; line-height:1; color:#007bff; border:1px solid #007bff33; background:#007bff12;">Q</span> tags indicate <em>statistical significance</em> based on bootstraped confidence intervals:<br>
+                • <strong>F</strong> (pink): The proportion delta is statistically significant (confidence interval doesn't include zero)<br>
+                • <strong>Q</strong> (blue): At least one quality metric delta is statistically significant<br>
                 These tags help identify which behavioral patterns are reliably different from the model's baseline performance.
             </div>
         </details>
