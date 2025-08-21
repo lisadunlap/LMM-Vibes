@@ -91,7 +91,7 @@ def view_examples(
             if df.empty:
                 return "<p style='color: #e74c3c; padding: 20px;'>❌ No examples for the selected model subset.</p>"
     if search_term and isinstance(search_term, str) and search_term.strip():
-        df = search_clusters_by_text(df, search_term.strip(), 'description')
+        df = search_clusters_by_text(df, search_term.strip(), 'all')
         if df.empty:
             return f"<p style='color: #e74c3c; padding: 20px;'>❌ No clusters found matching '{search_term}'</p>"
 

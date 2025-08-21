@@ -781,6 +781,40 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
     return fig, fig_quality
 
 
+def normalize_text_for_search(text: Any) -> str:
+    """Lowercase and strip common Markdown/HTML formatting and punctuation for robust search.
+
+    - Unwrap markdown links: [label](url) -> label
+    - Remove inline code/backticks and strikethrough markers
+    - Unwrap emphasis/bold/italics: *, **, _, __
+    - Strip simple HTML tags
+    - Remove all punctuation including commas, periods, quotes, etc.
+    - Collapse whitespace
+    """
+    if text is None:
+        return ""
+    import re
+    s = str(text)
+    # Strip HTML tags first
+    s = re.sub(r"<[^>]+>", " ", s)
+    # Markdown links [text](url) -> text
+    s = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", s)
+    # Inline code `code` -> code
+    s = re.sub(r"`([^`]*)`", r"\1", s)
+    # Bold/italic wrappers (**text** | __text__ | *text* | _text_) -> text
+    s = re.sub(r"(\*\*|__)(.*?)\1", r"\2", s)
+    s = re.sub(r"(\*|_)(.*?)\1", r"\2", s)
+    # Strikethrough ~~text~~ -> text
+    s = re.sub(r"~~(.*?)~~", r"\1", s)
+    # Remove remaining markdown emphasis chars/backticks/tilde
+    s = re.sub(r"[*_`~]", "", s)
+    # Remove all punctuation (including commas, periods, quotes, parentheses, etc.)
+    s = re.sub(r"[^\w\s]", " ", s)
+    # Normalize whitespace and lowercase
+    s = re.sub(r"\s+", " ", s).strip().lower()
+    return s
+
+
 def search_clusters_by_text(clustered_df: pd.DataFrame, 
                           search_term: str,
                           search_in: str = 'description') -> pd.DataFrame:
@@ -788,12 +822,14 @@ def search_clusters_by_text(clustered_df: pd.DataFrame,
     if not search_term:
         return clustered_df.head(100)  # Return first 100 if no search
     
-    search_term = search_term.lower()
+    norm_term = normalize_text_for_search(search_term)
     
     if search_in == 'description':
-        mask = clustered_df['property_description'].str.lower().str.contains(search_term, na=False)
+        series = clustered_df['property_description'].astype(str).apply(normalize_text_for_search)
+        mask = series.str.contains(norm_term, na=False, regex=False)
     elif search_in == 'model':
-        mask = clustered_df['model'].str.lower().str.contains(search_term, na=False)
+        series = clustered_df['model'].astype(str).apply(normalize_text_for_search)
+        mask = series.str.contains(norm_term, na=False, regex=False)
     elif search_in == 'cluster_label':
         # Use correct column names from pipeline
         fine_label_col = 'property_description_fine_cluster_label'
@@ -801,9 +837,11 @@ def search_clusters_by_text(clustered_df: pd.DataFrame,
         mask = pd.Series([False] * len(clustered_df))
         
         if fine_label_col in clustered_df.columns:
-            mask |= clustered_df[fine_label_col].str.lower().str.contains(search_term, na=False)
+            series = clustered_df[fine_label_col].astype(str).apply(normalize_text_for_search)
+            mask |= series.str.contains(norm_term, na=False, regex=False)
         if coarse_label_col in clustered_df.columns:
-            mask |= clustered_df[coarse_label_col].str.lower().str.contains(search_term, na=False)
+            series = clustered_df[coarse_label_col].astype(str).apply(normalize_text_for_search)
+            mask |= series.str.contains(norm_term, na=False, regex=False)
     else:
         # Search in all text columns using correct column names
         text_cols = ['property_description', 'model', 
@@ -812,7 +850,8 @@ def search_clusters_by_text(clustered_df: pd.DataFrame,
         mask = pd.Series([False] * len(clustered_df))
         for col in text_cols:
             if col in clustered_df.columns:
-                mask |= clustered_df[col].str.lower().str.contains(search_term, na=False)
+                series = clustered_df[col].astype(str).apply(normalize_text_for_search)
+                mask |= series.str.contains(norm_term, na=False, regex=False)
     
     return clustered_df[mask].head(100) 
 
@@ -1555,6 +1594,7 @@ __all__ = [
     "truncate_cluster_name",
     "create_frequency_comparison_table",
     "create_frequency_comparison_plots",
+    "normalize_text_for_search",
     "search_clusters_by_text",
     "create_interactive_cluster_viewer",
     "get_cluster_statistics",

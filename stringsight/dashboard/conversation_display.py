@@ -100,7 +100,7 @@ def _is_inside_any_span(start: int, end: int, spans: List[tuple]) -> bool:
 
 
 def pretty_print_embedded_dicts(text: str) -> str:
-    """Replace dicts or list-of-dicts with a `<pre>` block, except inside code.
+    """Replace dicts, lists, or other complex structures with pretty-printed JSON, except inside code.
 
     Dict-like regions that fall within markdown code spans (inline backticks
     or fenced code blocks) are left untouched so code examples render verbatim.
@@ -110,19 +110,31 @@ def pretty_print_embedded_dicts(text: str) -> str:
 
     code_spans = _find_code_spans(text)
 
+    def _is_complex_structure(obj):
+        """Check if object is worth pretty-printing (not just a simple value)"""
+        if isinstance(obj, dict):
+            return len(obj) > 0
+        elif isinstance(obj, list):
+            return len(obj) > 0 and any(isinstance(item, (dict, list)) for item in obj)
+        return False
+
+    def _format_with_preserved_spacing(json_str):
+        """Convert JSON string to HTML with preserved indentation"""
+        # Replace spaces with non-breaking spaces and newlines with <br>
+        formatted = html.escape(json_str, quote=False)
+        formatted = formatted.replace(' ', '&nbsp;')
+        formatted = formatted.replace('\n', '<br>')
+        return f'<span style="font-family: monospace; line-height: 1.4;">{formatted}</span>'
+
     new_parts, last_idx = [], 0
     for start, end in _find_balanced_spans(text):
         candidate = text[start:end]
         parsed = _try_parse_slice(candidate)
-        is_good = isinstance(parsed, dict) or (
-            isinstance(parsed, list) and parsed and all(isinstance(d, dict) for d in parsed)
-        )
-        if is_good and not _is_inside_any_span(start, end, code_spans):
+        
+        if _is_complex_structure(parsed) and not _is_inside_any_span(start, end, code_spans):
             new_parts.append(html.escape(text[last_idx:start], quote=False))
             pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
-            new_parts.append(
-                f"<pre style='background:#f8f9fa;padding:10px;border-radius:4px;overflow-x:auto;'>{pretty}</pre>"
-            )
+            new_parts.append(_format_with_preserved_spacing(pretty))
             last_idx = end
     new_parts.append(html.escape(text[last_idx:], quote=False))
     return "".join(new_parts)
@@ -285,6 +297,15 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
                 except Exception:
                     formatted_args = str(arguments)
             
+            # Format with preserved spacing for proper indentation
+            if formatted_args and isinstance(formatted_args, str) and ('\n' in formatted_args or '  ' in formatted_args):
+                escaped_args = html.escape(formatted_args, quote=False)
+                escaped_args = escaped_args.replace(' ', '&nbsp;')
+                escaped_args = escaped_args.replace('\n', '<br>')
+                formatted_args = f'<span style="font-family: monospace; line-height: 1.4;">{escaped_args}</span>'
+            else:
+                formatted_args = html.escape(str(formatted_args), quote=False)
+            
             # Create the tool call display
             tool_html = f"""
             <div style="border: 1px solid #ff7f00; border-radius: 8px; margin: 8px 0; padding: 12px; background: #fff8f0;">
@@ -298,7 +319,7 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
                 
                 {f'''<div style="margin-top: 8px;">
                     <div style="font-weight: 600; color: #666; margin-bottom: 4px; font-size: 12px;">Arguments:</div>
-                    <pre style="background: #f8f8f8; padding: 8px; border-radius: 4px; margin: 0; font-size: 12px; line-height: 1.4; color: #333; border: 1px solid #e0e0e0; overflow-x: auto;">{html.escape(formatted_args)}</pre>
+                    <div style="font-size: 12px; line-height: 1.4; color: #333;">{formatted_args}</div>
                 </div>''' if formatted_args else ''}
             </div>
             """

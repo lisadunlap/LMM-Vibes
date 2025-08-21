@@ -502,12 +502,12 @@ def create_app() -> gr.Blocks:
                         # gr.Markdown("### Individual Example Viewer")
                         # gr.Markdown("Explore individual examples with full prompts, model responses, and property information. Click on examples to expand and view full details.")
                         with gr.Row():
-                                search_examples = gr.Textbox(
-                                    label="Search Properties",
-                                    show_label=False,
-                                    placeholder="Search in property descriptions...",
-                                    info="Search for specific terms in property descriptions to filter examples"
-                                )
+                                                        search_examples = gr.Textbox(
+                            label="Search Properties",
+                            show_label=False,
+                            placeholder="Search clusters or property descriptions...",
+                            info="Search for specific terms in cluster names or property descriptions to filter examples"
+                        )
                                 
                         with gr.Accordion("Search & Filter Options", open=False):
                             

@@ -103,7 +103,7 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         y="proportion",
         color="model",
         barmode="group",
-        title="Proportion by Property and Model",
+        title=None,
         labels={"proportion": "Proportion", "property_abbr": "Property", "model": "Model"},
         error_y="y_error" if error_y_data is not None else None,
         error_y_minus="y_error_minus" if error_y_data is not None else None
@@ -113,6 +113,19 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     property_order = [f"P{i+1}" for i in range(len(unique_properties))]
     fig.update_xaxes(categoryorder='array', categoryarray=property_order)
     fig.update_layout(xaxis_tickangle=45)
+    # Make layout responsive and move legend to the top to utilize full width
+    fig.update_layout(
+        autosize=True,
+        margin=dict(l=40, r=40, t=110, b=80),
+        title=dict(pad=dict(t=20, b=10)),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.15,
+            xanchor="left",
+            x=0
+        )
+    )
     
     # save figure to file
     fig.write_html("model_cluster_proportion_plot.html")
@@ -251,6 +264,19 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     property_order = [f"P{i+1}" for i in range(len(unique_properties))]
     fig.update_xaxes(categoryorder='array', categoryarray=property_order)
     fig.update_layout(xaxis_tickangle=45)
+    # Make layout responsive and move legend to the top to utilize full width
+    fig.update_layout(
+        autosize=True,
+        margin=dict(l=40, r=40, t=110, b=80),
+        title=dict(pad=dict(t=20, b=10)),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.15,
+            xanchor="left",
+            x=0
+        )
+    )
     
     # save figure to file
     fig.write_html(f"model_cluster_quality_{quality_metric}_plot.html")

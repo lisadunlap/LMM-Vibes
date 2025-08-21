@@ -32,12 +32,13 @@ from .metrics_adapter import get_model_clusters, get_all_models
 
 
 def normalize_text_for_search(text: Any) -> str:
-    """Lowercase and strip common Markdown/HTML formatting for robust search.
+    """Lowercase and strip common Markdown/HTML formatting and punctuation for robust search.
 
     - Unwrap markdown links: [label](url) -> label
     - Remove inline code/backticks and strikethrough markers
     - Unwrap emphasis/bold/italics: *, **, _, __
     - Strip simple HTML tags
+    - Remove all punctuation including commas, periods, quotes, etc.
     - Collapse whitespace
     """
     if text is None:
@@ -56,6 +57,8 @@ def normalize_text_for_search(text: Any) -> str:
     s = re.sub(r"~~(.*?)~~", r"\1", s)
     # Remove remaining markdown emphasis chars/backticks/tilde
     s = re.sub(r"[*_`~]", "", s)
+    # Remove all punctuation (including commas, periods, quotes, parentheses, etc.)
+    s = re.sub(r"[^\w\s]", " ", s)
     # Normalize whitespace and lowercase
     s = re.sub(r"\s+", " ", s).strip().lower()
     return s

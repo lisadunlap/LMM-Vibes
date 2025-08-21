@@ -748,7 +748,7 @@ def label(
     df: pd.DataFrame,
     *,
     taxonomy: Dict[str, str],
-    model_name: str = "gpt-4o-mini",
+    model_name: str = "gpt-4.1",
     temperature: float = 0.0,
     top_p: float = 1.0,
     max_tokens: int = 2048,
