@@ -129,8 +129,7 @@ def create_run_pipeline_tab():
                         system_prompt = gr.Dropdown(
                             choices=[
                                 "single_model_system_prompt",
-                                "webdev_system_prompt_no_examples", 
-                                "side_by_side_system_prompt"
+                                "agent_system_prompt"
                             ],
                             value="single_model_system_prompt",
                             label="System Prompt",
@@ -140,7 +139,7 @@ def create_run_pipeline_tab():
                         # Clustering parameters
                         with gr.Accordion("Clustering Settings", open=False):
                             clusterer = gr.Dropdown(
-                                choices=["hdbscan", "hierarchical", "dummy"],
+                                choices=["hdbscan"],
                                 value="hdbscan",
                                 label="Clustering Method",
                                 info="Algorithm for grouping similar properties"

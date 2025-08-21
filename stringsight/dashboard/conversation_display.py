@@ -124,7 +124,7 @@ def pretty_print_embedded_dicts(text: str) -> str:
         formatted = html.escape(json_str, quote=False)
         formatted = formatted.replace(' ', '&nbsp;')
         formatted = formatted.replace('\n', '<br>')
-        return f'<span style="font-family: monospace; line-height: 1.4;">{formatted}</span>'
+        return f'<span style="font-family: monospace; line-height: 1.4; font-size: 14px;">{formatted}</span>'
 
     new_parts, last_idx = [], 0
     for start, end in _find_balanced_spans(text):
@@ -302,7 +302,7 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
                 escaped_args = html.escape(formatted_args, quote=False)
                 escaped_args = escaped_args.replace(' ', '&nbsp;')
                 escaped_args = escaped_args.replace('\n', '<br>')
-                formatted_args = f'<span style="font-family: monospace; line-height: 1.4;">{escaped_args}</span>'
+                formatted_args = f'<span style="font-family: monospace; line-height: 1.4; font-size: 14px;">{escaped_args}</span>'
             else:
                 formatted_args = html.escape(str(formatted_args), quote=False)
             

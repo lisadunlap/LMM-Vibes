@@ -1843,9 +1843,9 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 tag_value = None
         elif isinstance(meta_obj, (list, tuple)) and len(meta_obj) > 0:
             tag_value = meta_obj[0]
-        elif isinstance(meta_obj, str) and meta_obj.strip() not in ("", "None", "N/A", "{}", "[]"):
+        elif isinstance(meta_obj, str) and meta_obj.strip() not in ("", "None", "N/A", "{}", "[]", "null"):
             tag_value = meta_obj.strip()
-        if tag_value is not None:
+        if tag_value is not None and str(tag_value).strip() != "":
             tag_badge = (
                 f"<span style=\"display:inline-block; padding:2px 8px; border-radius:999px; background:#faf5ff; color:#6d28d9; border:1px solid #ede9fe;\">"
                 f"Tag: {html.escape(str(tag_value))}"
@@ -1910,24 +1910,29 @@ def format_examples_display(examples: List[Dict[str, Any]],
                     <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; border:1px solid #e5e7eb;">ID: {html.escape(str(example['id']))}</span>
                     <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; border:1px solid #e5e7eb;">Model: {html.escape(str(example['model']))}</span>
                     {tag_badge}
-                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; color:#047857; border:1px solid #bbf7d0;">Category: {html.escape(str(example["category"]))}</span>' if example["category"] not in ["N/A", "None"] else '')}
-                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe;">Type: {html.escape(str(example["type"]))}</span>' if example["type"] not in ["N/A", "None"] else '')}
-                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">Impact: {html.escape(str(example["impact"]))}</span>' if example["impact"] not in ["N/A", "None"] else '')}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; color:#047857; border:1px solid #bbf7d0;">Category: {html.escape(str(example["category"]))}</span>' if example["category"] not in [None, "N/A", "None", "", "null"] and str(example["category"]).strip() != "" else '')}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe;">Type: {html.escape(str(example["type"]))}</span>' if example["type"] not in [None, "N/A", "None", "", "null"] and str(example["type"]).strip() != "" else '')}
+                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">Impact: {html.escape(str(example["impact"]))}</span>' if example["impact"] not in [None, "N/A", "None", "", "null"] and str(example["impact"]).strip() != "" else '')}
                 </div>
 
-                <!-- Readable text block for Cluster / Tag / Property / Reason / Evidence (markdown-enabled) -->
+                <!-- Collapsible info section for Cluster / Tag / Property / Reason / Evidence -->
                 {(
-                    f'''<div style="margin-bottom:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px;">
-                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))}</div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None"] else '')}
-                        {(f'<div style="margin-top:2px;"><strong style="color:#374151;">Property</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["property_description"]))}</div></div>' if example["property_description"] not in ["N/A", "None"] else '')}
-                        {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Reason</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["reason"]))}</div></div>' if example["reason"] not in ["N/A", "None"] else '')}
-                        {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Evidence</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["evidence"]))}</div></div>' if example["evidence"] not in ["N/A", "None"] else '')}
-                    </div>'''
+                    f'''<details style="margin-bottom:16px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb;">
+                        <summary style="cursor:pointer; padding:12px; font-weight:600; color:#374151; border-radius:8px;">
+                            📋 Cluster Information
+                        </summary>
+                        <div style="padding:0 12px 12px 12px; border-top:1px solid #e5e7eb;">
+                            {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))}</div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None", "", "null"] and str(example.get("fine_cluster_label", "")).strip() != "" else '')}
+                            {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Property</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["property_description"]))}</div></div>' if example["property_description"] not in [None, "N/A", "None", "", "null"] and str(example["property_description"]).strip() != "" else '')}
+                            {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Reason</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["reason"]))}</div></div>' if example["reason"] not in [None, "N/A", "None", "", "null"] and str(example["reason"]).strip() != "" else '')}
+                            {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Evidence</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["evidence"]))}</div></div>' if example["evidence"] not in [None, "N/A", "None", "", "null"] and str(example["evidence"]).strip() != "" else '')}
+                        </div>
+                    </details>'''
                  ) if any([
-                    str(example.get("fine_cluster_label", "N/A")) not in ["N/A", "None"],
-                    str(example.get("property_description", "N/A")) not in ["N/A", "None"],
-                    str(example.get("reason", "N/A")) not in ["N/A", "None"],
-                    str(example.get("evidence", "N/A")) not in ["N/A", "None"],
+                    example.get("fine_cluster_label") not in [None, "N/A", "None", "", "null"] and str(example.get("fine_cluster_label", "")).strip() != "",
+                    example.get("property_description") not in [None, "N/A", "None", "", "null"] and str(example.get("property_description", "")).strip() != "",
+                    example.get("reason") not in [None, "N/A", "None", "", "null"] and str(example.get("reason", "")).strip() != "",
+                    example.get("evidence") not in [None, "N/A", "None", "", "null"] and str(example.get("evidence", "")).strip() != "",
                  ]) else ''}
 
                 <div style="margin-bottom: 15px;">

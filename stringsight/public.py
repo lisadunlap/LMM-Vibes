@@ -528,8 +528,8 @@ def _log_final_results_to_wandb(df: pd.DataFrame, model_stats: Dict[str, Any]):
             for col in cluster_cols:
                 if col.endswith('_id'):
                     cluster_ids = df[col].unique()
-                    n_clusters = len([c for c in cluster_ids if c >= 0])
-                    n_outliers = sum(1 for c in cluster_ids if c < 0)
+                    n_clusters = len([c for c in cluster_ids if c is not None and c >= 0])
+                    n_outliers = sum(1 for c in cluster_ids if c is not None and c < 0)
                     
                     level = "fine" if "fine" in col else "coarse" if "coarse" in col else "main"
                     # Log these as summary metrics
