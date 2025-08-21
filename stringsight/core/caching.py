@@ -38,38 +38,62 @@ def parse_size_string(size_str: str) -> int:
     return int(number * multipliers[unit])
 
 class LMDBCache:
-    def __init__(self, cache_dir: str = ".cache/stringsight", max_size: Union[str, int] = "10GB"):
+    def __init__(self, cache_dir: str = ".cache/stringsight", max_size: Union[str, int] = "10GB", *, lock: Optional[bool] = None, readonly: bool = False):
         """Initialize LMDB cache.
         
         Args:
             cache_dir: Directory to store LMDB files
             max_size: Max size of LMDB in bytes or size string like "10GB" (default 10GB)
+            lock: Whether to use LMDB file locks. If None, reads from env `STRINGSIGHT_LMDB_LOCK` (default: True)
+            readonly: Open the environments read-only
         """
-        self.cache_dir = Path(cache_dir)
+        import os
+        self.cache_dir = Path(os.environ.get("STRINGSIGHT_CACHE_DIR", cache_dir))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Parse max_size if it's a string
         if isinstance(max_size, str):
-            max_size_bytes = parse_size_string(max_size)
+            # Allow override via env var
+            env_size = os.environ.get("STRINGSIGHT_LMDB_MAX_SIZE", max_size)
+            max_size_bytes = parse_size_string(env_size)
         else:
             max_size_bytes = max_size
+        
+        # Resolve lock setting
+        if lock is None:
+            env_lock = os.environ.get("STRINGSIGHT_LMDB_LOCK", "1").strip()
+            lock = env_lock not in ("0", "false", "False")
         
         # Separate environments for completions and embeddings
         self.completions_env = lmdb.open(
             str(self.cache_dir / "completions"),
             map_size=max_size_bytes,
             subdir=True,
-            readonly=False,
-            lock=True,
+            readonly=readonly,
+            lock=lock,
         )
         
         self.embeddings_env = lmdb.open(
             str(self.cache_dir / "embeddings"),
             map_size=max_size_bytes,
             subdir=True,
-            readonly=False,
-            lock=True,
+            readonly=readonly,
+            lock=lock,
         )
+
+        # Validate environments early to surface clear errors
+        try:
+            with self.completions_env.begin() as _:
+                pass
+            with self.embeddings_env.begin() as _:
+                pass
+        except Exception as exc:
+            # Raise a clear error with guidance for common filesystem issues
+            raise RuntimeError(
+                "Failed to initialize LMDB cache. This is often caused by filesystems that do not support file locking (e.g., some network mounts). "
+                "You can disable LMDB locking by setting STRINGSIGHT_LMDB_LOCK=0, or disable the cache entirely by setting STRINGSIGHT_DISABLE_LMDB_CACHE=1. "
+                f"Cache dir: {self.cache_dir}. Original error: {exc}"
+            )
 
     def _get_cache_key(self, data: Dict[str, Any]) -> str:
         """Generate deterministic cache key from input data."""

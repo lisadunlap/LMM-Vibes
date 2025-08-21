@@ -323,7 +323,13 @@ def get_default_llm_utils() -> LLMUtils:
     
     if _default_llm_utils is None:
         if _default_cache is None:
-            _default_cache = LMDBCache()
+            import os
+            # Allow disabling LMDB cache via env var
+            if os.environ.get("STRINGSIGHT_DISABLE_LMDB_CACHE", "0") in ("1", "true", "True"):
+                _default_cache = None
+            else:
+                # Allow overriding cache dir via env var (handled in LMDBCache)
+                _default_cache = LMDBCache()
         _default_llm_utils = LLMUtils(_default_cache)
     
     return _default_llm_utils

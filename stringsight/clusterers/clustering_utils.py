@@ -36,15 +36,25 @@ def _get_cache_config():
     import os
     
     # Get cache directory from environment or use default
-    cache_dir = os.environ.get("LITELLM_CACHE_DIR_CLUSTERING", ".cache/stringsight/clustering")
+    cache_dir = os.environ.get("STRINGSIGHT_CACHE_DIR_CLUSTERING", os.environ.get("LITELLM_CACHE_DIR_CLUSTERING", ".cache/stringsight/clustering"))
     
     # Get cache size from environment or use default
-    cache_size = os.environ.get("LITELLM_CACHE_SIZE", "10GB")
+    cache_size = os.environ.get("STRINGSIGHT_LMDB_MAX_SIZE", os.environ.get("LITELLM_CACHE_SIZE", "10GB"))
     
-    return cache_dir, cache_size
+    # Lock control
+    lock_env = os.environ.get("STRINGSIGHT_LMDB_LOCK", "1").strip()
+    lock = lock_env not in ("0", "false", "False")
+    
+    return cache_dir, cache_size, lock
 
-_cache_dir, _cache_size = _get_cache_config()
-_cache = LMDBCache(cache_dir=_cache_dir, max_size=_cache_size)
+_cache_dir, _cache_size, _cache_lock = _get_cache_config()
+
+# Allow disabling cache entirely for clustering via env
+import os as _os
+if _os.environ.get("STRINGSIGHT_DISABLE_LMDB_CACHE", "0") in ("1", "true", "True"):
+    _cache = None
+else:
+    _cache = LMDBCache(cache_dir=_cache_dir, max_size=_cache_size, lock=_cache_lock)
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -68,7 +78,7 @@ def _get_openai_embeddings_batch(batch: List[str], retries: int = 3, sleep_time:
     indices_to_embed = []
     
     for i, text in enumerate(batch):
-        cached_emb = _cache.get_embedding(text)
+        cached_emb = _cache.get_embedding(text) if _cache else None
         if cached_emb is not None:
             cached_embeddings.append((i, cached_emb))
         else:
@@ -91,8 +101,9 @@ def _get_openai_embeddings_batch(batch: List[str], retries: int = 3, sleep_time:
             new_embeddings = [item["embedding"] for item in resp["data"]]
             
             # Cache the new embeddings
-            for text, embedding in zip(texts_to_embed, new_embeddings):
-                _cache.set_embedding(text, embedding)
+            if _cache:
+                for text, embedding in zip(texts_to_embed, new_embeddings):
+                    _cache.set_embedding(text, embedding)
             
             # Combine cached and new embeddings
             all_embeddings = [None] * len(batch)
@@ -229,7 +240,7 @@ def generate_coarse_labels(
     }
 
     # Try cache first
-    cached = _cache.get_completion(request_data)
+    cached = _cache.get_completion(request_data) if _cache else None
     if cached is not None:
         content = cached["choices"][0]["message"]["content"]
         if verbose:
@@ -240,9 +251,10 @@ def generate_coarse_labels(
         resp = litellm.completion(**request_data, caching=False)
         content = resp.choices[0].message.content
         # Store in cache
-        _cache.set_completion(request_data, {
-            "choices": [{"message": {"content": content}}]
-        })
+        if _cache:
+            _cache.set_completion(request_data, {
+                "choices": [{"message": {"content": content}}]
+            })
 
     # Clean and split response into individual labels
     raw_names = [line.strip() for line in content.split("\n") if line.strip()]

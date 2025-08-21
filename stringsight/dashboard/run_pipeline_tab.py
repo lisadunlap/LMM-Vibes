@@ -20,6 +20,8 @@ from .data_loader import load_pipeline_results, get_available_models
 from .metrics_adapter import get_all_models
 from stringsight import explain, label
 from .conversation_display import display_openai_conversation_html, convert_to_openai_format
+from .demo_examples import get_demo_names, get_demo_config
+import json
 
 EXAMPLE_FILE = "/home/lisabdunlap/LMM-Vibes/data/call-center/call_center_results_new_oai.jsonl"
 
@@ -38,10 +40,17 @@ def create_run_pipeline_tab():
     
     with gr.Row():
         with gr.Column(scale=1):
-            # File input section
-            with gr.Group():
-                gr.Markdown("### Data Input")
-                
+            # Demo example selection
+            demo_selector = gr.Dropdown(
+                label="Demo example",
+                choices=["— Select —"] + get_demo_names(),
+                value="— Select —",
+                interactive=True,
+                info="Choose a preconfigured demo to auto-fill path and parameters"
+            )
+
+            # File input section wrapped in an accordion
+            with gr.Accordion("Data Input", open=True):
                 input_method = gr.Radio(
                     choices=["Upload File", "File Path"],
                     value="Upload File",
@@ -485,17 +494,27 @@ def create_run_pipeline_tab():
     )
 
     # Use Example File button fills the textbox and renders preview
-    def _use_example_file():
-        return select_file(EXAMPLE_FILE)
+    def _resolve_demo_path(demo_name: str | None) -> str:
+        names = get_demo_names()
+        default_name = names[0] if names else None
+        chosen = demo_name if demo_name in names else default_name
+        cfg = get_demo_config(chosen) if chosen else None
+        return cfg.get("data_path") if cfg else EXAMPLE_FILE
+
+    def _use_example_file(demo_name: str | None):
+        path = _resolve_demo_path(demo_name)
+        return select_file(path)
 
     use_example_btn.click(
         fn=_use_example_file,
+        inputs=[demo_selector],
         outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
     )
 
     # Use example from Upload File area as well (do not switch input method)
-    def _use_example_file_upload():
-        pi_u, dd_u, fp_u, sp_u, spa_u, im_u, fpr_u, db_u = select_file(EXAMPLE_FILE)
+    def _use_example_file_upload(demo_name: str | None):
+        path = _resolve_demo_path(demo_name)
+        pi_u, dd_u, fp_u, sp_u, spa_u, im_u, fpr_u, db_u = select_file(path)
         return (
             pi_u,
             dd_u,
@@ -509,6 +528,7 @@ def create_run_pipeline_tab():
 
     use_example_btn_upload.click(
         fn=_use_example_file_upload,
+        inputs=[demo_selector],
         outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser]
     )
     
@@ -531,6 +551,76 @@ def create_run_pipeline_tab():
         outputs=[path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc]
     )
     
+    # Apply demo selection to auto-fill path and parameters
+    def apply_demo_selection(demo_name: str | None):
+        if not demo_name or demo_name == "— Select —":
+            # No changes
+            return (
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+            )
+        cfg = get_demo_config(demo_name)
+        if not cfg:
+            return (
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+            )
+        # Select file path and preview
+        pi, dd, fp, sp, spa, im, fpr, db = select_file(cfg.get("data_path", ""))
+
+        # Explain params
+        explain_cfg = cfg.get("explain", {})
+        method_val = explain_cfg.get("method") if explain_cfg else None
+        system_prompt_val = explain_cfg.get("system_prompt") if explain_cfg else None
+        clusterer_val = explain_cfg.get("clusterer") if explain_cfg else None
+        min_cluster_size_val = explain_cfg.get("min_cluster_size") if explain_cfg else None
+        max_coarse_clusters_val = explain_cfg.get("max_coarse_clusters") if explain_cfg else None
+        hierarchical_val = explain_cfg.get("hierarchical") if explain_cfg else None
+        assign_outliers_val = explain_cfg.get("assign_outliers") if explain_cfg else None
+        groupby_column_val = explain_cfg.get("groupby_column") if explain_cfg else None
+
+        # Label params
+        label_cfg = cfg.get("label", {})
+        taxonomy_val = json.dumps(label_cfg.get("taxonomy"), indent=2) if label_cfg.get("taxonomy") is not None else None
+        label_model_name_val = label_cfg.get("label_model_name") if label_cfg else None
+
+        # Advanced params
+        adv_cfg = cfg.get("advanced", {})
+        sample_size_val = adv_cfg.get("sample_size") if adv_cfg else None
+        max_workers_val = adv_cfg.get("max_workers") if adv_cfg else None
+        use_wandb_val = adv_cfg.get("use_wandb") if adv_cfg else None
+        verbose_val = adv_cfg.get("verbose") if adv_cfg else None
+
+        return (
+            pi, dd, fp, sp, spa, im, fpr, db,
+            gr.update(value=method_val) if method_val is not None else gr.update(),
+            gr.update(value=system_prompt_val) if system_prompt_val is not None else gr.update(),
+            gr.update(value=clusterer_val) if clusterer_val is not None else gr.update(),
+            gr.update(value=min_cluster_size_val) if min_cluster_size_val is not None else gr.update(),
+            gr.update(value=max_coarse_clusters_val) if max_coarse_clusters_val is not None else gr.update(),
+            gr.update(value=hierarchical_val) if hierarchical_val is not None else gr.update(),
+            gr.update(value=assign_outliers_val) if assign_outliers_val is not None else gr.update(),
+            gr.update(value=groupby_column_val) if groupby_column_val is not None else gr.update(),
+            gr.update(value=taxonomy_val) if taxonomy_val is not None else gr.update(),
+            gr.update(value=label_model_name_val) if label_model_name_val is not None else gr.update(),
+            gr.update(value=sample_size_val) if sample_size_val is not None else gr.update(),
+            gr.update(value=max_workers_val) if max_workers_val is not None else gr.update(),
+            gr.update(value=use_wandb_val) if use_wandb_val is not None else gr.update(),
+            gr.update(value=verbose_val) if verbose_val is not None else gr.update(),
+        )
+
+    demo_selector.change(
+        fn=apply_demo_selection,
+        inputs=[demo_selector],
+        outputs=[
+            path_input, items_dropdown, file_path_input, sample_preview, sample_preview_acc, input_method, file_path_row, dir_browser,
+            method, system_prompt, clusterer, min_cluster_size, max_coarse_clusters, hierarchical, assign_outliers, groupby_column,
+            taxonomy_input, label_model_name, sample_size, max_workers, use_wandb, verbose,
+        ]
+    )
+
     return {
         "run_button_explain": run_button_explain,
         "run_button_label": run_button_label,
