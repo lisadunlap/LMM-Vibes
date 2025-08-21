@@ -19,11 +19,6 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         return None, "No model cluster data loaded. Please load data first."
     
     model_cluster_df = app_state["model_cluster_df"]
-    print("DataFrame shape:", model_cluster_df.shape)
-    print("Columns:", model_cluster_df.columns.tolist())
-    print("Proportion range:", model_cluster_df['proportion'].min(), "to", model_cluster_df['proportion'].max())
-    print("Sample data:")
-    print(model_cluster_df[['model', 'cluster', 'proportion']].head(10))
     
     if model_cluster_df.empty:
         return None, "No model cluster data available."
@@ -40,8 +35,6 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     
     # Check for any unreasonable values
     print("After conversion - Proportion range:", model_cluster_df['proportion'].min(), "to", model_cluster_df['proportion'].max())
-    print("Proportion values > 1:", (model_cluster_df['proportion'] > 1).sum())
-    print("Proportion values < 0:", (model_cluster_df['proportion'] < 0).sum())
     
     # Filter out "No properties" clusters
     model_cluster_df = model_cluster_df[model_cluster_df['cluster'] != "No properties"]

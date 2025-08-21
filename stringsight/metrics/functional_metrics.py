@@ -766,11 +766,9 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
                 df[col] = df[col].apply(lambda x: str(x) if isinstance(x, (dict, list)) else x)
         return df
     
-    def _log_to_wandb(self, model_cluster_scores, cluster_scores, model_scores):
-        """Log the three score dataframes to wandb as tables."""
-        self.log("📊 Logging metrics to wandb...")
-        
-        # Create model_cluster_df (same as the notebook)
+    def _save_dataframe_files(self, model_cluster_scores, cluster_scores, model_scores):
+        """Save dataframe versions as JSONL files for easier data analysis."""
+        # Create model_cluster_df
         df = pd.DataFrame(model_cluster_scores).T
         tidy_rows = []
         for model, row in df.iterrows():
@@ -784,7 +782,56 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Ensure model and property are first two columns
         cols = ['model', 'property'] + [col for col in model_cluster_df.columns if col not in ['model', 'property']]
         model_cluster_df = model_cluster_df[cols]
-        model_cluster_df.to_json(f"{self.output_dir}/model_cluster_scores_df.jsonl", orient="records", lines=True)
+        
+        # Save model-cluster dataframe
+        model_cluster_df_path = self.output_dir / "model_cluster_scores_df.jsonl"
+        model_cluster_df.to_json(model_cluster_df_path, orient="records", lines=True)
+        self.log(f"📄 Saved model-cluster dataframe to {model_cluster_df_path}")
+        
+        # Create cluster_df
+        cluster_df = pd.DataFrame(cluster_scores).T
+        cluster_df["property"] = cluster_df.index
+        cluster_df["model"] = "all"
+        # Ensure model and property are first two columns
+        cols = ['model', 'property'] + [col for col in cluster_df.columns if col not in ['model', 'property']]
+        cluster_df = cluster_df[cols]
+        
+        # Save cluster dataframe
+        cluster_df_path = self.output_dir / "cluster_scores_df.jsonl"
+        cluster_df.to_json(cluster_df_path, orient="records", lines=True)
+        self.log(f"📄 Saved cluster dataframe to {cluster_df_path}")
+        
+        # Create model_scores_df
+        model_scores_df = pd.DataFrame(model_scores).T
+        model_scores_df["model"] = model_scores_df.index
+        model_scores_df["property"] = "all_clusters"
+        # Ensure model and property are first two columns
+        cols = ['model', 'property'] + [col for col in model_scores_df.columns if col not in ['model', 'property']]
+        model_scores_df = model_scores_df[cols]
+        
+        # Save model scores dataframe
+        model_scores_df_path = self.output_dir / "model_scores_df.jsonl"
+        model_scores_df.to_json(model_scores_df_path, orient="records", lines=True)
+        self.log(f"📄 Saved model scores dataframe to {model_scores_df_path}")
+
+    def _log_to_wandb(self, model_cluster_scores, cluster_scores, model_scores):
+        """Log the three score dataframes to wandb as tables."""
+        self.log("📊 Logging metrics to wandb...")
+        
+        # Create dataframes for wandb (reusing the logic from _save_dataframe_files)
+        df = pd.DataFrame(model_cluster_scores).T
+        tidy_rows = []
+        for model, row in df.iterrows():
+            for property_name, metrics in row.items():
+                if isinstance(metrics, dict):
+                    tidy_row = {"model": model, "property": property_name}
+                    tidy_row.update(metrics)
+                    tidy_rows.append(tidy_row)
+        
+        model_cluster_df = pd.DataFrame(tidy_rows)
+        # Ensure model and property are first two columns
+        cols = ['model', 'property'] + [col for col in model_cluster_df.columns if col not in ['model', 'property']]
+        model_cluster_df = model_cluster_df[cols]
         model_cluster_df = self.process_wandb_dataframe(model_cluster_df)
         
         # Create cluster_df
@@ -794,8 +841,6 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Ensure model and property are first two columns
         cols = ['model', 'property'] + [col for col in cluster_df.columns if col not in ['model', 'property']]
         cluster_df = cluster_df[cols]
-        # save to pandas jsonl file
-        cluster_df.to_json(f"{self.output_dir}/cluster_scores_df.jsonl", orient="records", lines=True)
         cluster_df = self.process_wandb_dataframe(cluster_df)
         
         # Create model_scores_df
@@ -805,8 +850,6 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         # Ensure model and property are first two columns
         cols = ['model', 'property'] + [col for col in model_scores_df.columns if col not in ['model', 'property']]
         model_scores_df = model_scores_df[cols]
-        # save to pandas jsonl file
-        model_scores_df.to_json(f"{self.output_dir}/model_scores_df.jsonl", orient="records", lines=True)
         model_scores_df = self.process_wandb_dataframe(model_scores_df)
         
         # Log to wandb
@@ -839,6 +882,9 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         with open(model_scores_path, 'w') as f:
             json.dump(model_scores, f, indent=2)
         self.log(f"📄 Saved model scores to {model_scores_path}")
+        
+        # Save dataframe versions as JSONL files (previously only saved when wandb was enabled)
+        self._save_dataframe_files(model_cluster_scores, cluster_scores, model_scores)
 
 
     def _generate_plots(self, model_cluster_scores, cluster_scores, model_scores):

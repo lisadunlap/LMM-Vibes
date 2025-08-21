@@ -614,7 +614,7 @@ def log_results_to_wandb(df_light, light_json_path, base_filename, config):
         metrics[f"clustering_{level}_outlier_rate"] = n_outliers / len(cluster_ids) if len(cluster_ids) > 0 else 0
         
         # Calculate cluster size distribution
-        cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid != -1]
+        cluster_sizes = [list(cluster_ids).count(cid) for cid in set(cluster_ids) if cid >= 0]
         if cluster_sizes:
             metrics[f"clustering_{level}_avg_cluster_size"] = np.mean(cluster_sizes)
             metrics[f"clustering_{level}_min_cluster_size"] = min(cluster_sizes)

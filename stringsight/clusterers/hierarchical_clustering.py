@@ -209,7 +209,7 @@ def generate_cluster_summaries(cluster_values: Dict[int, List], config: ClusterC
     messages = []
     
     for cluster_id, values in cluster_values.items():
-        if cluster_id == -1:
+        if cluster_id < 0:
             continue  # Handle outliers separately
             
         cluster_ids.append(cluster_id)
@@ -435,7 +435,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         print("Clustering outliers using LLM...")
 
     # Get outlier items
-    outlier_items = [unique_values[i] for i, label in enumerate(cluster_labels) if label == -1]
+    outlier_items = [unique_values[i] for i, label in enumerate(cluster_labels) if label < 0]
     
     if len(outlier_items) > 0:
         # Generate outlier cluster summaries
@@ -476,7 +476,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         # Update cluster_labels to assign outlier items to their new clusters
         new_cluster_labels = cluster_labels.copy()
         for i, label in enumerate(cluster_labels):
-            if label == -1:  # This was an outlier
+            if label < 0:  # This was an outlier
                 item = unique_values[i]
                 assigned_cluster = outlier_assignments.get(item, "Outliers")
                 if assigned_cluster in outlier_name_to_id:
@@ -534,7 +534,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
 
     # 1. Update the label map so every original cluster id points to its deduped label
     for cid in cluster_values.keys():
-        if cid == -1:
+        if cid < 0:
             continue
         original_label = cluster_label_map[cid]
         # Handle case where fine label maps to 'Outliers' in deduplication
@@ -551,7 +551,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
     # 3. Re-assign cluster_labels array so duplicates share the same id
     new_cluster_labels = []
     for original_cid in cluster_labels:
-        if original_cid == -1:
+        if original_cid < 0:
             new_cluster_labels.append(-1)
         else:
             deduped = cluster_label_map[original_cid]
@@ -584,7 +584,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         if config.verbose:
             print("Generating hierarchical coarse clusters…")
 
-        fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c != -1 and not (cluster_label_map[c] == "Outliers" or cluster_label_map[c].startswith("Outliers - "))]
+        fine_cluster_names = [cluster_label_map[c] for c in cluster_values.keys() if c >= 0 and not (cluster_label_map[c] == "Outliers" or cluster_label_map[c].startswith("Outliers - "))]
         max_coarse_clusters = min(config.max_coarse_clusters, max(1, len(fine_cluster_names) // 2))
 
         # Generate coarse cluster labels
@@ -613,7 +613,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         
         # Build coarse_labels in the same order as unique_values
         for value, fine_cluster_id in zip(unique_values, cluster_labels):
-            if fine_cluster_id == -1:
+            if fine_cluster_id < 0:
                 coarse_labels.append(-1)
                 # Use the original outlier label if available, otherwise default to "Outliers"
                 original_outlier_label = cluster_label_map.get(-1, "Outliers")

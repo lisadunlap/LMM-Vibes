@@ -22,8 +22,6 @@ def create_proportion_plot(show_ci: bool = False) -> Tuple[go.Figure, str]:
     print("DataFrame shape:", model_cluster_df.shape)
     print("Columns:", model_cluster_df.columns.tolist())
     print("Proportion range:", model_cluster_df['proportion'].min(), "to", model_cluster_df['proportion'].max())
-    print("Sample data:")
-    print(model_cluster_df[['model', 'cluster', 'proportion']].head(10))
     
     if model_cluster_df.empty:
         return None, "No model cluster data available."

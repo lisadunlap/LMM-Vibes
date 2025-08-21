@@ -198,8 +198,18 @@ class HDBSCANClusterer(BaseClusterer):
                 pair_mask = (df[group_col] == gval) & (df[fine_label_col] == lbl) & non_outlier_mask
                 df.loc[pair_mask, fine_id_col] = new_id
 
-            # Ensure all outliers keep id -1
-            df.loc[outlier_mask, fine_id_col] = -1
+            # Handle group-specific outliers: assign unique IDs to each outlier group
+            if outlier_mask.any():
+                # Get unique outlier labels
+                unique_outlier_labels = df.loc[outlier_mask, fine_label_col].unique()
+                
+                # Assign unique IDs to each outlier group, starting from a high negative number
+                # to avoid conflicts with regular cluster IDs
+                outlier_id_start = -1000
+                for i, outlier_label in enumerate(unique_outlier_labels):
+                    outlier_label_mask = df[fine_label_col] == outlier_label
+                    unique_outlier_id = outlier_id_start - i
+                    df.loc[outlier_label_mask, fine_id_col] = unique_outlier_id
 
         return df
 

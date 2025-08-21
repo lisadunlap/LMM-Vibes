@@ -42,7 +42,7 @@ def create_run_pipeline_tab():
         with gr.Column(scale=1):
             # Demo example selection
             demo_selector = gr.Dropdown(
-                label="Demo example",
+                label="Datasets",
                 choices=["— Select —"] + get_demo_names(),
                 value="— Select —",
                 interactive=True,
@@ -50,7 +50,7 @@ def create_run_pipeline_tab():
             )
 
             # File input section wrapped in an accordion
-            with gr.Accordion("Data Input", open=True):
+            with gr.Accordion("Input your own data", open=False):
                 input_method = gr.Radio(
                     choices=["Upload File", "File Path"],
                     value="Upload File",
