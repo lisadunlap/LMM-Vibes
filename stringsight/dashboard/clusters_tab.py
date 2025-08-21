@@ -12,6 +12,7 @@ from .utils import (
     create_interactive_cluster_viewer,
     get_cluster_statistics,
     format_cluster_dataframe,
+    extract_allowed_tag,
 )
 
 __all__ = ["view_clusters_interactive", "view_clusters_table"]
@@ -39,9 +40,13 @@ def view_clusters_interactive(
     if search_term and search_term.strip():
         df = search_clusters_only(df, search_term.strip(), cluster_level)
 
-    # Optional tags filter (derived from meta first value)
+    # Optional tags filter – only keep rows whose meta resolves to an allowed tag in selected_tags
     if selected_tags and len(selected_tags) > 0 and 'meta' in df.columns:
-        def _parse_meta(obj):
+        def _first_allowed_tag(obj):
+            return extract_allowed_tag(obj)
+
+        # Check if all meta are empty dicts (means no tags)
+        def _parse_try(obj):
             if isinstance(obj, str):
                 try:
                     return ast.literal_eval(obj)
@@ -49,26 +54,14 @@ def view_clusters_interactive(
                     return obj
             return obj
 
-        def _first_val(obj):
-            if obj is None:
-                return None
-            obj = _parse_meta(obj)
-            if isinstance(obj, dict):
-                for _, v in obj.items():
-                    return v
-                return None
-            if isinstance(obj, (list, tuple)):
-                return obj[0] if len(obj) > 0 else None
-            return obj
-
-        parsed_meta = df['meta'].apply(_parse_meta)
+        parsed_meta = df['meta'].apply(_parse_try)
         non_null_parsed = [m for m in parsed_meta.tolist() if m is not None]
         all_empty_dicts = (
             len(non_null_parsed) > 0 and all(isinstance(m, dict) and len(m) == 0 for m in non_null_parsed)
         )
         if not all_empty_dicts:
             allowed = set(map(str, selected_tags))
-            df = df[df['meta'].apply(_first_val).astype(str).isin(allowed)]
+            df = df[df['meta'].apply(_first_allowed_tag).astype(str).isin(allowed)]
 
     # Build interactive viewer
     cluster_html = create_interactive_cluster_viewer(df, selected_models, cluster_level)

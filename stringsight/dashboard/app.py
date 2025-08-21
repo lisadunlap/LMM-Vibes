@@ -631,7 +631,7 @@ def create_app() -> gr.Blocks:
             # Simplified: always update directly
             return update_quality_display(selected_models, quality_metric, view_type)
 
-        def update_overview_content_only(selected_models, top_n, score_sig, quality_sig, sort_by_val, min_cluster_sz):
+        def update_overview_content_only(selected_models, top_n, score_sig, quality_sig, sort_by_val, min_cluster_sz, selected_tags_sidebar):
             """Update only the overview model cards content, without affecting UI state or controls."""
             if not app_state.get("metrics"):
                 return "<p style='color: #666; padding: 20px;'>Please load data first.</p>"
@@ -644,6 +644,7 @@ def create_app() -> gr.Blocks:
                 quality_sig,
                 sort_by_val,
                 min_cluster_sz,
+                selected_tags=selected_tags_sidebar,
             )
             return overview_html
 
@@ -670,6 +671,7 @@ def create_app() -> gr.Blocks:
                                 min_cluster_sz,
                                 quality_metric,
                                 view_type,
+                                selected_tags_sidebar,
                                 progress: gr.Progress = None):
             # Simplified: no loading gate or build flag
             if not app_state.get("metrics"):
@@ -717,6 +719,7 @@ def create_app() -> gr.Blocks:
                 quality_sig,
                 sort_by_val,
                 min_cluster_sz,
+                selected_tags=selected_tags_sidebar,
             )
 
             if progress:
@@ -847,7 +850,7 @@ def create_app() -> gr.Blocks:
                     outputs=[clusters_display]
                 ).then(
                     fn=create_overview_page,
-                    inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type],
+                    inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type, selected_tags],
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
@@ -938,7 +941,7 @@ def create_app() -> gr.Blocks:
 
         refresh_overview_btn.click(
             fn=create_overview_page,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type, selected_tags],
             outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
         )
 
@@ -1066,41 +1069,41 @@ def create_app() -> gr.Blocks:
         # Auto-refresh on significance filter changes - only update model cards content
         score_significant_only.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         )
         
         quality_significant_only.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         )
         
         # Auto-refresh on sort dropdown change - only update model cards content
         sort_by.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         )
         
         # Auto-refresh on top N change - only update model cards content
         top_n_overview.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         )
         
         # Auto-refresh on minimum cluster size change - only update model cards content
         min_cluster_size.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         )
         
         # Update overview content and clusters when selected models change
         selected_models.change(
             fn=update_overview_content_only,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, selected_tags],
             outputs=[overview_display]
         ).then(
             fn=view_clusters_interactive,
@@ -1153,7 +1156,7 @@ def create_app() -> gr.Blocks:
             outputs=[clusters_display]
         ).then(
             fn=create_overview_page,
-            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type],
+            inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type, selected_tags],
             outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
         ).then(
             fn=update_cluster_selection,

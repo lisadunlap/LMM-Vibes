@@ -684,6 +684,7 @@ def _save_final_summary(
 
 def _build_fixed_axes_pipeline(
     *,
+    extractor: "FixedAxesLabeler",
     taxonomy: Dict[str, str],
     model_name: str,
     temperature: float,
@@ -702,7 +703,6 @@ def _build_fixed_axes_pipeline(
 ):
     """Internal helper that constructs a pipeline for *label()* calls."""
 
-    from .extractors.fixed_axes_labeler import FixedAxesLabeler
     from .postprocess import LLMJsonParser, PropertyValidator
     from .clusterers.dummy_clusterer import DummyClusterer
     from .metrics import get_metrics
@@ -711,18 +711,7 @@ def _build_fixed_axes_pipeline(
 
     common_cfg = {"verbose": verbose, "use_wandb": use_wandb, "wandb_project": wandb_project or "lmm-vibes"}
 
-    # 1️⃣  Extraction / labeling
-    extractor = FixedAxesLabeler(
-        taxonomy=taxonomy,
-        model=model_name,
-        temperature=temperature,
-        top_p=top_p,
-        max_tokens=max_tokens,
-        max_workers=max_workers,
-        cache_dir=extraction_cache_dir or ".cache/stringsight",
-        output_dir=output_dir,
-        **common_cfg,
-    )
+    # 1️⃣  Extraction / labeling (use pre-created extractor)
     builder.extract_properties(extractor)
 
     # 2️⃣  JSON parsing
@@ -784,6 +773,34 @@ def label(
         raise ValueError("label() currently supports only single-model data.  Use explain() for side-by-side analyses.")
 
     # ------------------------------------------------------------------
+    # Create extractor first to get the system prompt
+    # ------------------------------------------------------------------
+    from .extractors.fixed_axes_labeler import FixedAxesLabeler
+    
+    # Create the extractor to generate the system prompt from taxonomy
+    extractor = FixedAxesLabeler(
+        taxonomy=taxonomy,
+        model=model_name,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        max_workers=max_workers,
+        cache_dir=extraction_cache_dir or ".cache/stringsight",
+        output_dir=output_dir,
+        verbose=verbose,
+        use_wandb=use_wandb,
+        wandb_project=wandb_project or "lmm-vibes"
+    )
+    
+    # Print the system prompt for verification
+    if verbose:
+        print("\n" + "="*80)
+        print("SYSTEM PROMPT")
+        print("="*80)
+        print(extractor.system_prompt)
+        print("="*80 + "\n")
+    
+    # ------------------------------------------------------------------
     # Build dataset & pipeline
     # ------------------------------------------------------------------
     dataset = PropertyDataset.from_dataframe(df, method=method)
@@ -838,6 +855,7 @@ def label(
             use_wandb = False
 
     pipeline = _build_fixed_axes_pipeline(
+        extractor=extractor,
         taxonomy=taxonomy,
         model_name=model_name,
         temperature=temperature,

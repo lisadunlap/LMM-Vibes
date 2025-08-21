@@ -31,6 +31,72 @@ from .metrics_adapter import get_model_clusters, get_all_models
 # ---------------------------------------------------------------------------
 
 
+# Allowed cluster tags across the entire app
+ALLOWED_TAGS: set[str] = {
+    "Positive",
+    "Negative (critical)",
+    "Negative (non-critical)",
+    "Style",
+}
+
+
+def _is_nan(value: Any) -> bool:
+    try:
+        return isinstance(value, float) and np.isnan(value)
+    except Exception:
+        return False
+
+
+def _parse_meta_obj(meta_obj: Any) -> Any:
+    """Normalize and parse metadata objects.
+
+    - Parse stringified containers (dict/list)
+    - Treat NaN-like values as None
+    - Return as-is otherwise
+    """
+    if meta_obj is None:
+        return None
+    if _is_nan(meta_obj):
+        return None
+    if isinstance(meta_obj, str):
+        s = meta_obj.strip()
+        if s in ("", "None", "N/A", "null"):
+            return None
+        try:
+            return ast.literal_eval(meta_obj)
+        except Exception:
+            return meta_obj
+    return meta_obj
+
+
+def extract_allowed_tag(meta_obj: Any) -> Optional[str]:
+    """Extract the first tag value from metadata and return it only if in ALLOWED_TAGS.
+
+    Rules:
+    - If metadata is missing, NaN, or all empty dicts, return None
+    - If the extracted value is not in ALLOWED_TAGS, return None
+    """
+    meta_obj = _parse_meta_obj(meta_obj)
+    if meta_obj is None:
+        return None
+    if isinstance(meta_obj, dict):
+        # Empty dict means no tag
+        if len(meta_obj) == 0:
+            return None
+        for _, v in meta_obj.items():
+            tag = str(v)
+            return tag if tag in ALLOWED_TAGS else None
+        return None
+    if isinstance(meta_obj, (list, tuple)):
+        if len(meta_obj) == 0:
+            return None
+        tag = str(meta_obj[0])
+        return tag if tag in ALLOWED_TAGS else None
+    # Scalar string/other
+    tag = str(meta_obj)
+    return tag if tag in ALLOWED_TAGS else None
+
+
 def normalize_text_for_search(text: Any) -> str:
     """Lowercase and strip common Markdown/HTML formatting and punctuation for robust search.
 
@@ -191,23 +257,9 @@ def create_model_summary_card_new(
     # Filter out "Outliers" cluster for overview tab
     clusters_dict = {k: v for k, v in clusters_dict.items() if "Outliers" not in k}
 
-    # Helper: extract first value from metadata
+    # Helper: extract allowed tag from metadata
     def _extract_tag(meta_obj: Any) -> Optional[str]:
-        if meta_obj is None:
-            return None
-        if isinstance(meta_obj, str):
-            try:
-                parsed = ast.literal_eval(meta_obj)
-                meta_obj = parsed
-            except Exception:
-                return meta_obj
-        if isinstance(meta_obj, dict):
-            for _, v in meta_obj.items():
-                return str(v)
-            return None
-        if isinstance(meta_obj, (list, tuple)):
-            return str(meta_obj[0]) if len(meta_obj) > 0 else None
-        return str(meta_obj)
+        return extract_allowed_tag(meta_obj)
 
     # Helper: sanitize label that might include dict-like suffixes
     def _sanitize_label(label: str) -> str:
@@ -232,11 +284,7 @@ def create_model_summary_card_new(
     cluster_meta_values: List[Any] = []
     for c in clusters_dict.values():
         meta_obj = c.get("metadata") if isinstance(c, dict) else None
-        if isinstance(meta_obj, str):
-            try:
-                meta_obj = ast.literal_eval(meta_obj)
-            except Exception:
-                pass
+        meta_obj = _parse_meta_obj(meta_obj)
         cluster_meta_values.append(meta_obj)
     non_null_meta = [m for m in cluster_meta_values if m is not None]
     all_meta_empty_dicts = (
@@ -247,16 +295,7 @@ def create_model_summary_card_new(
             tag_val = _extract_tag(c.get("metadata")) if isinstance(c, dict) else None
             if tag_val and tag_val not in unique_tags:
                 unique_tags.append(tag_val)
-        if unique_tags:
-            palette = [
-                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-                '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-                '#a65628', '#f781bf', '#999999', '#66c2a5', '#fc8d62'
-            ]
-            for idx, t in enumerate(unique_tags):
-                if t not in tag_to_color:
-                    tag_to_color[t] = palette[idx % len(palette)]
+        # tag_to_color already contains all allowed tags with fixed colors
 
     # Filter clusters ----------------------------------------------------
     all_clusters = [c for c in clusters_dict.values() if c.get("size", 0) >= min_cluster_size]
@@ -1196,23 +1235,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     
     # Helper to extract first value from meta for display
     def _extract_tag_from_meta(meta_obj: Any) -> Optional[str]:
-        if meta_obj is None:
-            return None
-        # Try to parse stringified dict/list
-        if isinstance(meta_obj, str):
-            try:
-                parsed = ast.literal_eval(meta_obj)
-                meta_obj = parsed
-            except Exception:
-                # Keep as raw string
-                return meta_obj
-        if isinstance(meta_obj, dict):
-            for _, v in meta_obj.items():
-                return str(v)
-            return None
-        if isinstance(meta_obj, (list, tuple)):
-            return str(meta_obj[0]) if len(meta_obj) > 0 else None
-        return str(meta_obj)
+        return extract_allowed_tag(meta_obj)
 
     # Build a stable color map for tags (if any)
     tag_to_color: dict[str, str] = {
@@ -1224,35 +1247,15 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     if 'meta' in cluster_groups.columns:
         # If all meta objects are empty dicts, treat as no tags
         meta_vals = cluster_groups['meta'].tolist()
-        parsed_meta = []
-        for m in meta_vals:
-            if isinstance(m, str):
-                try:
-                    parsed_meta.append(ast.literal_eval(m))
-                except Exception:
-                    parsed_meta.append(m)
-            else:
-                parsed_meta.append(m)
+        parsed_meta = [_parse_meta_obj(m) for m in meta_vals]
         non_null_parsed = [m for m in parsed_meta if m is not None]
         all_empty_dicts = (
             len(non_null_parsed) > 0 and all(isinstance(m, dict) and len(m) == 0 for m in non_null_parsed)
         )
         if not all_empty_dicts:
-            unique_tags = [
-                t for t in (
-                    _extract_tag_from_meta(m) for m in meta_vals
-                ) if t
-            ]
+            unique_tags = [t for t in (_extract_tag_from_meta(m) for m in meta_vals) if t]
             unique_tags = list(dict.fromkeys(unique_tags))  # preserve order, dedupe
-            palette = [
-                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-                '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-                '#a65628', '#f781bf', '#999999', '#66c2a5', '#fc8d62'
-            ]
-            for idx, tag in enumerate(unique_tags):
-                if tag not in tag_to_color:
-                    tag_to_color[tag] = palette[idx % len(palette)]
+            # tag_to_color already contains all allowed tags with fixed colors
     
     # Helper to remove embedded dicts like "({'group': 'Positive'})" from labels
     def _sanitize_cluster_label(label: str) -> str:
@@ -1539,40 +1542,22 @@ def get_unique_values_for_dropdowns(clustered_df: pd.DataFrame) -> Dict[str, Lis
         unique_properties = [prop for prop in unique_properties if prop != "No properties"]
         properties = [prop[:100] + "..." if len(prop) > 100 else prop for prop in sorted(unique_properties)]
     
-    # Tags from meta first value if available
+    # Tags from meta first value if available (only ALLOWED_TAGS)
     tags: List[str] = []
     if 'meta' in clustered_df.columns:
-        def _parse_meta(obj: Any) -> Any:
-            # Parse stringified containers like "{}" or "[]"; otherwise return as-is
-            if isinstance(obj, str):
-                try:
-                    return ast.literal_eval(obj)
-                except Exception:
-                    return obj
-            return obj
+        def _first_allowed(obj: Any) -> Optional[str]:
+            return extract_allowed_tag(obj)
 
-        def _first_val(obj: Any) -> Any:
-            if obj is None:
-                return None
-            obj = _parse_meta(obj)
-            if isinstance(obj, dict):
-                for _, v in obj.items():
-                    return v
-                return None
-            if isinstance(obj, (list, tuple)):
-                return obj[0] if len(obj) > 0 else None
-            return obj
-
-        # Compute candidate tags (first values) and also check if all meta are empty dicts
-        parsed_meta_series = clustered_df['meta'].apply(_parse_meta)
+        # Compute candidate tags and check for all-empty-dict case
+        parsed_meta_series = clustered_df['meta'].apply(_parse_meta_obj)
         non_null_parsed = [m for m in parsed_meta_series.tolist() if m is not None]
         all_empty_dicts = (
             len(non_null_parsed) > 0 and all(isinstance(m, dict) and len(m) == 0 for m in non_null_parsed)
         )
 
         if not all_empty_dicts:
-            tag_series = clustered_df['meta'].apply(_first_val)
-            tags = sorted({str(t) for t in tag_series.dropna().tolist() if t is not None})
+            tag_series = clustered_df['meta'].apply(_first_allowed)
+            tags = sorted({str(t) for t in tag_series.dropna().tolist() if t is not None and str(t) in ALLOWED_TAGS})
     
     return {
         'prompts': prompts,
@@ -1830,21 +1815,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
         tag_badge = ""
         tag_value = None
         meta_obj = example.get('meta')
-        if isinstance(meta_obj, str):
-            try:
-                parsed = ast.literal_eval(meta_obj)
-                meta_obj = parsed
-            except Exception:
-                pass
-        if isinstance(meta_obj, dict) and len(meta_obj) > 0:
-            try:
-                tag_value = next(iter(meta_obj.values()))
-            except Exception:
-                tag_value = None
-        elif isinstance(meta_obj, (list, tuple)) and len(meta_obj) > 0:
-            tag_value = meta_obj[0]
-        elif isinstance(meta_obj, str) and meta_obj.strip() not in ("", "None", "N/A", "{}", "[]", "null"):
-            tag_value = meta_obj.strip()
+        tag_value = extract_allowed_tag(meta_obj)
         if tag_value is not None and str(tag_value).strip() != "":
             tag_badge = (
                 f"<span style=\"display:inline-block; padding:2px 8px; border-radius:999px; background:#faf5ff; color:#6d28d9; border:1px solid #ede9fe;\">"
