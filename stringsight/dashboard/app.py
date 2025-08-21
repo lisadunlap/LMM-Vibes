@@ -391,7 +391,7 @@ def create_app() -> gr.Blocks:
             
             # Main content area with reduced margins
             with gr.Column(scale=6, elem_classes=["main-content"]):
-                with gr.Tabs() as main_tabs:
+                with gr.Tabs(selected=1) as main_tabs:
 
                     # Tab 0: Run Pipeline  
                     with gr.TabItem("🚀 Run Pipeline", id=0) as pipeline_tab:
