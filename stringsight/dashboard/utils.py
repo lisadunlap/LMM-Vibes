@@ -1367,6 +1367,18 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
         
         # Get light color for this cluster (matching overview style)
         cluster_color = get_light_color_for_cluster(cluster_label, i)
+
+        # Build per-model frequencies for this cluster (replace models list)
+        metrics_all = app_state.get("metrics", {})
+        model_cluster_scores = metrics_all.get("model_cluster_scores", {})
+        model_freq_items: list[str] = []
+        for m in models_in_cluster:
+            m_dict = model_cluster_scores.get(m, {})
+            c_dict = m_dict.get(cluster_label, {}) if isinstance(m_dict, dict) else {}
+            prop = c_dict.get("proportion")
+            if isinstance(prop, (int, float)):
+                model_freq_items.append(f"{html.escape(str(m))}: {prop * 100:.1f}%")
+        model_freqs_html = " | ".join(model_freq_items) if model_freq_items else "N/A"
         
         # Create expandable cluster card with overview-style design
         page_html += f"""
@@ -1406,7 +1418,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
                 <div style="margin-bottom: 15px;">
                     <strong>Cluster ID:</strong> {cluster_id}<br>
                     <strong>Size:</strong> {cluster_size} properties<br>
-                    <strong>Models:</strong> {', '.join(models_in_cluster)}<br>
+                    <strong>Model Frequencies:</strong> {model_freqs_html}<br>
                 </div>
                 
                 <h4 style="color: #333; margin: 15px 0 10px 0;">

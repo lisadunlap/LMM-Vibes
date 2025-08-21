@@ -110,6 +110,24 @@ def pretty_print_embedded_dicts(text: str) -> str:
 
     code_spans = _find_code_spans(text)
 
+    def _to_json_safe(obj: Any):
+        """Recursively convert Python objects to JSON-serializable equivalents.
+
+        - Ellipsis (…) or ... becomes "..."
+        - Unsupported objects become str(obj)
+        """
+        if obj is ... or isinstance(obj, type(Ellipsis)):
+            return "..."
+        if isinstance(obj, dict):
+            return {str(k): _to_json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_to_json_safe(v) for v in obj]
+        if isinstance(obj, tuple):
+            return [_to_json_safe(v) for v in obj]
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        return str(obj)
+
     def _is_complex_structure(obj):
         """Check if object is worth pretty-printing (not just a simple value)"""
         if isinstance(obj, dict):
@@ -119,12 +137,20 @@ def pretty_print_embedded_dicts(text: str) -> str:
         return False
 
     def _format_with_preserved_spacing(json_str):
-        """Convert JSON string to HTML with preserved indentation"""
-        # Replace spaces with non-breaking spaces and newlines with <br>
+        """Convert JSON string to HTML with preserved indentation and wrapping.
+
+        Use a <pre> block with white-space: pre-wrap so that long tokens can wrap
+        while preserving indentation and newlines without converting spaces to
+        non-breaking spaces (which prevents wrapping).
+        """
         formatted = html.escape(json_str, quote=False)
-        formatted = formatted.replace(' ', '&nbsp;')
-        formatted = formatted.replace('\n', '<br>')
-        return f'<span style="font-family: monospace; line-height: 1.4; font-size: 14px;">{formatted}</span>'
+        return (
+            "<pre style=\"font-family: monospace; line-height: 1.4; font-size: 14px; "
+            "white-space: pre-wrap !important; word-break: break-word; overflow-wrap: anywhere; "
+            "background: #ffffff; padding: 10px; border-radius: 4px; margin: 0;\">"
+            f"{formatted}"
+            "</pre>"
+        )
 
     new_parts, last_idx = [], 0
     for start, end in _find_balanced_spans(text):
@@ -133,7 +159,7 @@ def pretty_print_embedded_dicts(text: str) -> str:
         
         if _is_complex_structure(parsed) and not _is_inside_any_span(start, end, code_spans):
             new_parts.append(html.escape(text[last_idx:start], quote=False))
-            pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+            pretty = json.dumps(_to_json_safe(parsed), indent=2, ensure_ascii=False)
             new_parts.append(_format_with_preserved_spacing(pretty))
             last_idx = end
     new_parts.append(html.escape(text[last_idx:], quote=False))
@@ -232,7 +258,7 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
             Click to see raw response ({len(conversation_data)})
         </summary>
         <div style="padding: 8px 15px;">
-            <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;">{raw_json}</pre>
+            <pre style="white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; background: #ffffff; padding: 10px; border-radius: 4px;">{html.escape(raw_json, quote=False)}</pre>
         </div>
     </details>
     """
@@ -300,9 +326,13 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
             # Format with preserved spacing for proper indentation
             if formatted_args and isinstance(formatted_args, str) and ('\n' in formatted_args or '  ' in formatted_args):
                 escaped_args = html.escape(formatted_args, quote=False)
-                escaped_args = escaped_args.replace(' ', '&nbsp;')
-                escaped_args = escaped_args.replace('\n', '<br>')
-                formatted_args = f'<span style="font-family: monospace; line-height: 1.4; font-size: 14px;">{escaped_args}</span>'
+                formatted_args = (
+                    "<pre style=\"font-family: monospace; line-height: 1.4; font-size: 14px; "
+                    "white-space: pre-wrap !important; word-break: break-word; overflow-wrap: anywhere; "
+                    "background: #ffffff; padding: 10px; border-radius: 4px; margin: 0;\">"
+                    f"{escaped_args}"
+                    "</pre>"
+                )
             else:
                 formatted_args = html.escape(str(formatted_args), quote=False)
             
@@ -354,8 +384,23 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
                     text_html = _replace_placeholders_with_mark(text_html)
                 content_html = text_html + _format_tool_calls(content)
             elif pretty_print_dicts:
+                def _to_json_safe_inline(obj: Any):
+                    if obj is ... or isinstance(obj, type(Ellipsis)):
+                        return "..."
+                    if isinstance(obj, dict):
+                        return {str(k): _to_json_safe_inline(v) for k, v in obj.items()}
+                    if isinstance(obj, list):
+                        return [_to_json_safe_inline(v) for v in obj]
+                    if isinstance(obj, tuple):
+                        return [_to_json_safe_inline(v) for v in obj]
+                    if isinstance(obj, (str, int, float, bool)) or obj is None:
+                        return obj
+                    return str(obj)
+
+                safe_json = html.escape(json.dumps(_to_json_safe_inline(content), indent=2, ensure_ascii=False), quote=False)
                 content_html = (
-                    f"<pre style='background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto;'>{json.dumps(content, indent=2, ensure_ascii=False)}</pre>"
+                    f"<pre style='background: #ffffff; padding: 10px; border-radius: 4px; "
+                    f"white-space: pre-wrap !important; word-break: break-word; overflow-wrap: anywhere;'>{safe_json}</pre>"
                 )
             else:
                 content_html = f"<code>{html.escape(json.dumps(content, ensure_ascii=False))}</code>"

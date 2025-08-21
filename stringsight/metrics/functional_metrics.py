@@ -864,6 +864,36 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
     def _save_results(self, model_cluster_scores, cluster_scores, model_scores):
         """Save the three result files."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Ensure JSON-serializable structures (replace Ellipsis and unknown types)
+        def _json_safe(obj):
+            from numpy import ndarray, generic
+            if obj is Ellipsis:
+                return None
+            if isinstance(obj, (str, int, float, bool)) or obj is None:
+                return obj
+            if isinstance(obj, ndarray):
+                return obj.tolist()
+            if isinstance(obj, generic):
+                return obj.item()
+            if isinstance(obj, (list, tuple, set)):
+                return [_json_safe(x) for x in obj]
+            if isinstance(obj, dict):
+                safe = {}
+                for k, v in obj.items():
+                    # Convert non-JSON-safe keys to strings
+                    if isinstance(k, (str, int, float, bool)) or k is None:
+                        sk = k
+                    else:
+                        sk = str(k)
+                    safe[sk] = _json_safe(v)
+                return safe
+            # Fallback: stringify unknown types
+            return str(obj)
+        
+        model_cluster_scores = _json_safe(model_cluster_scores)
+        cluster_scores = _json_safe(cluster_scores)
+        model_scores = _json_safe(model_scores)
 
         # Save model-cluster scores
         model_cluster_path = self.output_dir / "model_cluster_scores.json"
