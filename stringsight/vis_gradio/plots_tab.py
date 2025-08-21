@@ -61,7 +61,7 @@ def create_proportion_plot(show_ci: bool = False) -> Tuple[go.Figure, str]:
         y="proportion",
         color="model",
         barmode="group",
-        title="Proportion by Property and Model",
+        title=None,
         labels={"proportion": "Proportion", "property_abbr": "Property", "model": "Model"},
         error_y="y_error" if error_y_data is not None else None,
         error_y_minus="y_error_minus" if error_y_data is not None else None
@@ -151,7 +151,7 @@ def create_quality_plot(quality_metric: str = "helpfulness", show_ci: bool = Fal
         y=quality_col,
         color="model",
         barmode="group",
-        title=f"Quality ({quality_metric.title()}) by Property and Model",
+        title=None,
         labels={quality_col: f"Quality ({quality_metric.title()})", "property_abbr": "Property", "model": "Model"},
         error_y="y_error" if error_y_data is not None else None,
         error_y_minus="y_error_minus" if error_y_data is not None else None
