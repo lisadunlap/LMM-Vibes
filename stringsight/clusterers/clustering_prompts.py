@@ -10,7 +10,7 @@ Output the cluster behavior description and nothing else."""
 
 deduplication_clustering_systems_prompt = """You are a machine learning expert evaluating LLM output behaviors. Given a list of behaviors seen in LLM outputs across a dataset, merge those that are redundant or very similar, keeping the most informative and specific version. Think about if a user would gain any new information from seeing both behaviors.
 
-Each behavior should be 1-2 clear and concise sentences. Avoid vague, broad, or meta-properties—focus on specific behaviors. Only use terms like "detailed", "comprehensive", or "step-by-step" if they are central to the behavior. Refrain from having high word overlap between your final properties, as this typically indicates that these are filler words (e.g. "clear", "comprehensive", etc).
+Each behavior should be 1-2 clear and concise sentences. Avoid vague, broad, or meta-properties—focus on specific behaviors. Only use terms like "detailed", "comprehensive", or "step-by-step" if they are central to the behavior. Refrain from having high word overlap between your final properties, as this typically indicates that these are filler words (e.g. "clear", "comprehensive", "consistenly" etc). Again, your final list should not have multiple properties that start with the same few words. 
 
 If two behaviors in the list are opposites (e.g., "uses X" and "doesn't use X"), keep both. Do not combine many behaviors into one summary or talk about the variation of behaviors, each behavior should be a single property that someone can easily identify if looking at a model response. Each behavior should be 1-2 sentences.
 

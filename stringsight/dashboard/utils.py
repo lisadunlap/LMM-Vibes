@@ -1036,24 +1036,26 @@ def search_clusters_by_text(clustered_df: pd.DataFrame,
         # Use correct column names from pipeline
         fine_label_col = 'property_description_fine_cluster_label'
         coarse_label_col = 'property_description_coarse_cluster_label'
-        mask = pd.Series([False] * len(clustered_df))
+        # Initialize mask aligned to clustered_df index to avoid boolean indexer misalignment
+        mask = pd.Series(False, index=clustered_df.index)
         
         if fine_label_col in clustered_df.columns:
             series = clustered_df[fine_label_col].astype(str).apply(normalize_text_for_search)
-            mask |= series.str.contains(norm_term, na=False, regex=False)
+            mask = mask | series.str.contains(norm_term, na=False, regex=False)
         if coarse_label_col in clustered_df.columns:
             series = clustered_df[coarse_label_col].astype(str).apply(normalize_text_for_search)
-            mask |= series.str.contains(norm_term, na=False, regex=False)
+            mask = mask | series.str.contains(norm_term, na=False, regex=False)
     else:
         # Search in all text columns using correct column names
         text_cols = ['property_description', 'model', 
                     'property_description_fine_cluster_label', 
                     'property_description_coarse_cluster_label']
-        mask = pd.Series([False] * len(clustered_df))
+        # Initialize mask aligned to clustered_df index to avoid boolean indexer misalignment
+        mask = pd.Series(False, index=clustered_df.index)
         for col in text_cols:
             if col in clustered_df.columns:
                 series = clustered_df[col].astype(str).apply(normalize_text_for_search)
-                mask |= series.str.contains(norm_term, na=False, regex=False)
+                mask = mask | series.str.contains(norm_term, na=False, regex=False)
     
     return clustered_df[mask].head(100) 
 
@@ -1781,7 +1783,19 @@ def format_examples_display(examples: List[Dict[str, Any]],
         """
 
     html_out = f"""
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <div class="examples-container" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <style>
+            /* Make JSON/code wrappers transparent (fall back to white when inline-styled) */
+            .examples-container pre,
+            .examples-container .highlight,
+            .examples-container .codehilite,
+            .examples-container p pre,
+            .examples-container li pre,
+            .examples-container div pre {{
+                background: transparent !important;
+            }}
+            .examples-container code {{ background: transparent !important; }}
+        </style>
         <h3 style="color: #333; margin-bottom: 15px;">📋 Examples ({len(examples)} found)</h3>
 {filter_summary}
     """
@@ -1835,27 +1849,8 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 f"</span>"
             )
         
-        # Score display for summary (only for non-side-by-side or when not shown in side-by-side)
+        # Score badge removed - we now show the prominent score box instead
         score_badge = ""
-        if not example.get('is_side_by_side', False) and example['score'] != 'N/A':
-            try:
-                score_val = float(example['score'])
-                score_color = '#28a745' if score_val >= 0 else '#dc3545'
-                score_badge = f"""
-                <span style="
-                    background: {score_color}; 
-                    color: white; 
-                    padding: 4px 8px; 
-                    border-radius: 12px; 
-                    font-size: 12px; 
-                    font-weight: bold;
-                    margin-left: 10px;
-                ">
-                    Score: {score_val:.3f}
-                </span>
-                """
-            except:
-                pass
         
         # Create short preview of prompt for summary
         prompt_preview = example['prompt'][:80] + "..." if len(example['prompt']) > 80 else example['prompt']
@@ -1864,6 +1859,111 @@ def format_examples_display(examples: List[Dict[str, Any]],
         # First example is expanded by default
         open_attr = "open" if i == 1 else ""
         
+        # Build prominent score box section (positioned after cluster details)
+        score_section_html = ""
+        raw_score = example.get('score')
+        numeric_score: float | None = None
+        
+        # Check for alternative score column names if main score is not found
+        if raw_score is None or raw_score == "N/A":
+            alt_score_keys = ['quality_score', 'rating', 'evaluation_score', 'metric_score']
+            for alt_key in alt_score_keys:
+                if alt_key in example and example[alt_key] not in [None, "N/A", ""]:
+                    raw_score = example[alt_key]
+                    break
+        
+        # Try to extract numeric score more robustly
+        score_dict = None
+        score_metric_name = None
+        if raw_score is not None and raw_score != "N/A" and raw_score != "":
+            if isinstance(raw_score, (int, float)):
+                numeric_score = float(raw_score)
+            elif isinstance(raw_score, dict):
+                # Score is already a dictionary
+                score_dict = raw_score
+            elif isinstance(raw_score, str):
+                # Try to parse as dictionary first
+                try:
+                    import ast
+                    score_dict = ast.literal_eval(raw_score.strip())
+                    if not isinstance(score_dict, dict):
+                        # Not a dict, try as single float
+                        numeric_score = float(raw_score.strip())
+                except (ValueError, SyntaxError):
+                    # Try to convert as single float
+                    try:
+                        numeric_score = float(raw_score.strip())
+                    except ValueError:
+                        pass  # Could not convert, leave as None
+        
+        # If we have a score dictionary, display all metrics
+        if score_dict and isinstance(score_dict, dict):
+            numeric_metrics = {k: v for k, v in score_dict.items() if isinstance(v, (int, float))}
+            if numeric_metrics:
+                # Set numeric_score to any value so the display logic triggers
+                numeric_score = 1.0  # Just a placeholder to trigger display
+        
+        # Create compact score display for all examples with scores
+        if numeric_score is not None or (score_dict and isinstance(score_dict, dict)):
+            # Use blue colors for multi-metric display
+            color_bg = '#e3f2fd'  # Light blue background
+            color_fg = '#495057'
+            border_color = '#2196f3'  # Blue border
+            
+            # Handle score dictionary display
+            if score_dict and isinstance(score_dict, dict):
+                numeric_metrics = {k: v for k, v in score_dict.items() if isinstance(v, (int, float))}
+                if numeric_metrics:
+                    metrics_html_parts = []
+                    for k, v in numeric_metrics.items():
+                        # Use blue color for all metrics
+                        metrics_html_parts.append(f"""
+                        <div style="display: inline-block; margin: 2px 8px;">
+                            <span style="font-weight: 600; color: #6c757d;">{k.title()}:</span>
+                            <span style="color: #0066cc; font-weight: 700; font-family: 'SF Mono', monospace;">
+                                {v:.3f}
+                            </span>
+                        </div>""")
+                    
+                    score_section_html = f"""
+                    <div style="
+                        margin: 12px 0; 
+                        padding: 8px 12px; 
+                        background: {color_bg}; 
+                        border: 1px solid {border_color}; 
+                        border-radius: 6px; 
+                        border-left: 3px solid {border_color};
+                    ">
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; font-size: 12px;">
+                            {''.join(metrics_html_parts)}
+                        </div>
+                    </div>
+                    """
+                else:
+                    score_section_html = ""
+            else:
+                # Single numeric score display (fallback)
+                score_section_html = f"""
+                <div style="
+                    margin: 12px 0; 
+                    padding: 8px 12px; 
+                    background: {color_bg}; 
+                    border: 1px solid {border_color}; 
+                    border-radius: 6px; 
+                    border-left: 3px solid {border_color};
+                ">
+                    <div style="font-size: 13px; color: {color_fg};">
+                        <span style="font-weight: 600;">Quality Score:</span>
+                        <span style="color: #0066cc; font-weight: 700; margin-left: 8px; font-family: 'SF Mono', monospace;">
+                            {numeric_score:.3f}
+                        </span>
+                    </div>
+                </div>
+                """
+        else:
+            # No score data available
+            score_section_html = ""
+
         html_out += f"""
         <details {open_attr} style="border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 15px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <summary style="
@@ -1902,12 +2002,11 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 {(
                     f'''<details style="margin-bottom:16px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb;">
                         <summary style="cursor:pointer; padding:12px; font-weight:600; color:#374151; border-radius:8px;">
-                            📋 Cluster Information
+                            📋 Property Information
                         </summary>
                         <div style="padding:0 12px 12px 12px; border-top:1px solid #e5e7eb;">
                             {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))}</div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None", "", "null"] and str(example.get("fine_cluster_label", "")).strip() != "" else '')}
                             {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Property</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["property_description"]))}</div></div>' if example["property_description"] not in [None, "N/A", "None", "", "null"] and str(example["property_description"]).strip() != "" else '')}
-                            {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Reason</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["reason"]))}</div></div>' if example["reason"] not in [None, "N/A", "None", "", "null"] and str(example["reason"]).strip() != "" else '')}
                             {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Evidence</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["evidence"]))}</div></div>' if example["evidence"] not in [None, "N/A", "None", "", "null"] and str(example["evidence"]).strip() != "" else '')}
                         </div>
                     </details>'''
@@ -1918,8 +2017,21 @@ def format_examples_display(examples: List[Dict[str, Any]],
                     example.get("evidence") not in [None, "N/A", "None", "", "null"] and str(example.get("evidence", "")).strip() != "",
                  ]) else ''}
 
+                <!-- Prominent Quality Score Box -->
+                {score_section_html}
+
                 <div style="margin-bottom: 15px;">
-                    <div style="border-radius: 6px; font-size: 15px; line-height: 1.5;">
+                    <div style="
+                        border-radius: 6px; 
+                        font-size: 15px; 
+                        line-height: 1.5;
+                        max-height: 600px;
+                        overflow-y: auto;
+                        overflow-x: hidden;
+                        border: 1px solid #e9ecef;
+                        padding: 12px;
+                        background: #fefefe;
+                    ">
                         {conversation_html}
                     </div>
                 </div>

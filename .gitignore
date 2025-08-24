@@ -7,6 +7,8 @@
 **/legacy/
 .cache/
 
+stringsight/web 
+stringsight.egg-info
 
 __pycache__/
 *.py[cod]

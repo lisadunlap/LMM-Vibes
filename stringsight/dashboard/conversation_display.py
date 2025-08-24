@@ -481,7 +481,7 @@ def display_openai_conversation_html(conversation_data: List[Dict[str, Any]], *,
     .evidence-highlight { background: #ffff8b; padding: 0 2px; }
     :root {
         /* Code block color palette - GitHub Light inspired */
-        --code-bg: #f6f8fa;
+        --code-bg: transparent; /* make JSON/code wrapper background transparent */
         --code-text: #24292f;
         --code-comment: #6a737d;
         --code-keyword: #d73a49;

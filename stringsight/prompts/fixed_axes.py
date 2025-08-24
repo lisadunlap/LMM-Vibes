@@ -9,7 +9,7 @@ If the trace contains any of the behaviors, return a list of objects with the fo
 [
   {
     "property_description": which behavior is present in the trace, select one of {fixed_axes_names},
-    "reason": a explanation of the exact behaviors in the trace that fall under the property_description,
+    "reason": a explanation of the exact behaviors in the trace that fall under the property_description (1-2 sentences),
     "evidence": "What exactly in the trace exhibits this property? When possible, include a quote/tool calls/actions from the response, wrapped in double quotes."
   }
 ]

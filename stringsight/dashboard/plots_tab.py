@@ -64,12 +64,22 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
         model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(default_top)]
 
-    # Create property name mapping with proper ordering for the filtered set
+    # Decide whether to abbreviate property names based on word count
+    # If any property name has more than 6 words, we abbreviate (P1, P2, ...)
     unique_properties = sorted(model_cluster_df['cluster'].unique())
-    property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
-    
-    # Create abbreviated property column for plotting
-    model_cluster_df['property_abbr'] = model_cluster_df['cluster'].map(property_mapping)
+    should_abbreviate = any(len(str(prop).split()) > 6 for prop in unique_properties)
+
+    mapping_text_parts: List[str] = []
+    if should_abbreviate:
+        property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
+        model_cluster_df['display_label'] = model_cluster_df['cluster'].map(property_mapping)
+        # Prepare mapping legend text
+        mapping_text_parts.append("**Property Mapping**\n\n")
+        for prop, abbr in property_mapping.items():
+            mapping_text_parts.append(f"**{abbr}:** {prop}\n\n")
+    else:
+        # Use full names directly as x tick labels
+        model_cluster_df['display_label'] = model_cluster_df['cluster']
     
     # Prepare confidence interval data if requested
     error_y_data = None
@@ -86,18 +96,18 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     # Create a grouped bar plot of 'proportion' by property (x) and model (hue)
     fig = px.bar(
         model_cluster_df,
-        x="property_abbr",
+        x="display_label",
         y="proportion",
         color="model",
         barmode="group",
         title=None,
-        labels={"proportion": "Proportion", "property_abbr": "Property", "model": "Model"},
+        labels={"proportion": "Proportion", "display_label": "Property", "model": "Model"},
         error_y="y_error" if error_y_data is not None else None,
         error_y_minus="y_error_minus" if error_y_data is not None else None
     )
     
-    # Set the x-axis order to ensure P1, P2, P3, etc.
-    property_order = [f"P{i+1}" for i in range(len(unique_properties))]
+    # Set the x-axis order to ensure consistent ordering
+    property_order = [f"P{i+1}" for i in range(len(unique_properties))] if should_abbreviate else unique_properties
     fig.update_xaxes(categoryorder='array', categoryarray=property_order)
     fig.update_layout(xaxis_tickangle=45)
     # Make layout responsive and move legend to the top to utilize full width
@@ -117,18 +127,19 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     # save figure to file
     fig.write_html("model_cluster_proportion_plot.html")
     
-    # Create property mapping string
-    mapping_text = "**Property Mapping**\n\n"
-    for prop, abbr in property_mapping.items():
-        mapping_text += f"**{abbr}:** {prop}\n\n"
-    
-    # Add confidence interval info if enabled
+    # Build info/legend text
     if show_ci:
         if 'proportion_ci_lower' in model_cluster_df.columns and 'proportion_ci_upper' in model_cluster_df.columns:
-            mapping_text += "---\n\n**Confidence Intervals:**\n"
-            mapping_text += "Error bars show 95% confidence intervals for proportion values.\n"
+            if mapping_text_parts:
+                mapping_text_parts.append("---\n\n")
+            mapping_text_parts.append("**Confidence Intervals:**\n")
+            mapping_text_parts.append("Error bars show 95% confidence intervals for proportion values.\n")
         else:
-            mapping_text += "---\n\n**Note:** Confidence interval data not available in the loaded dataset.\n"
+            if mapping_text_parts:
+                mapping_text_parts.append("---\n\n")
+            mapping_text_parts.append("**Note:** Confidence interval data not available in the loaded dataset.\n")
+
+    mapping_text = "".join(mapping_text_parts)
     
     return fig, mapping_text
 
@@ -198,12 +209,20 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
         default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
         plot_df = plot_df[plot_df['cluster'].isin(default_top)]
 
-    # Create property name mapping with proper ordering (same as proportion plot)
+    # Decide whether to abbreviate property names based on word count
     unique_properties = sorted(plot_df['cluster'].unique())
-    property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
-    
-    # Create abbreviated property column for plotting
-    plot_df['property_abbr'] = plot_df['cluster'].map(property_mapping)
+    should_abbreviate = any(len(str(prop).split()) > 6 for prop in unique_properties)
+
+    mapping_text_parts: List[str] = []
+    if should_abbreviate:
+        property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
+        plot_df['display_label'] = plot_df['cluster'].map(property_mapping)
+        # Prepare mapping legend text
+        mapping_text_parts.append("**Property Mapping:**\n\n")
+        for prop, abbr in property_mapping.items():
+            mapping_text_parts.append(f"**{abbr}:** {prop}\n\n")
+    else:
+        plot_df['display_label'] = plot_df['cluster']
     
     # Prepare confidence interval data if requested
     error_y_data = None
@@ -223,18 +242,18 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     # Create a grouped bar plot of quality by property (x) and model (hue)
     fig = px.bar(
         plot_df,
-        x="property_abbr",
+        x="display_label",
         y=quality_col,
         color="model",
         barmode="group",
         title=None,
-        labels={quality_col: f"Quality ({quality_metric.title()})", "property_abbr": "Property", "model": "Model"},
+        labels={quality_col: f"Quality ({quality_metric.title()})", "display_label": "Property", "model": "Model"},
         error_y="y_error" if error_y_data is not None else None,
         error_y_minus="y_error_minus" if error_y_data is not None else None
     )
     
-    # Set the x-axis order to ensure P1, P2, P3, etc. (same as proportion plot)
-    property_order = [f"P{i+1}" for i in range(len(unique_properties))]
+    # Set the x-axis order to ensure consistent ordering
+    property_order = [f"P{i+1}" for i in range(len(unique_properties))] if should_abbreviate else unique_properties
     fig.update_xaxes(categoryorder='array', categoryarray=property_order)
     fig.update_layout(xaxis_tickangle=45)
     # Make layout responsive and move legend to the top to utilize full width
@@ -254,20 +273,21 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     # save figure to file
     fig.write_html(f"model_cluster_quality_{quality_metric}_plot.html")
     
-    # Create property mapping string (same as proportion plot)
-    mapping_text = "**Property Mapping:**\n\n"
-    for prop, abbr in property_mapping.items():
-        mapping_text += f"**{abbr}:** {prop}\n\n"
-    
-    # Add confidence interval info if enabled
+    # Build info/legend text
     if show_ci:
         ci_lower_col = f"{quality_col}_ci_lower"
         ci_upper_col = f"{quality_col}_ci_upper"
         if ci_lower_col in plot_df.columns and ci_upper_col in plot_df.columns:
-            mapping_text += "---\n\n**Confidence Intervals:**\n"
-            mapping_text += f"Error bars show 95% confidence intervals for {quality_metric} values.\n"
+            if mapping_text_parts:
+                mapping_text_parts.append("---\n\n")
+            mapping_text_parts.append("**Confidence Intervals:**\n")
+            mapping_text_parts.append(f"Error bars show 95% confidence intervals for {quality_metric} values.\n")
         else:
-            mapping_text += "---\n\n**Note:** Confidence interval data not available for this quality metric.\n"
+            if mapping_text_parts:
+                mapping_text_parts.append("---\n\n")
+            mapping_text_parts.append("**Note:** Confidence interval data not available for this quality metric.\n")
+
+    mapping_text = "".join(mapping_text_parts)
     
     return fig, mapping_text
 

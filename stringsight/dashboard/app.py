@@ -339,11 +339,15 @@ def create_app() -> gr.Blocks:
         with gr.Group(visible=False, elem_id="help-panel") as help_panel:
             help_md = gr.Markdown(
                 """
-                **Overview**: Compare model quality metrics and view model cards with top behavior clusters. Use Filter Controls to refine and switch between Plot/Table.
+                **🚀 Run Pipeline**: Launch Explain or Label pipelines. Configure inputs, select models, and run jobs. On success, the app switches to Overview and updates the experiment selector.
 
-                **View Clusters**: Explore clusters interactively. Use the search field in this tab to filter cluster labels; optional tag filter appears when available.
+                **📊 Overview**: Compare model quality metrics and view model cards with top behavior clusters. Use Benchmark Metrics to switch between Plot/Table and Filter Controls to refine results.
 
-                **View Examples**: Inspect individual examples with rich conversation rendering. Filter by prompt/model/cluster; adjust max examples and formatting options.
+                **📋 View Clusters**: Explore clusters interactively. Use the search box to filter cluster labels. Sidebar Tags (when available) filter all tabs consistently.
+
+                **🔍 View Examples**: Inspect individual examples with rich conversation rendering. Filter by prompt/model/cluster; adjust max examples and formatting options; optionally show only unexpected behavior.
+
+                **📊 Plots**: Create frequency or quality plots across models and clusters. Toggle confidence intervals, pick a quality metric, and select clusters to compare.
                 """
             )
             help_close_btn = gr.Button("Close", variant="secondary", elem_id="help-close-btn")
