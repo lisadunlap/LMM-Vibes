@@ -46,12 +46,9 @@ def get_metrics(method: str, **kwargs) -> "PipelineStage":
         return SideBySideMetrics(**kwargs)
     elif method == "single_model":
         # NEW: Default to functional metrics for single_model
-        return FunctionalMetrics(**kwargs)
-    elif method == "single_model_legacy":
-        # Backward compatibility: access to original system
         return SingleModelMetrics(**kwargs)
-    elif method == "functional":
-        return FunctionalMetrics(**kwargs)
+    # elif method == "functional":
+    #     return FunctionalMetrics(**kwargs)
     else:
         raise ValueError(f"Unknown metrics method: {method}. Available: 'side_by_side', 'single_model', 'functional', 'single_model_legacy'") 
     
