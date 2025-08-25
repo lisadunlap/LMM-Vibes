@@ -136,11 +136,11 @@ def display_side_by_side_responses(
     
     # Create the side-by-side layout
     side_by_side_html = f"""
-    <div style="margin-bottom: 20px;">
+    <div style="margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch;">
         {score_info}
-        <div style="display: flex; gap: 20px; margin-top: 10px;">
+        <div style="display: flex; gap: 20px; margin-top: 10px; flex-wrap: nowrap; min-width: 960px;">
             <!-- Model A Column -->
-            <div style="flex: 1; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
+            <div style="flex: 0 0 50%; min-width: 0; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
                 <h4 style="margin: 0 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #dee2e6; color: #495057; display: flex; align-items: center;">
                     <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; margin-right: 10px;">A</span>
                     {html.escape(model_a)}
@@ -152,7 +152,7 @@ def display_side_by_side_responses(
             </div>
             
             <!-- Model B Column -->
-            <div style="flex: 1; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
+            <div style="flex: 0 0 50%; min-width: 0; border: 2px solid #e9ecef; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
                 <h4 style="margin: 0 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #dee2e6; color: #495057; display: flex; align-items: center;">
                     <span style="background: #fd7e14; color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; margin-right: 10px;">B</span>
                     {html.escape(model_b)}
