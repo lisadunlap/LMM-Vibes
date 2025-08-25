@@ -136,12 +136,13 @@ def explain(
                 from . import prompts
                 system_prompt = getattr(prompts, system_prompt)
             except AttributeError:
-                # Get available prompts for error message
-                available_prompts = [
-                    name for name in dir(prompts) 
-                    if name.endswith('_system_prompt') or name.endswith('_prompt')
-                ]
-                raise ValueError(f"Unknown prompt name: {system_prompt}'. Available prompts: {available_prompts}")
+                # Build a clear list of available prompt names (string-valued attrs containing 'prompt')
+                from inspect import getmembers
+                available_prompts = sorted([
+                    name for name, value in getmembers(prompts)
+                    if isinstance(value, str) and 'prompt' in name
+                ])
+                raise ValueError(f"Unknown prompt name: '{system_prompt}'. Available prompts: {available_prompts}")
         # If prompt is 50+ characters, assume it's actual prompt content and use directly
     
     # Print the system prompt for verification

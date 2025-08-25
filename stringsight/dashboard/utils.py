@@ -1331,7 +1331,11 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
                 delta_val = quality_delta.get(metric_name)
                 score_str = f"{score_val:.3f}" if isinstance(score_val, (int, float)) else "N/A"
                 if isinstance(delta_val, (int, float)):
-                    color = "#28a745" if delta_val >= 0 else "#dc3545"
+                    # Use grey for values very close to zero (same as overview tab)
+                    if abs(delta_val) < 0.001:
+                        color = "#AAAAAA"
+                    else:
+                        color = "#28a745" if delta_val >= 0 else "#dc3545"
                     line_parts.append(f"<div>{metric_name}: {score_str} <span style=\"color: {color}; font-weight:500;\">({delta_val:+.3f})</span></div>")
                 else:
                     line_parts.append(f"<div>{metric_name}: {score_str}</div>")
@@ -1342,7 +1346,11 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
         if quality_scores:
             quality_parts = []
             for metric_name, score in quality_scores.items():
-                color = "#28a745" if score >= 0 else "#dc3545"
+                # Use grey for values very close to zero (same as overview tab)
+                if abs(score) < 0.001:
+                    color = "#AAAAAA"
+                else:
+                    color = "#28a745" if score >= 0 else "#dc3545"
                 quality_parts.append(f'<span style="color:{color}; font-weight:500;">{metric_name}: {score:.3f}</span>')
             quality_html = " | ".join(quality_parts)
         else:
