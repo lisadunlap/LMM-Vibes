@@ -9,7 +9,7 @@ from .state import app_state
 from .utils import compute_model_rankings_new, create_model_summary_card_new
 from .plotting import create_model_dataframe
 
-__all__ = ["create_overview", "create_model_quality_plot", "create_model_quality_table", "get_available_model_quality_metrics"]
+__all__ = ["create_overview", "create_model_quality_plot", "create_model_quality_table", "get_available_model_quality_metrics", "has_quality_metrics"]
 
 
 def create_overview(
@@ -427,20 +427,39 @@ def create_model_quality_table(
     return html_table
 
 
-def get_available_model_quality_metrics() -> List[str]:
-    """Get available quality metrics from the loaded model data."""
+def has_quality_metrics() -> bool:
+    """Check if quality metrics are actually available in the loaded data."""
     if not app_state["metrics"]:
-        return ["helpfulness", "accuracy", "harmlessness", "honesty"]
+        return False
     
     model_scores = app_state["metrics"].get("model_scores", {})
     if not model_scores:
-        return ["helpfulness", "accuracy", "harmlessness", "honesty"]
+        return False
     
     # Create model dataframe to get available columns
     model_df = create_model_dataframe(model_scores)
     
     if model_df.empty:
-        return ["helpfulness", "accuracy", "harmlessness", "honesty"]
+        return False
+    
+    # Find all ABSOLUTE quality columns (excluding CI, delta, and other suffix columns)
+    quality_columns = [col for col in model_df.columns 
+                      if col.startswith("quality_") 
+                      and not col.endswith(("_ci_lower", "_ci_upper", "_ci_mean", "_significant"))
+                      and "delta" not in col.lower()]
+    
+    return len(quality_columns) > 0
+
+
+def get_available_model_quality_metrics() -> List[str]:
+    """Get available quality metrics from the loaded model data."""
+    if not has_quality_metrics():
+        return []
+    
+    model_scores = app_state["metrics"].get("model_scores", {})
+    
+    # Create model dataframe to get available columns
+    model_df = create_model_dataframe(model_scores)
     
     # Find all ABSOLUTE quality columns (excluding CI, delta, and other suffix columns)
     quality_columns = [col for col in model_df.columns 
@@ -471,9 +490,5 @@ def get_available_model_quality_metrics() -> List[str]:
     
     # Remove duplicates while preserving order
     available_quality_metrics = list(dict.fromkeys(available_quality_metrics))
-    
-    # If no quality metrics found, provide defaults
-    if not available_quality_metrics:
-        available_quality_metrics = ["helpfulness", "accuracy", "harmlessness", "honesty"]
     
     return available_quality_metrics 

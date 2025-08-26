@@ -313,8 +313,13 @@ def create_model_summary_card_new(
             pass
         else:
             all_clusters = [c for c in all_clusters if c.get("proportion_delta_significant", False)]
+    # Only apply quality significance filter if quality metrics actually exist
     if quality_significant_only:
-        all_clusters = [c for c in all_clusters if any(c.get("quality_delta_significant", {}).values())]
+        # Check if we have any quality metrics in the data
+        from .overview_tab import has_quality_metrics
+        if has_quality_metrics():
+            all_clusters = [c for c in all_clusters if any(c.get("quality_delta_significant", {}).values())]
+        # If no quality metrics exist, ignore quality_significant_only filter
 
     if not all_clusters:
         return f"<div style='padding:20px'>No clusters pass filters for {model_name}</div>"
@@ -338,14 +343,25 @@ def create_model_summary_card_new(
         vals = list(c.get("quality", {}).values())
         return float(np.mean(vals)) if vals else 0.0
 
+    # Build sort key map based on whether quality metrics are available
     sort_key_map = {
-        "quality_asc": (_mean_quality, False),
-        "quality_desc": (_mean_quality, True),
         "frequency_desc": (lambda c: c.get("proportion", 0), True),
         "frequency_asc": (lambda c: c.get("proportion", 0), False),
         "salience_desc": (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), True),
         "salience_asc": (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), False),
     }
+    
+    # Only add quality-based sorting if quality metrics exist
+    from .overview_tab import has_quality_metrics
+    if has_quality_metrics():
+        sort_key_map.update({
+            "quality_asc": (_mean_quality, False),
+            "quality_desc": (_mean_quality, True),
+        })
+    
+    # If sort_by requests quality sorting but no quality metrics exist, fall back to salience
+    if sort_by in ["quality_asc", "quality_desc"] and not has_quality_metrics():
+        sort_by = "salience_desc"
 
     key_fn, reverse = sort_key_map.get(sort_by, (lambda c: c.get("proportion_delta", 0) if model_name != "all" else c.get("proportion", 0), True))
     sorted_clusters = sorted(all_clusters, key=key_fn, reverse=reverse)[:top_n]
@@ -1682,6 +1698,18 @@ def get_example_data(
             # For side-by-side datasets, store both responses separately
             response_val = "SIDE_BY_SIDE"  # Special marker
             model_val = f"{row.get('model_a', 'Model A')} vs {row.get('model_b', 'Model B')}"
+            
+            # Handle new scores_a/scores_b format for display
+            if 'scores_a' in row and 'scores_b' in row:
+                scores_a = row.get('scores_a', {})
+                scores_b = row.get('scores_b', {})
+                if scores_a or scores_b:
+                    scores_info = []
+                    if scores_a:
+                        scores_info.append(f"{row.get('model_a', 'Model A')}: {scores_a}")
+                    if scores_b:
+                        scores_info.append(f"{row.get('model_b', 'Model B')}: {scores_b}")
+                    response_val = f"SIDE_BY_SIDE with scores: {' | '.join(scores_info)}"
         else:
             # For single response datasets, use the existing logic
             response_val = next(

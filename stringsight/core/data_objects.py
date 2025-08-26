@@ -68,7 +68,7 @@ class ConversationRecord:
     prompt: str
     model: str | List[str]  # model name(s) - single string or tuple for side-by-side comparisons
     responses: str | List[str] # {model_name: response}
-    scores: Dict[str, Any]     # {score_name: score_value}
+    scores: Dict[str, Any] | List[Dict[str, Any]]     # {score_name: score_value} or {"scores_a": {...}, "scores_b": {...}, "winner": "..."}
     meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc.
 
 @dataclass
@@ -198,7 +198,7 @@ class PropertyDataset:
         if method == "side_by_side":
             all_models = list(set(df["model_a"].unique().tolist() + df["model_b"].unique().tolist()))
             # Expected columns: question_id, prompt, model_a, model_b, 
-            # model_a_response, model_b_response, winner, etc.
+            # model_a_response, model_b_response, scores_a, scores_b, winner, etc.
             for idx, row in df.iterrows():
                 prompt = str(row.get('prompt', row.get('user_prompt', '')))
                 model_a_response = row.get('model_a_response', '')
@@ -208,15 +208,28 @@ class PropertyDataset:
                 oai_response_a, was_converted_a = check_and_convert_to_oai_format(prompt, model_a_response)
                 oai_response_b, was_converted_b = check_and_convert_to_oai_format(prompt, model_b_response)
                 
+                # Handle new scores_a/scores_b format or fallback to legacy score format
+                if 'scores_a' in row and 'scores_b' in row:
+                    scores = {
+                        "scores_a": row.get('scores_a', {}),
+                        "scores_b": row.get('scores_b', {}),
+                        "winner": row.get('winner')  # Optional comparative metric
+                    }
+                    # Remove None values
+                    scores = {k: v for k, v in scores.items() if v is not None}
+                else:
+                    # Fallback to legacy format
+                    scores = row.get('score', {})
+                
                 conversation = ConversationRecord(
                     question_id=str(idx),  # Auto-generate as row index
                     prompt=prompt,
                     model=[row.get('model_a', 'model_a'), row.get('model_b', 'model_b')],
                     responses=[oai_response_a, oai_response_b],
-                    scores=row.get('score', {}),
+                    scores=scores,
                     meta={k: v for k, v in row.items() 
                           if k not in ['question_id', 'prompt', 'user_prompt', 'model_a', 'model_b', 
-                                     'model_a_response', 'model_b_response', 'score']}
+                                     'model_a_response', 'model_b_response', 'score', 'scores_a', 'scores_b', 'winner']}
                 )
                 conversations.append(conversation)
                 
@@ -273,16 +286,32 @@ class PropertyDataset:
                     **conv.meta
                 }
             elif isinstance(conv.model, list):
-                base_row = {
-                    'question_id': conv.question_id,
-                    'prompt': conv.prompt,
-                    'model_a': conv.model[0],
-                    'model_b': conv.model[1],
-                    'model_a_response': conv.responses[0],
-                    'model_b_response': conv.responses[1],
-                    'score': conv.scores,
-                    **conv.meta
-                }
+                # Handle new scores_a/scores_b format or fallback to legacy score format
+                if isinstance(conv.scores, dict) and "scores_a" in conv.scores and "scores_b" in conv.scores:
+                    base_row = {
+                        'question_id': conv.question_id,
+                        'prompt': conv.prompt,
+                        'model_a': conv.model[0],
+                        'model_b': conv.model[1],
+                        'model_a_response': conv.responses[0],
+                        'model_b_response': conv.responses[1],
+                        'scores_a': conv.scores.get('scores_a', {}),
+                        'scores_b': conv.scores.get('scores_b', {}),
+                        'winner': conv.scores.get('winner'),
+                        **conv.meta
+                    }
+                else:
+                    # Fallback to legacy format
+                    base_row = {
+                        'question_id': conv.question_id,
+                        'prompt': conv.prompt,
+                        'model_a': conv.model[0],
+                        'model_b': conv.model[1],
+                        'model_a_response': conv.responses[0],
+                        'model_b_response': conv.responses[1],
+                        'score': conv.scores,
+                        **conv.meta
+                    }
             else:
                 raise ValueError(f"Invalid model type: {type(conv.model)}. Must be str or list.")
 
@@ -316,13 +345,17 @@ class PropertyDataset:
             # Ensure `model` column is present (avoid _x / _y duplicates)
             # ------------------------------------------------------------------
             if "model" not in df.columns:
-                print(f"df.model_y.value_counts(): {df.model_y.value_counts()}")
-                print(f"df.model_x.value_counts(): {df.model_x.value_counts()}")
+                if "model_y" in df.columns:
+                    print(f"df.model_y.value_counts(): {df.model_y.value_counts()}")
+                if "model_x" in df.columns:
+                    print(f"df.model_x.value_counts(): {df.model_x.value_counts()}")
                 if "model_x" in df.columns or "model_y" in df.columns:
                     df["model"] = df.get("model_y").combine_first(df.get("model_x"))
                     df.drop(columns=[c for c in ["model_x", "model_y"] if c in df.columns], inplace=True)
                     
-        print(f"df.model.value_counts() NEW: {df.model.value_counts()}")
+        # Only print model value counts if the column exists
+        if "model" in df.columns:
+            print(f"df.model.value_counts() NEW: {df.model.value_counts()}")
         print(f"total questions: {df.question_id.nunique()}")
 
         if self.clusters and type in ["all", "clusters"]:

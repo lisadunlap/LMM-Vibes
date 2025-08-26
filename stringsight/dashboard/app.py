@@ -50,7 +50,7 @@ from .load_data_tab import (
     refresh_experiment_dropdown,
     load_experiment_data,
 )
-from .overview_tab import create_overview, create_model_quality_plot, create_model_quality_table, get_available_model_quality_metrics
+from .overview_tab import create_overview, create_model_quality_plot, create_model_quality_table, get_available_model_quality_metrics, has_quality_metrics
 from .clusters_tab import view_clusters_interactive, view_clusters_table
 from .examples_tab import (
     get_dropdown_choices,
@@ -323,10 +323,13 @@ def create_app() -> gr.Blocks:
                 # Move experiment selection to the header when a base directory is provided
                 from . import state
                 if state.BASE_RESULTS_DIR:
+                    # Preselect the most recent experiment if available
+                    _experiments = get_available_experiments(state.BASE_RESULTS_DIR)
+                    _default_experiment = _experiments[0] if _experiments else "Select an experiment..."
                     experiment_dropdown = gr.Dropdown(
                         label="Select Experiment",
                         choices=get_experiment_choices(),
-                        value="Select an experiment...",
+                        value=_default_experiment,
                         show_label=False,
                         interactive=True,
                     )
@@ -421,17 +424,16 @@ def create_app() -> gr.Blocks:
                                 quality_significant_only = gr.Checkbox(
                                     label="Show Only Quality Significant Clusters",
                                     value=False,
-                                    info="Only show clusters where the quality score is statistically significant"
+                                    info="Only show clusters where the quality score is statistically significant",
+                                    visible=False  # Hidden until quality metrics are loaded
                                 )
                             
                             with gr.Row():
                                 sort_by = gr.Dropdown(
                                     label="Sort Clusters By",
-                                    choices=[
+                                    choices=[  # Will be updated after data loading
                                         ("Relative Frequency (Descending)", "salience_desc"),
                                         ("Relative Frequency (Ascending)", "salience_asc"),
-                                        ("Quality (Ascending)", "quality_asc"),
-                                        ("Quality (Descending)", "quality_desc"),
                                         ("Frequency (Descending)", "frequency_desc"),
                                         ("Frequency (Ascending)", "frequency_asc")
                                     ],
@@ -445,7 +447,7 @@ def create_app() -> gr.Blocks:
                                 )
                         
                         # Accordion for Quality Plot
-                        with gr.Accordion("Benchmark Metrics", open=True, visible=True) as metrics_acc:
+                        with gr.Accordion("Benchmark Metrics", open=True, visible=False) as metrics_acc:  # Hidden until quality metrics are loaded
                             with gr.Row():
                                 quality_metric_overview = gr.Dropdown(
                                     label="Quality Metric",
@@ -599,6 +601,45 @@ def create_app() -> gr.Blocks:
             # Ensure value is valid for the updated choices
             return gr.update(choices=available_metrics, value=(available_metrics[0] if available_metrics else None))
         
+        def get_sort_choices():
+            """Get sort choices, filtering out quality-based options if no quality metrics available."""
+            base_choices = [
+                ("Relative Frequency (Descending)", "salience_desc"),
+                ("Relative Frequency (Ascending)", "salience_asc"),
+                ("Frequency (Descending)", "frequency_desc"),
+                ("Frequency (Ascending)", "frequency_asc")
+            ]
+            
+            if has_quality_metrics():
+                quality_choices = [
+                    ("Quality (Ascending)", "quality_asc"),
+                    ("Quality (Descending)", "quality_desc"),
+                ]
+                # Insert quality choices after frequency choices
+                return base_choices[:2] + quality_choices + base_choices[2:]
+            else:
+                return base_choices
+        
+        def update_ui_for_quality_metrics():
+            """Update UI elements based on whether quality metrics are available."""
+            has_quality = has_quality_metrics()
+            
+            # Get sort choices (with or without quality options)
+            sort_choices = get_sort_choices()
+            default_sort = "salience_desc"  # Always available
+            
+            return (
+                # Update sort dropdown choices and value
+                gr.update(choices=sort_choices, value=default_sort),
+                # Show/hide quality significant checkbox (also reset value to False)
+                gr.update(visible=has_quality, value=False),
+                # Show/hide benchmark metrics section
+                gr.update(visible=has_quality),
+                # Update quality metric dropdown
+                gr.update(choices=get_available_model_quality_metrics(), 
+                         value=(get_available_model_quality_metrics()[0] if has_quality else None))
+            )
+        
         def update_quality_plot(selected_models, quality_metric):
             return create_model_quality_plot(selected_models, quality_metric)
 
@@ -630,6 +671,10 @@ def create_app() -> gr.Blocks:
 
         def update_experiment_badge():
             return _render_badge_html()
+
+        def update_experiment_badge_visible():
+            # Ensure the badge is shown once an experiment is loaded
+            return gr.update(value=_render_badge_html(), visible=True)
         
         def safe_update_quality_display(selected_models, quality_metric, view_type):
             # Simplified: always update directly
@@ -637,6 +682,11 @@ def create_app() -> gr.Blocks:
 
         def update_overview_content_only(selected_models, top_n, score_sig, quality_sig, sort_by_val, min_cluster_sz, selected_tags_sidebar):
             """Update only the overview model cards content, without affecting UI state or controls."""
+            # Temporarily disable loading flag check to debug
+            # TODO: Re-implement with better logic
+            # if app_state.get("is_loading_data", False):
+            #     return gr.update()
+                
             if not app_state.get("metrics"):
                 return "<p style='color: #666; padding: 20px;'>Please load data first.</p>"
             
@@ -667,6 +717,11 @@ def create_app() -> gr.Blocks:
             return gr.update(choices=tags, value=tags, visible=bool(tags))
 
 
+        def clear_loading_flag():
+            """Clear the loading flag to allow overview updates."""
+            app_state["is_loading_data"] = False
+            return gr.update()  # Return a dummy update
+            
         def create_overview_page(selected_models,
                                 top_n,
                                 score_sig,
@@ -677,6 +732,18 @@ def create_app() -> gr.Blocks:
                                 view_type,
                                 selected_tags_sidebar,
                                 progress: gr.Progress = None):
+            # Temporarily disable loading flag check to debug
+            # TODO: Re-implement with better logic
+            # if app_state.get("is_loading_data", False) and progress is None:
+            #     return (
+            #         gr.update(),  # filter_controls_acc
+            #         gr.update(),  # metrics_acc  
+            #         gr.update(),  # refresh_overview_btn
+            #         gr.update(),  # quality_plot_display
+            #         gr.update(),  # quality_table_display
+            #         gr.update(),  # overview_display
+            #     )
+                
             # Simplified: no loading gate or build flag
             if not app_state.get("metrics"):
                 landing_html = "<p style='color: #666; padding: 20px;'>Select your experiment to begin.</p>"
@@ -814,7 +881,7 @@ def create_app() -> gr.Blocks:
                     inputs=[experiment_dropdown],
                     outputs=[data_status, models_info, selected_models]
                 ).then(
-                    fn=update_experiment_badge,
+                    fn=update_experiment_badge_visible,
                     outputs=[current_experiment_badge]
                 ).then(
                     fn=update_example_dropdowns,
@@ -825,8 +892,8 @@ def create_app() -> gr.Blocks:
                     inputs=[selected_models],
                     outputs=[selected_tags]
                 ).then(
-                    fn=update_quality_metric_dropdown,
-                    outputs=[quality_metric_overview]
+                    fn=update_ui_for_quality_metrics,
+                    outputs=[sort_by, quality_significant_only, metrics_acc, quality_metric_overview]
                 ).then(
                     fn=view_examples,
                     inputs=[
@@ -881,7 +948,7 @@ def create_app() -> gr.Blocks:
                     inputs=[results_dir_input],
                     outputs=[data_status, models_info, selected_models]
                 ).then(
-                    fn=update_experiment_badge,
+                    fn=update_experiment_badge_visible,
                     outputs=[current_experiment_badge]
                 ).then(
                     fn=update_example_dropdowns,
@@ -892,8 +959,8 @@ def create_app() -> gr.Blocks:
                     inputs=[selected_models],
                     outputs=[selected_tags]
                 ).then(
-                    fn=update_quality_metric_dropdown,
-                    outputs=[quality_metric_overview]
+                    fn=update_ui_for_quality_metrics,
+                    outputs=[sort_by, quality_significant_only, metrics_acc, quality_metric_overview]
                 ).then(
                     fn=view_examples,
                     inputs=[
@@ -1201,6 +1268,74 @@ def create_app() -> gr.Blocks:
             ],
             show_progress="full"
         )
+
+        # Auto-load the most recent experiment on app load when a base directory is provided
+        from . import state
+        if state.BASE_RESULTS_DIR and 'experiment_dropdown' in locals():
+            (app.load(
+                fn=load_experiment_data,
+                inputs=[experiment_dropdown],
+                outputs=[data_status, models_info, selected_models]
+            ).then(
+                fn=update_experiment_badge_visible,
+                outputs=[current_experiment_badge]
+            ).then(
+                fn=update_example_dropdowns,
+                inputs=[selected_models],
+                outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
+            ).then(
+                fn=update_sidebar_tags,
+                inputs=[selected_models],
+                outputs=[selected_tags]
+            ).then(
+                fn=update_ui_for_quality_metrics,
+                outputs=[sort_by, quality_significant_only, metrics_acc, quality_metric_overview]
+            ).then(
+                fn=view_examples,
+                inputs=[
+                    example_prompt_dropdown,
+                    example_model_dropdown,
+                    example_property_dropdown,
+                    max_examples_slider,
+                    use_accordion_checkbox,
+                    pretty_print_checkbox,
+                    search_examples,
+                    show_unexpected_behavior_checkbox,
+                    selected_models,
+                    selected_tags,
+                ],
+                outputs=[examples_display]
+            ).then(
+                fn=update_top_n_slider_maximum,
+                outputs=[top_n_overview]
+            ).then(
+                fn=clear_search_bars,
+                outputs=[search_clusters, search_examples]
+            ).then(
+                fn=view_clusters_interactive,
+                inputs=[selected_models, gr.State("fine"), search_clusters, selected_tags],
+                outputs=[clusters_display]
+            ).then(
+                fn=create_overview_page,
+                inputs=[selected_models, top_n_overview, score_significant_only, quality_significant_only, sort_by, min_cluster_size, quality_metric_overview, quality_view_type, selected_tags],
+                outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
+            ).then(
+                fn=update_cluster_selection,
+                inputs=[selected_models, selected_tags],
+                outputs=[cluster_selector]
+            ).then(
+                fn=update_quality_metric_visibility,
+                inputs=[plot_type_dropdown],
+                outputs=[quality_metric_dropdown]
+            ).then(
+                fn=compute_plots_quality_metric,
+                inputs=[plot_type_dropdown, quality_metric_dropdown],
+                outputs=[quality_metric_state]
+            ).then(
+                fn=create_plot_with_toggle,
+                inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+                outputs=[plot_display, plot_info]
+            ))
         
         return app
 

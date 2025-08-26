@@ -131,6 +131,9 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     'index': i
                 })
                 
+                # Minimal context about the failed input
+                self.log(f"Parse failure input qid={prop.question_id} model={prop.model} raw={prop.raw_response}", level="error")
+
                 # Debug: show a snippet of the offending response to aid troubleshooting
                 snippet = (prop.raw_response or "")[:200].replace("\n", " ")
                 self.log(
@@ -180,6 +183,9 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                     'index': i
                 })
                 
+                # Minimal context about the failed input
+                self.log(f"Parse failure input qid={prop.question_id} model={prop.model} raw={prop.raw_response}", level="error")
+
                 if consecutive_errors > max_consecutive_errors:
                     error_msg = (
                         f"ERROR: More than {max_consecutive_errors} consecutive parsing errors detected "
@@ -565,7 +571,7 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         """Convert a dict returned by the LLM into a Property object."""
 
         if isinstance(prop.model, list):
-            model = model_name_pass(p.get("model", "unknown"), prop.model[0], prop.model[1])
+            model = model_name_pass(p.get("model"), prop.model[0], prop.model[1])
         else:
             model = prop.model
 

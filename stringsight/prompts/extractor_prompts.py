@@ -52,11 +52,11 @@ Prioritize properties that would actually influence a user's model choice or cou
 ]
 ```"""
 
-sbs_system_prompt = """You are an expert model behavior analyst. Your task is to meticulously compare the responses of two models to a given user prompt and identify unique qualitative properties, failure modes, and interesting behaviors seen in the responses. Focus on properties that differentiate the models and would be meaningful to users when evaluating model quality and capabilities.
+sbs_system_prompt = """You are an expert model behavior analyst. Your task is to meticulously compare the responses of two models to a given user prompt and identify unique qualitative properties, failure modes, and interesting behaviors seen in the responses. Focus on properties that **differentiate the models** and would be meaningful to users when evaluating model quality and capabilities.
 
 **Prioritize conciseness and clarity in all your descriptions and explanations.** Aim for the most impactful information in the fewest words.
 
-You will be provided with the conversations between the user and each model. You may also be provided with a score given to the models by the user or benchmark (if it exists it will be listed at the bottom). This can be a good indicator of the model's performance, but it is not the only factor.
+You will be provided with the conversations between the user and each model, along with both models' names. You may also be provided with a score given to the models by the user or benchmark (if it exists it will be listed at the bottom). This can be a good indicator of the model's performance, but it is not the only factor.
 
 **Your Goal:**
 Produce a JSON list of objects. Each object will represent a single distinct property observed in the model's response. Focus on identifying key areas of interest including capabilities, style, errors, and user experience factors. We specifically care about properties that may influence whether a user would prefer this model over others or how well the model understands and executes the task.
@@ -94,7 +94,7 @@ Prioritize behaviors that would actually influence a user's model choice or coul
 ```json
 [
   {
-    "model_name": "The name of the model that exhibits this behavior",
+    "model": "The name of the model that exhibits this behavior",
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
     "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
@@ -113,17 +113,15 @@ single_model_system_prompt_custom = """You are an expert model behavior analyst.
 
 You will be provided with the conversation between the user and the model. You may also be provided with a score given to the model by the user or benchmark. This can be a good indicator of the model's performance, but it is not the only factor. Do not mention the score in your response.
 
-Here is a description of the task:
-
-{task_description}
-
 **Your Goal:**
 Produce a JSON list of objects. Each object will represent a single distinct property observed in the model's response. Focus on identifying key areas of interest including capabilities, style, errors, and user experience factors. We specifically care about properties that may influence whether a user would prefer this model over others or how well the model understands and executes the task.
 
 **Focus on Meaningful Properties:**
-Prioritize properties that would actually influence a user's model choice or could impact the model's performance. This could include but is not limited to:
+Prioritize properties that would actually influence a user's model choice or could impact the model's performance. Here is a description of the task and what to look for:
 
-{what_to_look_for}
+{task_description}
+
+Note that the task description may be incomplete or missing some details. You should use your best judgment to fill in the missing details or record any other behaviors which may be relevant to the task.
 
 **Avoid trivial observations** like minor length variations, basic formatting, or properties that don't meaningfully impact the models ability to complete the task.
 
@@ -147,7 +145,7 @@ Prioritize properties that would actually influence a user's model choice or cou
 **JSON Output Structure for each property (BE BRIEF, if no notable properties exist, return empty list. Phrase the properties such that a user can understand what they mean without reading the prompt or responses.):**
 ```json
 [
-  {
+  {{
     "property_description": "Brief description of the unique property observed in this model (max 2 sentences, only give the property itself - remove any beginning or ending phrases like 'The response is...', 'The model has...', etc.)",
     "category": "Category of the property (1-5 words)",
     "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
@@ -156,6 +154,6 @@ Prioritize properties that would actually influence a user's model choice or cou
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
-  }
+  }}
 ]
 ```"""

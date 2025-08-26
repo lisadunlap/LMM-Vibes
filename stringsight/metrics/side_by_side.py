@@ -52,14 +52,32 @@ class SideBySideMetrics(FunctionalMetrics):
         if not data.clusters:
             return pd.DataFrame()
 
-        properties = pd.DataFrame([cluster.to_dict() for cluster in data.clusters])
+        clusters = pd.DataFrame([cluster.to_dict() for cluster in data.clusters])
 
-        # Explode property_descriptions and question_ids
-        properties = properties.explode(["property_descriptions", "question_ids"]).drop_duplicates(
-            subset=["property_descriptions", "question_ids"]
+        # FIXED: Use the same approach as functional_metrics - explode only property_descriptions and question_ids
+        # This ensures the join works correctly and doesn't depend on complex property-model mappings
+        clusters = clusters.explode(["property_descriptions", "question_ids", "property_ids"]).drop_duplicates(
+            subset=["property_descriptions", "question_ids", "property_ids"]
         )
-        properties = properties.dropna(subset=["property_descriptions", "question_ids"]).rename(
-            {"question_ids": "question_id", "property_descriptions": "property_description"}, axis=1
+        clusters = clusters.dropna(subset=["property_descriptions", "question_ids", "property_ids"])
+        clusters = clusters.rename(
+            {"question_ids": "question_id", "property_descriptions": "property_description", "property_ids": "property_id"}, axis=1
+        )
+        
+        properties = pd.DataFrame([property.to_dict() for property in data.properties])
+
+        properties_df = []
+        for index, row in properties.iterrows():
+            properties_df.append({
+                "property_id": row["id"],
+                "model": row["model"],
+            })
+        properties_df = pd.DataFrame(properties_df)
+        print(f"Number of properties: {len(properties_df)}")
+
+        properties = clusters.merge(properties_df, on="property_id", how="left").rename(
+            {"label": "cluster"},
+            axis=1,
         )
 
         # Expand conversations: one row per model with per-model scores
@@ -70,62 +88,60 @@ class SideBySideMetrics(FunctionalMetrics):
             scores = conv.scores or {}
 
             # Side-by-side: conv.model is a list/tuple of two models
-            if isinstance(conv.model, (list, tuple)) and len(conv.model) == 2:
-                model_a, model_b = conv.model[0], conv.model[1]
-                expanded_rows.append(
-                    {
-                        "question_id": qid,
-                        "scores": self._transform_scores_for_model(scores, model_a, model_b),
-                        "meta": meta,
-                        "model": model_a,
-                    }
-                )
-                expanded_rows.append(
-                    {
-                        "question_id": qid,
-                        "scores": self._transform_scores_for_model(scores, model_b, model_a),
-                        "meta": meta,
-                        "model": model_b,
-                    }
-                )
-            else:
-                # Fallback to single-model row
-                model_name = conv.model if isinstance(conv.model, str) else str(conv.model)
-                expanded_rows.append(
-                    {
-                        "question_id": qid,
-                        "scores": scores,
-                        "meta": meta,
-                        "model": model_name,
-                    }
-                )
+            model_a, model_b = conv.model[0], conv.model[1]
+            expanded_rows.append(
+                {
+                    "question_id": qid,
+                    "scores": self._transform_scores_for_model(scores, model_a, model_b, conv),
+                    "conversation_metadata": meta,
+                    "model_name": model_a,
+                }
+            )
+            expanded_rows.append(
+                {
+                    "question_id": qid,
+                    "scores": self._transform_scores_for_model(scores, model_b, model_a, conv),
+                    "conversation_metadata": meta,
+                    "model_name": model_b,
+                }
+            )
 
         conversations = pd.DataFrame(expanded_rows)
 
-        # Join conversations with properties
         properties = properties.merge(conversations, on="question_id", how="left").rename(
-            {"meta": "conversation_metadata", "label": "cluster", "question_id": "conversation_id"},
+            {"label": "cluster", "question_id": "conversation_id"},
             axis=1,
         )
+
+        # remove any rows where model_name != model
+        print(f"Length before: {len(properties)}")
+        properties = properties[properties["model_name"] == properties["model"]]
+        print(f"Length after: {len(properties)}")
+        properties = properties.drop("model_name", axis=1)
         
         # Ensure conversation_metadata exists - fill missing values with empty dict
         if "conversation_metadata" not in properties.columns:
             properties["conversation_metadata"] = {}
         else:
             properties["conversation_metadata"] = properties["conversation_metadata"].fillna({})
+
+        # print(properties['cluster_metadata'].head())
+        
+        # Handle cluster_metadata from the cluster's meta field
+        if "meta" in properties.columns:
+            properties["cluster_metadata"] = properties["meta"]
+            properties = properties.drop("meta", axis=1)
+        else:
+            properties["cluster_metadata"] = {}
         
         properties["property_metadata"] = properties["property_description"].apply(
             lambda x: {"property_description": x}
         )
 
+        # Match the column selection from functional_metrics exactly
         important_columns = [
-            "conversation_id",
-            "conversation_metadata",
-            "property_metadata",
-            "model",
-            "cluster",
-            "property_description",
-            "scores",
+            "conversation_id", "conversation_metadata", "property_metadata", 
+            "model", "cluster", "property_description", "scores", "cluster_metadata"
         ]
         
         # Ensure all required columns exist before filtering
@@ -135,6 +151,8 @@ class SideBySideMetrics(FunctionalMetrics):
                     properties[col] = {}
                 elif col == "model":
                     properties[col] = "unknown"
+                elif col in ["cluster_metadata", "conversation_metadata"]:
+                    properties[col] = {}
                 else:
                     properties[col] = ""
         
@@ -142,30 +160,68 @@ class SideBySideMetrics(FunctionalMetrics):
         return properties
 
     @staticmethod
-    def _transform_scores_for_model(all_scores: Dict[str, Any], this_model: str, other_model: str) -> Dict[str, float]:
+    def _transform_scores_for_model(all_scores: Dict[str, Any], this_model: str, other_model: str, conversation=None) -> Dict[str, float]:
         """Convert the side-by-side score dict into per-model numeric scores.
 
+        Supports both legacy format (single scores dict) and new format (scores_a/scores_b).
+        
         - "winner": +1 if this_model won, -1 if lost, 0 if tie
         - Preserve other numeric keys as floats when possible
         """
         result: Dict[str, float] = {}
         if isinstance(all_scores, dict):
-            # Winner conversion
-            winner = all_scores.get("winner")
-            if isinstance(winner, str):
-                if winner == this_model:
-                    result["winner"] = 1.0
-                elif "tie" in winner:
-                    result["winner"] = 0.0
+            # Handle new format with separate scores_a/scores_b
+            if "scores_a" in all_scores and "scores_b" in all_scores:
+                # Determine which model's scores to use
+                scores_a = all_scores.get("scores_a", {})
+                scores_b = all_scores.get("scores_b", {})
+                
+                # Match this_model to the appropriate scores based on conversation order
+                if conversation and isinstance(conversation.model, (list, tuple)) and len(conversation.model) == 2:
+                    model_a, model_b = conversation.model[0], conversation.model[1]
+                    if this_model == model_a:
+                        model_scores = scores_a
+                    elif this_model == model_b:
+                        model_scores = scores_b
+                    else:
+                        # Fallback: use scores_a for first model, scores_b for second
+                        model_scores = scores_a if this_model == model_a else scores_b
                 else:
-                    result["winner"] = -1.0
+                    # Fallback: use scores_a for first model, scores_b for second
+                    model_scores = scores_a if this_model < other_model else scores_b
+                
+                # Copy all numeric metrics from the model's scores
+                for k, v in model_scores.items():
+                    if isinstance(v, (int, float)):
+                        result[k] = float(v)
+                
+                # Handle winner if present
+                winner = all_scores.get("winner")
+                if isinstance(winner, str):
+                    if winner == this_model:
+                        result["winner"] = 1.0
+                    elif "tie" in winner.lower():
+                        result["winner"] = 0.0
+                    else:
+                        result["winner"] = -1.0
+            else:
+                # Handle legacy format (current behavior)
+                # Winner conversion
+                winner = all_scores.get("winner")
+                if isinstance(winner, str):
+                    if winner == this_model:
+                        result["winner"] = 1.0
+                    elif "tie" in winner.lower():
+                        result["winner"] = 0.0
+                    else:
+                        result["winner"] = -1.0
 
-            # Copy other numeric metrics if present
-            for k, v in all_scores.items():
-                if k == "winner":
-                    continue
-                if isinstance(v, (int, float)):
-                    result[k] = float(v)
+                # Copy other numeric metrics if present
+                for k, v in all_scores.items():
+                    if k == "winner":
+                        continue
+                    if isinstance(v, (int, float)):
+                        result[k] = float(v)
         return result
 
     # --- Robust metrics computation for SxS to handle empty bootstrap subsets ---
@@ -178,7 +234,7 @@ class SideBySideMetrics(FunctionalMetrics):
                 return list(val.keys())
         return []
 
-    def compute_cluster_metrics(self, df: pd.DataFrame, clusters: List[str] | str, models: List[str] | str) -> Dict[str, Any]:
+    def compute_cluster_metrics(self, df: pd.DataFrame, clusters: List[str] | str, models: List[str] | str, *, include_metadata: bool = True) -> Dict[str, Any]:
         """Override to avoid indexing into empty DataFrames during bootstrap.
 
         Mirrors FunctionalMetrics.compute_cluster_metrics but with guards for
@@ -219,16 +275,23 @@ class SideBySideMetrics(FunctionalMetrics):
         quality_delta = self.compute_relative_quality(cluster_model_scores, model_scores)
         proportion = cluster_model_size / model_size if model_size != 0 else 0
 
+        # Extract cluster metadata (take the first non-empty metadata from the cluster)
+        cluster_metadata = {}
+        if include_metadata:
+            if "cluster_metadata" in cluster_model_df.columns:
+                non_empty_metadata = cluster_model_df["cluster_metadata"].dropna()
+                if not non_empty_metadata.empty:
+                    cluster_metadata = non_empty_metadata.iloc[0]
+
         return {
             "size": cluster_model_size,
             "proportion": proportion,
             "quality": cluster_model_scores,
             "quality_delta": quality_delta,
-            "examples": list(
-                zip(
-                    cluster_model_df["conversation_id"],
-                    cluster_model_df["conversation_metadata"],
-                    cluster_model_df["property_metadata"],
-                )
-            ),
+            "metadata": cluster_metadata if include_metadata else {},
+            "examples": list(zip(
+                cluster_model_df["conversation_id"],
+                cluster_model_df["conversation_metadata"],
+                cluster_model_df["property_metadata"]
+            )),
         } 

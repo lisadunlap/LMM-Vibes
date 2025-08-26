@@ -38,11 +38,17 @@ def load_data(results_dir: str, progress: gr.Progress = gr.Progress(track_tqdm=T
 
     Returns a tuple of (summary_markdown, models_info_markdown, models_checkbox_update).
     """
+    # Set loading flag to prevent redundant overview updates during data loading
+    # (Temporarily disabled for debugging)
+    # app_state["is_loading_data"] = True
+    
     try:
         # 1. Validate directory structure
         progress(0.05, "Validating results directory…")
         is_valid, error_msg = validate_results_directory(results_dir)
         if not is_valid:
+            # Clear loading flag on validation error (disabled for debugging)
+            # app_state["is_loading_data"] = False
             return "", f"❌ Error: {error_msg}", ""
 
         # 2. Handle optional sub-folder selection (first match for now)
@@ -96,6 +102,8 @@ def load_data(results_dir: str, progress: gr.Progress = gr.Progress(track_tqdm=T
         return summary, models_info, gr.update(choices=model_choices, value=selected_values)
 
     except Exception as e:
+        # Clear loading flag on error (disabled for debugging)
+        # app_state["is_loading_data"] = False
         error_msg = f"❌ Error loading results: {e}"
         return "", error_msg, gr.update(choices=[], value=[])
 
@@ -144,8 +152,13 @@ def load_experiment_data(experiment_name: str) -> Tuple[str, str, str]:
     """Wrapper used by Gradio events to load a *selected* experiment."""
     from . import state
     if not state.BASE_RESULTS_DIR or experiment_name == "Select an experiment...":
+        # Don't set loading flag for invalid selections
         return "", "Please select a valid experiment", gr.update(choices=[], value=[])
 
+    # Set loading flag to prevent redundant overview updates during data loading
+    # (Temporarily disabled for debugging)
+    # app_state["is_loading_data"] = True
+    
     experiment_path = os.path.join(state.BASE_RESULTS_DIR, experiment_name)
     print(f"🔍 Loading experiment: {experiment_name} from {experiment_path}")
     return load_data(experiment_path) 

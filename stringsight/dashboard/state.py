@@ -18,6 +18,9 @@ app_state: Dict[str, Any] = {
     "results_path": None,
     "available_models": [],
     "current_results_dir": None,
+    # Loading state flag to prevent redundant overview updates during data loading
+    # (Currently disabled for debugging multiple loads issue)
+    "is_loading_data": False,
 }
 
 # Base directory that contains experiment result folders. Can be changed at

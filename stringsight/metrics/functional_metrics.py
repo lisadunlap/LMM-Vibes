@@ -367,11 +367,10 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             for metric in quality_cluster.keys()
         }
 
-    def compute_cluster_metrics(self, df: pd.DataFrame, clusters: List[str], models: List[str], *, include_examples: bool = True, include_metadata: bool = True) -> Dict[str, Any]:
+    def compute_cluster_metrics(self, df: pd.DataFrame, clusters: List[str], models: List[str], *, include_metadata: bool = True) -> Dict[str, Any]:
         """Bulk of the metrics computation for a specific cluster-model combination.
         
         Parameters:
-            include_examples: Whether to include the heavy examples list in the result.
             include_metadata: Whether to include cluster metadata lookup in the result.
         """
         if isinstance(clusters, str):
@@ -415,13 +414,11 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             "quality": cluster_model_scores,
             "quality_delta": quality,
             "metadata": cluster_metadata if include_metadata else {},
-            "examples": (
-                list(zip(
-                    cluster_model_df["conversation_id"],
-                    cluster_model_df["conversation_metadata"],
-                    cluster_model_df["property_metadata"]
-                )) if include_examples else []
-            ),
+            "examples": list(zip(
+                cluster_model_df["conversation_id"],
+                cluster_model_df["conversation_metadata"],
+                cluster_model_df["property_metadata"]
+            )),
         }
 
     def _compute_salience(self, model_cluster_scores: Dict[str, Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Dict[str, Any]]]:
@@ -453,27 +450,27 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
 
         return model_cluster_scores
 
-    def _compute_model_cluster_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_examples: bool = True, include_metadata: bool = True) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    def _compute_model_cluster_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_metadata: bool = True) -> Dict[str, Dict[str, Dict[str, Any]]]:
         """Compute metrics for each model-cluster combination."""
         model_cluster_scores = {}
         for model in model_names:
             model_cluster_scores[model] = {
-                cluster: self.compute_cluster_metrics(df, cluster, [model], include_examples=include_examples, include_metadata=include_metadata)
+                cluster: self.compute_cluster_metrics(df, cluster, [model], include_metadata=include_metadata)
                 for cluster in cluster_names
             }
         return model_cluster_scores
 
-    def _compute_cluster_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_examples: bool = True, include_metadata: bool = True) -> Dict[str, Dict[str, Any]]:
+    def _compute_cluster_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_metadata: bool = True) -> Dict[str, Dict[str, Any]]:
         """Compute metrics for each cluster across all models."""
         return {
-            cluster: self.compute_cluster_metrics(df, cluster, list(model_names), include_examples=include_examples, include_metadata=include_metadata)
+            cluster: self.compute_cluster_metrics(df, cluster, list(model_names), include_metadata=include_metadata)
             for cluster in cluster_names
         }
 
-    def _compute_model_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_examples: bool = True, include_metadata: bool = True) -> Dict[str, Dict[str, Any]]:
+    def _compute_model_scores(self, df: pd.DataFrame, cluster_names: List[str], model_names: List[str], *, include_metadata: bool = True) -> Dict[str, Dict[str, Any]]:
         """Compute metrics for each model across all clusters."""
         return {
-            model: self.compute_cluster_metrics(df, list(cluster_names), [model], include_examples=include_examples, include_metadata=include_metadata)
+            model: self.compute_cluster_metrics(df, list(cluster_names), [model], include_metadata=include_metadata)
             for model in model_names
         }
 
@@ -498,12 +495,11 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
             sample_df = self._resample_conversations(df)
             
             try:
-                # Recompute all metrics for this sample; use lean path (skip heavy fields) by default
+                # Recompute all metrics for this sample
                 sample_model_cluster = self._compute_model_cluster_scores(
                     sample_df,
                     cluster_names,
                     model_names,
-                    include_examples=False,
                     include_metadata=False,
                 )
                 # IMPORTANT: Recompute salience for this bootstrap sample
@@ -513,14 +509,12 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
                     sample_df,
                     cluster_names,
                     model_names,
-                    include_examples=False,
                     include_metadata=False,
                 )
                 sample_model = self._compute_model_scores(
                     sample_df,
                     cluster_names,
                     model_names,
-                    include_examples=False,
                     include_metadata=False,
                 )
                 

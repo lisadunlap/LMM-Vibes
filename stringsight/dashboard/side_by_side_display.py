@@ -18,6 +18,8 @@ def display_side_by_side_responses(
     use_accordion: bool = True,
     pretty_print_dicts: bool = True,
     score: Optional[float] = None,
+    scores_a: Optional[Dict[str, Any]] = None,
+    scores_b: Optional[Dict[str, Any]] = None,
     winner: Optional[str] = None
 ) -> str:
     """
@@ -111,9 +113,39 @@ def display_side_by_side_responses(
             winner_badge_a = tie_badge
             winner_badge_b = tie_badge
     
-    # Add score badge if available
+    # Add score badges if available
     score_info = ""
-    if score is not None and score != 'N/A':
+    
+    # Handle new scores_a/scores_b format
+    if scores_a is not None or scores_b is not None:
+        score_parts = []
+        
+        if scores_a:
+            scores_a_str = ", ".join([f"{k}: {v}" for k, v in scores_a.items()])
+            score_parts.append(f"<strong>{model_a}:</strong> {scores_a_str}")
+        
+        if scores_b:
+            scores_b_str = ", ".join([f"{k}: {v}" for k, v in scores_b.items()])
+            score_parts.append(f"<strong>{model_b}:</strong> {scores_b_str}")
+        
+        if score_parts:
+            score_info = f"""
+            <div style="text-align: center; margin-bottom: 15px;">
+                <div style="
+                    background: #f8f9fa; 
+                    border: 1px solid #dee2e6; 
+                    padding: 10px; 
+                    border-radius: 8px; 
+                    font-size: 14px;
+                ">
+                    <strong>Scores:</strong><br>
+                    {"<br>".join(score_parts)}
+                </div>
+            </div>
+            """
+    
+    # Handle legacy score format
+    elif score is not None and score != 'N/A':
         try:
             score_val = float(score)
             score_color = '#28a745' if score_val >= 0 else '#dc3545'
@@ -194,11 +226,24 @@ def extract_side_by_side_data(row: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary with extracted side-by-side data
     """
-    return {
-        'model_a': row.get('model_a', 'Model A'),
-        'model_b': row.get('model_b', 'Model B'), 
-        'model_a_response': row.get('model_a_response', 'N/A'),
-        'model_b_response': row.get('model_b_response', 'N/A'),
-        'winner': row.get('winner', None),
-        'score': row.get('score', None)
-    } 
+    # Handle new scores_a/scores_b format or fallback to legacy format
+    if 'scores_a' in row and 'scores_b' in row:
+        return {
+            'model_a': row.get('model_a', 'Model A'),
+            'model_b': row.get('model_b', 'Model B'), 
+            'model_a_response': row.get('model_a_response', 'N/A'),
+            'model_b_response': row.get('model_b_response', 'N/A'),
+            'winner': row.get('winner', None),
+            'scores_a': row.get('scores_a', {}),
+            'scores_b': row.get('scores_b', {})
+        }
+    else:
+        # Legacy format
+        return {
+            'model_a': row.get('model_a', 'Model A'),
+            'model_b': row.get('model_b', 'Model B'), 
+            'model_a_response': row.get('model_a_response', 'N/A'),
+            'model_b_response': row.get('model_b_response', 'N/A'),
+            'winner': row.get('winner', None),
+            'score': row.get('score', None)
+        } 

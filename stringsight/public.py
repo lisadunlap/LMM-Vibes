@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Callable, Optional, Union, Tuple
 import pandas as pd
 from .core.data_objects import PropertyDataset
 from .pipeline import Pipeline, PipelineBuilder
-from .prompts import get_default_system_prompt
+from .prompts import get_default_system_prompt, single_model_system_prompt_custom
 import time
 
 
@@ -17,6 +17,7 @@ def explain(
     method: str = "single_model",
     system_prompt: str = None,
     prompt_builder: Optional[Callable[[pd.Series], str]] = None,
+    task_description: Optional[str] = None,
     *,
     # Extraction parameters
     model_name: str = "gpt-4.1",
@@ -60,6 +61,9 @@ def explain(
         method: "side_by_side" or "single_model"
         system_prompt: System prompt for property extraction (if None, will be auto-determined)
         prompt_builder: Optional custom prompt builder function
+        task_description: Optional description of the task; when provided with
+            method="single_model" and no explicit system_prompt, a task-aware
+            system prompt is constructed from single_model_system_prompt_custom.
         
         # Extraction parameters
         model_name: LLM model for property extraction
@@ -126,9 +130,15 @@ def explain(
     if system_prompt is None:
         # Check if data contains score/preference information
         contains_score = _check_contains_score(df, method)
-        system_prompt = get_default_system_prompt(method, contains_score)
-        if verbose:
-            print(f"Auto-selected system prompt for method '{method}' (contains_score={contains_score})")
+        # If single_model and user provided task_description, use the custom template
+        if method == "single_model" and task_description:
+            system_prompt = single_model_system_prompt_custom.format(task_description=task_description)
+            if verbose:
+                print(f"Using custom single-model system prompt with task_description (contains_score={contains_score})")
+        else:
+            system_prompt = get_default_system_prompt(method, contains_score)
+            if verbose:
+                print(f"Auto-selected system prompt for method '{method}' (contains_score={contains_score})")
     else:
         # If prompt is less than 50 characters, assume it's a prompt name and resolve it
         if len(system_prompt) < 50:
@@ -143,7 +153,9 @@ def explain(
                     if isinstance(value, str) and 'prompt' in name
                 ])
                 raise ValueError(f"Unknown prompt name: '{system_prompt}'. Available prompts: {available_prompts}")
-        # If prompt is 50+ characters, assume it's actual prompt content and use directly
+        # If the resolved/explicit prompt contains a task_description placeholder, format it when provided
+        if "{task_description}" in system_prompt and task_description is not None:
+            system_prompt = system_prompt.format(task_description=task_description)
     
     # Print the system prompt for verification
     if verbose:

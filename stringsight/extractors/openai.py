@@ -15,6 +15,7 @@ from ..core.mixins import LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMi
 from ..prompts import extractor_prompts as _extractor_prompts
 from ..core.caching import LMDBCache
 from ..core.llm_utils import parallel_completions
+from .conv_to_str import conv_to_str
 
 
 class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, PipelineStage):
@@ -203,44 +204,81 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             Formatted prompt string
         """
         # Check if this is a side-by-side comparison or single model
-        if isinstance(conversation.model, list) and len(conversation.model) == 2 and isinstance(conversation.responses, list) and len(conversation.responses) == 2:
+        if isinstance(conversation.model, list) and len(conversation.model) == 2:
             # Side-by-side format
             model_a, model_b = conversation.model
-            response_a = conversation.responses[0]
-            response_b = conversation.responses[1]
+            try:
+                response_a = conv_to_str(conversation.responses[0])
+                response_b = conv_to_str(conversation.responses[1])
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to convert conversation responses to string format. "
+                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
+                    f"Got: {type(conversation.responses[0])}, {type(conversation.responses[1])}. "
+                    f"Error: {str(e)}"
+                )
             scores = conversation.scores
 
-            # if scores is an empty dict, then we don't have scores
-            if not scores:
-                return (
-                    f"# Prompt: {conversation.prompt}\n\n"
-                    f"# {model_a} response:\n {response_a}\n\n"
-                    f"# {model_b} response:\n {response_b}"
-                )
+            # Handle new scores_a/scores_b format or fallback to legacy format
+            if isinstance(scores, dict) and "scores_a" in scores and "scores_b" in scores:
+                scores_a = scores.get("scores_a", {})
+                scores_b = scores.get("scores_b", {})
+                winner = scores.get("winner")
+                
+                # Build the prompt with separate scores for each model
+                prompt_parts = [
+                    f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}"
+                ]
+                
+                if scores_a:
+                    prompt_parts.append(f"# Model A Scores:\n {scores_a}")
+                
+                prompt_parts.append("--------------------------------")
+                prompt_parts.append(f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}")
+                
+                if scores_b:
+                    prompt_parts.append(f"# Model B Scores:\n {scores_b}")
+                
+                if winner:
+                    prompt_parts.append(f"# Winner: {winner}")
+                
+                return "\n\n".join(prompt_parts)
             else:
-                return (
-                    f"# Prompt: {conversation.prompt}\n\n"
-                    f"# {model_a} response:\n {response_a}\n\n"
-                    f"# {model_b} response:\n {response_b}\n\n"
-                    f"# Scores:\n {scores}"
-                )
-            
-        elif isinstance(conversation.model, str) and isinstance(conversation.responses, str):
+                # Legacy format - if scores is an empty dict, then we don't have scores
+                if not scores:
+                    return (
+                        f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}\n\n"
+                        f"--------------------------------\n"
+                        f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}"
+                    )
+                else:
+                    return (
+                        f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}\n\n"
+                        f"# Scores:\n {scores}\n\n"
+                        f"--------------------------------\n"
+                        f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}\n\n"
+                        f"# Scores:\n {scores}"
+                    )
+        elif isinstance(conversation.model, str):
             # Single model format
             model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)
-            response = conversation.responses if isinstance(conversation.responses, str) else str(conversation.responses)
+            try:
+                response = conv_to_str(conversation.responses)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to convert conversation response to string format. "
+                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
+                    f"Got: {type(conversation.responses)}. "
+                    f"Error: {str(e)}"
+                )
             scores = conversation.scores
 
             if not scores:
                 print("No scores found")
-                return (
-                    f"# Prompt: {conversation.prompt}\n\n"
-                    f"# Model response:\n {response}"
-                )
+                return response
             else:
                 return (
-                    f"# Prompt: {conversation.prompt}\n\n"
-                    f"# Model response:\n {response}\n\n"
+                    f"{response}\n\n"
                     f"# Scores:\n {scores}"
                 )
         else:
@@ -283,74 +321,4 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
             self.log_wandb(extraction_metrics, is_summary=True)
             
         except Exception as e:
-            self.log(f"Failed to log extraction to wandb: {e}", level="warning")
-
-from .conv_to_str import conv_to_str
-class OpenAIExtractor_OAI_Format(OpenAIExtractor):
-    """
-    Extract behavioral properties using OpenAI models in OAI format.
-    """
-    def _default_prompt_builder(self, conversation) -> str:
-        """
-        Default prompt builder for side-by-side comparisons.
-        
-        Args:
-            conversation: ConversationRecord
-            
-        Returns:
-            Formatted prompt string
-        """
-        # Check if this is a side-by-side comparison or single model
-        if isinstance(conversation.model, list) and len(conversation.model) == 2:
-            # Side-by-side format
-            model_a, model_b = conversation.model
-            try:
-                response_a = conv_to_str(conversation.responses[0])
-                response_b = conv_to_str(conversation.responses[1])
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to convert conversation responses to string format. "
-                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
-                    f"Got: {type(conversation.responses[0])}, {type(conversation.responses[1])}. "
-                    f"Error: {str(e)}"
-                )
-            scores = conversation.scores
-
-            # if scores is an empty dict, then we don't have scores
-            if not scores:
-                return (
-                    f"# {model_a} conversation:\n {response_a}\n\n"
-                    f"--------------------------------\n"
-                    f"# {model_b} conversation:\n {response_b}"
-                )
-            else:
-                return (
-                    f"# {model_a} conversation:\n {response_a}\n\n"
-                    f"--------------------------------\n"
-                    f"# {model_b} conversation:\n {response_b}\n\n"
-                    f"# Scores:\n {scores}"
-                )
-        elif isinstance(conversation.model, str):
-            # Single model format
-            model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)
-            try:
-                response = conv_to_str(conversation.responses)
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to convert conversation response to string format. "
-                    f"Expected OpenAI conversation format (list of message dicts with 'role' and 'content' fields). "
-                    f"Got: {type(conversation.responses)}. "
-                    f"Error: {str(e)}"
-                )
-            scores = conversation.scores
-
-            if not scores:
-                print("No scores found")
-                return response
-            else:
-                return (
-                    f"{response}\n\n"
-                    f"# Scores:\n {scores}"
-                )
-        else:
-            raise ValueError(f"Invalid conversation format: {conversation}")        
+            self.log(f"Failed to log extraction to wandb: {e}", level="warning")        
