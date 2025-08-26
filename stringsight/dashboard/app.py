@@ -296,21 +296,7 @@ def create_app() -> gr.Blocks:
     )
     
     with gr.Blocks(title="LMM-Vibes Pipeline Results Explorer", theme=theme, css=custom_css, fill_width=True) as app:
-        # Header helpers
-        def _current_experiment_name() -> str:
-            from .state import app_state
-            from . import state
-            path = app_state.get("current_results_dir") or state.BASE_RESULTS_DIR or ""
-            if not path:
-                return "No experiment loaded"
-            try:
-                return Path(path).name
-            except Exception:
-                return str(path)
-
-        def _render_badge_html() -> str:
-            exp = _current_experiment_name()
-            return f"<span class=\"header-badge\">{exp}</span>"
+        # Header helpers (experiment badge removed)
 
         # Polished sticky header
         with gr.Row(elem_id="app-header"):
@@ -335,8 +321,7 @@ def create_app() -> gr.Blocks:
                     )
             with gr.Row(elem_classes=["header-right"]):
                 help_btn = gr.Button("Help", variant="secondary", elem_id="help-btn")
-        # Separate badge element we can update after data loads
-        current_experiment_badge = gr.HTML(value=_render_badge_html(), visible=False)
+        # Experiment badge removed
 
         # Contextual Help panel (hidden by default)
         with gr.Group(visible=False, elem_id="help-panel") as help_panel:
@@ -669,12 +654,7 @@ def create_app() -> gr.Blocks:
                     gr.update(value=table_val, visible=True),
                 )
 
-        def update_experiment_badge():
-            return _render_badge_html()
-
-        def update_experiment_badge_visible():
-            # Ensure the badge is shown once an experiment is loaded
-            return gr.update(value=_render_badge_html(), visible=True)
+        # Experiment badge update helpers removed
         
         def safe_update_quality_display(selected_models, quality_metric, view_type):
             # Simplified: always update directly
@@ -881,9 +861,6 @@ def create_app() -> gr.Blocks:
                     inputs=[experiment_dropdown],
                     outputs=[data_status, models_info, selected_models]
                 ).then(
-                    fn=update_experiment_badge_visible,
-                    outputs=[current_experiment_badge]
-                ).then(
                     fn=update_example_dropdowns,
                     inputs=[selected_models],
                     outputs=[example_prompt_dropdown, example_model_dropdown, example_property_dropdown]
@@ -947,9 +924,6 @@ def create_app() -> gr.Blocks:
                     fn=load_data,
                     inputs=[results_dir_input],
                     outputs=[data_status, models_info, selected_models]
-                ).then(
-                    fn=update_experiment_badge_visible,
-                    outputs=[current_experiment_badge]
                 ).then(
                     fn=update_example_dropdowns,
                     inputs=[selected_models],
@@ -1276,9 +1250,6 @@ def create_app() -> gr.Blocks:
                 fn=load_experiment_data,
                 inputs=[experiment_dropdown],
                 outputs=[data_status, models_info, selected_models]
-            ).then(
-                fn=update_experiment_badge_visible,
-                outputs=[current_experiment_badge]
             ).then(
                 fn=update_example_dropdowns,
                 inputs=[selected_models],

@@ -114,6 +114,13 @@ def create_model_quality_plot(
     if not selected_models:
         return None
     
+    # Handle case where quality_metric is None (during data source switching)
+    if quality_metric is None:
+        available_metrics = get_available_model_quality_metrics()
+        if not available_metrics:
+            return None  # No quality metrics available
+        quality_metric = available_metrics[0]  # Use first available metric
+    
     # Get model scores from metrics
     model_scores = app_state["metrics"].get("model_scores", {})
     if not model_scores:
@@ -278,6 +285,13 @@ def create_model_quality_table(
     
     if not selected_models:
         return "Please select at least one model to display."
+    
+    # Handle case where quality_metric is None (during data source switching)
+    if quality_metric is None:
+        available_metrics = get_available_model_quality_metrics()
+        if not available_metrics:
+            return "No quality metrics available in the loaded data."
+        quality_metric = available_metrics[0]  # Use first available metric
     
     # Get model scores from metrics
     model_scores = app_state["metrics"].get("model_scores", {})
