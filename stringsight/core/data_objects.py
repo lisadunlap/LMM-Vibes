@@ -96,8 +96,6 @@ class Property:
     # Parsed fields (filled by LLMJsonParser)
     property_description: Optional[str] = None
     category: Optional[str] = None
-    type: Optional[str] = None  # "Context-Specific" or "General"
-    impact: Optional[str] = None  # "High", "Medium", "Low"
     reason: Optional[str] = None
     evidence: Optional[str] = None
     behavior_type: Optional[str] = None # Positive|Negative (non-critical)|Negative (critical)|Style
@@ -225,14 +223,28 @@ class PropertyDataset:
                 oai_response_b, was_converted_b = check_and_convert_to_oai_format(prompt, model_b_response)
                 
                 # Convert score formats to list format [scores_a, scores_b]
+                def parse_score_field(score_value):
+                    """Parse score field that might be a string, dict, or other type."""
+                    if isinstance(score_value, dict):
+                        return score_value
+                    elif isinstance(score_value, str) and score_value.strip():
+                        try:
+                            import ast
+                            parsed = ast.literal_eval(score_value.strip())
+                            return parsed if isinstance(parsed, dict) else {}
+                        except (ValueError, SyntaxError):
+                            return {}
+                    else:
+                        return {}
+                
                 if 'scores_a' in row and 'scores_b' in row:
                     # Format: scores_a, scores_b columns
-                    scores_a = row.get('scores_a', {})
-                    scores_b = row.get('scores_b', {})
+                    scores_a = parse_score_field(row.get('scores_a', {}))
+                    scores_b = parse_score_field(row.get('scores_b', {}))
                 elif 'score_a' in row and 'score_b' in row:
                     # Format: score_a, score_b columns
-                    scores_a = row.get('score_a', {})
-                    scores_b = row.get('score_b', {})
+                    scores_a = parse_score_field(row.get('score_a', {}))
+                    scores_b = parse_score_field(row.get('score_b', {}))
                 else:
                     # No score data found
                     scores_a, scores_b = {}, {}
@@ -262,12 +274,30 @@ class PropertyDataset:
         elif method == "single_model":
             all_models = df["model"].unique().tolist()
             # Expected columns: question_id, prompt, model, model_response, score, etc.
+            
+            def parse_single_score_field(score_value):
+                """Parse single model score field that might be a string, dict, number, or other type."""
+                if isinstance(score_value, dict):
+                    return score_value
+                elif isinstance(score_value, (int, float)):
+                    return {'score': score_value}
+                elif isinstance(score_value, str) and score_value.strip():
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(score_value.strip())
+                        if isinstance(parsed, dict):
+                            return parsed
+                        elif isinstance(parsed, (int, float)):
+                            return {'score': parsed}
+                        else:
+                            return {'score': 0}
+                    except (ValueError, SyntaxError):
+                        return {'score': 0}
+                else:
+                    return {'score': 0}
+            
             for idx, row in df.iterrows():
-                scores = row.get('score')
-                if scores is None:
-                    scores = {'score': 0}
-                elif isinstance(scores, int) or isinstance(scores, float):
-                    scores = {'score': scores}
+                scores = parse_single_score_field(row.get('score'))
 
                 prompt = str(row.get('prompt', row.get('user_prompt', '')))
                 response = row.get('model_response', '')
@@ -326,8 +356,8 @@ class PropertyDataset:
                     'model_b': conv.model[1],
                     'model_a_response': conv.responses[0],
                     'model_b_response': conv.responses[1],
-                    'scores_a': scores_a,
-                    'scores_b': scores_b,
+                    'score_a': scores_a,
+                    'score_b': scores_b,
                     'winner': conv.meta.get('winner'),  # Winner stored in meta
                     **{k: v for k, v in conv.meta.items() if k != 'winner'}  # Exclude winner from other meta
                 }

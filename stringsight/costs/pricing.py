@@ -35,7 +35,6 @@ PRICING_TABLE: Dict[str, ModelPricing] = {
         output_price_per_1m_tokens=30.00,
         context_window=128000,
         provider="openai",
-        notes="GPT-4 Turbo - balanced quality and speed"
     ),
     "gpt-4o": ModelPricing(
         input_price_per_1m_tokens=5.00,

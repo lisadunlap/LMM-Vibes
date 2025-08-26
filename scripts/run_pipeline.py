@@ -24,10 +24,13 @@ def main():
                         help="Input file for results (default: data/arena_webdev_sbs.jsonl)")
     parser.add_argument("--system_prompt", type=str,
                         default="single_model_system_prompt",
-                        help="System prompt for the pipeline (default: webdev_system_prompt_no_examples)")
+                        help=(
+                            "System prompt name (e.g., 'single_model_system_prompt', 'sbs_system_prompt', "
+                            "'single_model_system_prompt_custom'), or omit to auto-select based on method"
+                        ))
     parser.add_argument("--method", type=str,
                         default="single_model",
-                        help="Method for the pipeline (default: side_by_side)")
+                        help="Method for the pipeline: 'single_model' or 'side_by_side' (default: single_model)")
     
     # Optional overrides
     parser.add_argument("--sample_size", type=int, default=None,
@@ -49,7 +52,7 @@ def main():
     parser.add_argument("--clusterer", type=str, default="hdbscan",
                         choices=["hdbscan", "hierarchical", "dummy"],
                         help="Clustering method to use (default: hdbscan)")
-    parser.add_argument("--groupby_column", type=str, default='behavior_type',
+    parser.add_argument("--groupby_column", type=str,  default="behavior_type",
                         help="Column to group by to enable stratified clustering (effective only for hdbscan)")
     parser.add_argument("--assign_outliers", action="store_true",
                         help="Assign outliers to clusters when supported")
@@ -57,6 +60,9 @@ def main():
     # run specific components (only metrics)
     parser.add_argument("--run_metrics", action="store_true",
                         help="Run only the metrics component")
+    # metrics flags
+    parser.add_argument("--bootstrap_samples", type=int, default=100,
+                        help="Number of bootstrap samples to draw when computing CIs")
     
     args = parser.parse_args()
     
@@ -65,7 +71,7 @@ def main():
     
     # Check if data exists
     if not os.path.exists(data_path):
-        print(f"Error: WebDev dataset not found at {data_path}")
+        print(f"Error: dataset not found at {data_path}")
         print("Please make sure the dataset is available.")
         return
     
@@ -97,10 +103,16 @@ def main():
         
         try:
             # Run metrics-only computation
+            metrics_kwargs = {
+                "compute_confidence_intervals": True,
+                "bootstrap_samples": args.bootstrap_samples,
+            }
+
             clustered_df, model_stats = compute_metrics_only(
                 input_path=data_path,
                 method=args.method,
                 output_dir=args.output_dir,
+                metrics_kwargs=metrics_kwargs,
                 use_wandb=args.use_wandb,
                 verbose=not args.quiet
             )

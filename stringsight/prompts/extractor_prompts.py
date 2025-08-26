@@ -20,11 +20,6 @@ Prioritize properties that would actually influence a user's model choice or cou
 **Avoid trivial observations** like minor length variations, basic formatting, or properties that don't meaningfully impact model quality or user experience.
 
 **Definitions:**
-*   **Impact:** How much does this property impact the user's experience?
-    *   *Think:* Is this property a major factor in the user's experience? Would the average user care to know that this property exists?
-    *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
-    *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
-    *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
     *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
@@ -44,7 +39,6 @@ Prioritize properties that would actually influence a user's model choice or cou
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
     "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
-    "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
@@ -74,11 +68,6 @@ Prioritize behaviors that would actually influence a user's model choice or coul
 **Avoid trivial differences** like minor length variations, basic formatting, or properties that don't meaningfully impact the models capability or the user's experience.
 
 **Definitions:**
-*   **Impact:** How much does this behavior impact the user's experience?
-    *   *Think:* Is this behavior a major factor in the user's experience? Would the average user care to know that this behavior exists?
-    *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
-    *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
-    *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
     *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
@@ -99,7 +88,6 @@ Prioritize behaviors that would actually influence a user's model choice or coul
     "category": "Category of the property ('Capabilities', 'Style', 'Error Patterns', 'User Experience', 'Safety/Alignment', 'Tool Use', 'Thought Process'). If there is no clear category, use 'Other'. If there is more than one category, use a comma separated list.",
     "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
-    "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"
@@ -126,11 +114,6 @@ Note that the task description may be incomplete or missing some details. You sh
 **Avoid trivial observations** like minor length variations, basic formatting, or properties that don't meaningfully impact the models ability to complete the task.
 
 **Definitions:**
-*   **Impact:** How much does this property impact the user's experience?
-    *   *Think:* Is this property a major factor in the user's experience? Would the average user care to know that this property exists?
-    *   **Low:** Minor stylistic differences that most users wouldn't notice or care about
-    *   **Medium:** Noticeable differences that might influence preference but aren't deal-breakers
-    *   **High:** Significant differences that could strongly influence model choice (e.g., errors, major capability gaps, strong stylistic preferences)
 *   **Behavior Type:** How does this property affect a user's experience or the model's performance?
     *   *Think:* Would someone view this as a positive, negative, or stylistic behavior?
     *   **Positive:** A positive behavior that helps the model perform the task better or is favorable to the user.
@@ -150,7 +133,6 @@ Note that the task description may be incomplete or missing some details. You sh
     "category": "Category of the property (1-5 words)",
     "evidence": "What exactly in the trace exhibits this property? When possible, quote tool calls/actions from the response, wrapped in double quotes and comma separated",
     "reason": "Brief justification for why this property is notable (max 2 sentences)",
-    "impact": "Low|Medium|High",
     "behavior_type": "Positive|Negative (non-critical)|Negative (critical)|Style",
     "contains_errors": "True|False",
     "unexpected_behavior": "True|False"

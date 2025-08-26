@@ -57,7 +57,8 @@ def main() -> None:
     parser.add_argument("--output_dir", required=True, help="Directory to write results")
     parser.add_argument("--model_name", default="gpt-4.1", help="Labeling model (OpenAI)")
     parser.add_argument("--sample_size", type=int, default=None, help="Optional subsample for quick runs")
-    parser.add_argument("--max_workers", type=int, default=8, help="Parallel requests to OpenAI")
+    parser.add_argument("--max_workers", type=int, default=64, help="Parallel requests to OpenAI")
+    parser.add_argument("--bootstrap_samples", type=int, default=100, help="Number of bootstrap samples")
     args = parser.parse_args()
 
     df = load_dataframe(args.input_file)
@@ -68,12 +69,12 @@ def main() -> None:
 
     clustered_df, model_stats = label(
         df,
-        taxonomy=DEFAULT_TAXONOMY,
+        taxonomy=MAST_TAXONOMY,
         model_name=args.model_name,
         output_dir=args.output_dir,
         metrics_kwargs={
             "compute_bootstrap": True,  # Enable bootstrap for FunctionalMetrics
-            "bootstrap_samples": 100    # Number of bootstrap samples
+            "bootstrap_samples": args.bootstrap_samples    # Number of bootstrap samples
         },
         verbose=True,
     )

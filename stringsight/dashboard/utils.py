@@ -512,20 +512,10 @@ def format_cluster_dataframe(clustered_df: pd.DataFrame,
     """Format cluster DataFrame for display in Gradio."""
     df = clustered_df.copy()
     
-    # Debug information
-    print(f"DEBUG: format_cluster_dataframe called")
-    print(f"  - Input DataFrame shape: {df.shape}")
-    print(f"  - Selected models: {selected_models}")
-    print(f"  - Available models in data: {df['model'].unique().tolist() if 'model' in df.columns else 'No model column'}")
     
     # Filter by models if specified
     if selected_models:
-        print(f"  - Filtering by {len(selected_models)} selected models")
         df = df[df['model'].isin(selected_models)]
-        print(f"  - After filtering shape: {df.shape}")
-        print(f"  - Models after filtering: {df['model'].unique().tolist()}")
-    else:
-        print(f"  - No model filtering applied")
     
     # Select relevant columns based on cluster level using correct column names from pipeline
     if cluster_level == 'fine':
@@ -556,8 +546,7 @@ def format_cluster_dataframe(clustered_df: pd.DataFrame,
     available_cols = [col for col in cols if col in df.columns]
     df = df[available_cols]
     
-    print(f"  - Final DataFrame shape: {df.shape}")
-    print(f"  - Final columns: {df.columns.tolist()}")
+
     
     return df
 
@@ -700,11 +689,7 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
                                      show_confidence_intervals: bool = False) -> Tuple[go.Figure, go.Figure]:
     """Create frequency comparison plots (matching frequencies_tab.py exactly)."""
     
-    print(f"\nDEBUG: Plotting function called with:")
-    print(f"  - Selected models: {selected_models}")
-    print(f"  - Cluster level: {cluster_level}")
-    print(f"  - Top N: {top_n}")
-    print(f"  - Available models in stats: {list(model_stats.keys())}")
+
     
     # Use the same data preparation logic as the table function
     # Collect all clusters across all models for the chart (exact copy from frequencies_tab.py)
@@ -819,14 +804,7 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
         model_data['frequency'] = pd.to_numeric(model_data['frequency'], errors='coerce').fillna(0)
         model_data['frequency'] = model_data['frequency'].clip(lower=0)
         
-        # Debug: print model data for first model
-        if i == 0:  # Only print for first model to avoid spam
-            print(f"DEBUG: Model {model} data sample:")
-            print(f"  - Clusters: {len(model_data)}")
-            print(f"  - Frequency range: {model_data['frequency'].min():.2f} - {model_data['frequency'].max():.2f}")
-            print(f"  - Non-zero frequencies: {(model_data['frequency'] > 0).sum()}")
-            if len(model_data) > 0:
-                print(f"  - Sample row: {model_data.iloc[0][['property_description', 'frequency']].to_dict()}")
+
                 
         # Remove any rows where property_description is NaN (these are clusters this model doesn't appear in)
         model_data = model_data.dropna(subset=['property_description'])
@@ -856,11 +834,7 @@ def create_frequency_comparison_plots(model_stats: Dict[str, Any],
                 ci_lower.append(None)
                 ci_upper.append(None)
         
-        # Debug: Check the data going into the plot
-        print(f"DEBUG: Adding trace for model {model}:")
-        print(f"  - Y values (clusters): {model_data['property_description'].tolist()[:3]}...")  # First 3 clusters
-        print(f"  - X values (frequencies): {model_data['frequency'].tolist()[:3]}...")  # First 3 frequencies
-        print(f"  - Total data points: {len(model_data)}")
+
         
         fig.add_trace(go.Bar(
             y=model_data['property_description'],
@@ -1116,20 +1090,9 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     
     df = clustered_df.copy()
     
-    # Debug information
-    print(f"DEBUG: create_interactive_cluster_viewer called")
-    print(f"  - Input DataFrame shape: {df.shape}")
-    print(f"  - Selected models: {selected_models}")
-    print(f"  - Available models in data: {df['model'].unique().tolist() if 'model' in df.columns else 'No model column'}")
-    
     # Filter by models if specified
     if selected_models:
-        print(f"  - Filtering by {len(selected_models)} selected models")
         df = df[df['model'].isin(selected_models)]
-        print(f"  - After filtering shape: {df.shape}")
-        print(f"  - Models after filtering: {df['model'].unique().tolist()}")
-    else:
-        print(f"  - No model filtering applied")
     
     if df.empty:
         return f"<p>No data found for selected models: {', '.join(selected_models or [])}</p>"
@@ -1155,7 +1118,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     # Track if we fall back from coarse to fine
     fell_back_to_fine = False
     
-    # Check if required columns exist and provide helpful debug info
+    # Check if required columns exist
     # Try both naming patterns
     if id_col in df.columns and label_col in df.columns:
         # Use the expected naming pattern
@@ -1208,7 +1171,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
     
     # Group by cluster to get cluster information
     try:
-        print(f"  - Grouping by cluster columns: {id_col}, {label_col}")
+
         # If meta column exists, propagate it into the aggregation so we can tag clusters
         agg_spec = {
             'property_description': ['count', lambda x: x.unique().tolist()],
@@ -1230,9 +1193,7 @@ def create_interactive_cluster_viewer(clustered_df: pd.DataFrame,
         # Filter out "No properties" clusters
         cluster_groups = cluster_groups[cluster_groups[label_col] != "No properties"]
         
-        print(f"  - Found {len(cluster_groups)} clusters")
-        print(f"  - Cluster sizes: {cluster_groups['size'].tolist()}")
-        print(f"  - Models per cluster: {[len(models) for models in cluster_groups['models']]}")
+
         
     except Exception as e:
         return f"""
@@ -1684,7 +1645,7 @@ def get_example_data(
         df = df.head(max_examples)
 
     examples: List[Dict[str, Any]] = []
-    for _, row in df.iterrows():
+    for idx, (_, row) in enumerate(df.iterrows()):
         prompt_val = next(
             (row.get(col) for col in ["prompt", "question", "input", "user_prompt"] if row.get(col) is not None),
             "N/A",
@@ -1699,15 +1660,9 @@ def get_example_data(
             response_val = "SIDE_BY_SIDE"  # Special marker
             model_val = f"{row.get('model_a', 'Model A')} vs {row.get('model_b', 'Model B')}"
             
-            # Handle score formats for display
-            if 'scores_a' in row and 'scores_b' in row:
-                scores_a = row.get('scores_a', {})
-                scores_b = row.get('scores_b', {})
-            elif 'score_a' in row and 'score_b' in row:
-                scores_a = row.get('score_a', {})
-                scores_b = row.get('score_b', {})
-            else:
-                scores_a, scores_b = {}, {}
+            # Extract scores for side-by-side format: score_a and score_b columns
+            scores_a = row.get('score_a', {})
+            scores_b = row.get('score_b', {})
             
             if scores_a or scores_b:
                 scores_info = []
@@ -1753,12 +1708,9 @@ def get_example_data(
             "coarse_cluster_id": coarse_cluster_id,
             "coarse_cluster_label": coarse_cluster_label,
             "category": row.get("category", "N/A"),
-            "type": row.get("type", "N/A"),
-            "impact": row.get("impact", "N/A"),
             "reason": row.get("reason", "N/A"),
             "evidence": row.get("evidence", "N/A"),
             "meta": row.get("meta", None),
-            "user_preference_direction": row.get("user_preference_direction", "N/A"),
             "raw_response": row.get("raw_response", "N/A"),
             "contains_errors": row.get("contains_errors", "N/A"),
             "unexpected_behavior": row.get("unexpected_behavior", "N/A"),
@@ -1773,6 +1725,8 @@ def get_example_data(
                 "model_a_response": row.get("model_a_response", "N/A"),
                 "model_b_response": row.get("model_b_response", "N/A"),
                 "winner": row.get("winner", None),
+                "score_a": scores_a,
+                "score_b": scores_b,
             })
         else:
             example_dict["is_side_by_side"] = False
@@ -1854,6 +1808,8 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 use_accordion=use_accordion,
                 pretty_print_dicts=pretty_print_dicts,
                 score=example['score'],
+                scores_a=example.get('score_a'),
+                scores_b=example.get('score_b'),
                 winner=example.get('winner')
             )
         else:
@@ -1906,6 +1862,7 @@ def format_examples_display(examples: List[Dict[str, Any]],
         raw_score = example.get('score')
         numeric_score: float | None = None
         
+
         # Check for alternative score column names if main score is not found
         if raw_score is None or raw_score == "N/A":
             alt_score_keys = ['quality_score', 'rating', 'evaluation_score', 'metric_score']
@@ -1914,29 +1871,14 @@ def format_examples_display(examples: List[Dict[str, Any]],
                     raw_score = example[alt_key]
                     break
         
-        # Try to extract numeric score more robustly
+        # Extract numeric score - should already be properly parsed from backend
         score_dict = None
-        score_metric_name = None
         if raw_score is not None and raw_score != "N/A" and raw_score != "":
             if isinstance(raw_score, (int, float)):
                 numeric_score = float(raw_score)
             elif isinstance(raw_score, dict):
                 # Score is already a dictionary
                 score_dict = raw_score
-            elif isinstance(raw_score, str):
-                # Try to parse as dictionary first
-                try:
-                    import ast
-                    score_dict = ast.literal_eval(raw_score.strip())
-                    if not isinstance(score_dict, dict):
-                        # Not a dict, try as single float
-                        numeric_score = float(raw_score.strip())
-                except (ValueError, SyntaxError):
-                    # Try to convert as single float
-                    try:
-                        numeric_score = float(raw_score.strip())
-                    except ValueError:
-                        pass  # Could not convert, leave as None
         
         # If we have a score dictionary, display all metrics
         if score_dict and isinstance(score_dict, dict):
@@ -2036,8 +1978,6 @@ def format_examples_display(examples: List[Dict[str, Any]],
                     <span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f4f6; border:1px solid #e5e7eb;">Model: {html.escape(str(example['model']))}</span>
                     {tag_badge}
                     {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; color:#047857; border:1px solid #bbf7d0;">Category: {html.escape(str(example["category"]))}</span>' if example["category"] not in [None, "N/A", "None", "", "null"] and str(example["category"]).strip() != "" else '')}
-                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe;">Type: {html.escape(str(example["type"]))}</span>' if example["type"] not in [None, "N/A", "None", "", "null"] and str(example["type"]).strip() != "" else '')}
-                    {(f'<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">Impact: {html.escape(str(example["impact"]))}</span>' if example["impact"] not in [None, "N/A", "None", "", "null"] and str(example["impact"]).strip() != "" else '')}
                 </div>
 
                 <!-- Collapsible info section for Cluster / Tag / Property / Reason / Evidence -->

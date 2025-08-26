@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 import pandas as pd
 
 from .base import BaseClusterer
-from ..core.data_objects import PropertyDataset
+from ..core.data_objects import PropertyDataset, Cluster
 
 # Unified config
 try:
@@ -16,7 +16,7 @@ except ImportError:
 class DummyClusterer(BaseClusterer):
     """A no-op clustering stage used for fixed-taxonomy pipelines.
 
-    Every unique `property_description` becomes its own fine cluster. No
+    Every unique `category` becomes its own fine cluster. No
     embeddings or distance computations are performed.
 
     Parameters
@@ -61,6 +61,14 @@ class DummyClusterer(BaseClusterer):
             include_embeddings=include_embeddings,
         )
 
+    def run(self, data: PropertyDataset, column_name: str = "property_description") -> PropertyDataset:
+        """Execute clustering using `category` as the key for fixed-axes.
+
+        We intentionally ignore the incoming `column_name` and cluster by
+        the `category` field emitted by the fixed-axes extractor.
+        """
+        return super().run(data, column_name="category")
+
     def cluster(self, data: PropertyDataset, column_name: str) -> pd.DataFrame:
         """Map properties to a fixed taxonomy and return a standardized DataFrame."""
         # 1) Sanitize property descriptions in-memory for clustering
@@ -90,3 +98,84 @@ class DummyClusterer(BaseClusterer):
         df["fine_cluster_label"] = df[fine_label_col]
 
         return df 
+
+    def _build_clusters_from_df(self, df: pd.DataFrame, column_name: str):
+        """Construct clusters while preserving human-readable descriptions.
+
+        Although we cluster by `category`, we keep the cluster's
+        `property_descriptions` populated from the `property_description`
+        column when available so downstream merges and displays remain
+        intuitive.
+        """
+        fine_label_col = f"{column_name}_fine_cluster_label"
+        fine_id_col = f"{column_name}_fine_cluster_id"
+        coarse_label_col = f"{column_name}_coarse_cluster_label"
+        coarse_id_col = f"{column_name}_coarse_cluster_id"
+
+        config = self.get_config()
+        is_hierarchical = bool(getattr(config, "hierarchical", False))
+
+        clusters: List[Cluster] = []
+        for cid, group in df.groupby(fine_id_col):
+            cid_group = group[group[fine_id_col] == cid]
+            label = str(cid_group[fine_label_col].iloc[0])
+
+            property_ids = cid_group["id"].tolist() if "id" in cid_group.columns else []
+            question_ids = cid_group["question_id"].tolist() if "question_id" in cid_group.columns else []
+            if "property_description" in cid_group.columns:
+                property_descriptions = cid_group["property_description"].tolist()
+            else:
+                property_descriptions = cid_group[column_name].tolist()
+
+            if is_hierarchical:
+                coarse_labels = cid_group[coarse_label_col].unique().tolist()
+                assert len(coarse_labels) == 1, (
+                    f"Expected exactly one coarse label for fine cluster {cid}, but got {coarse_labels}"
+                )
+                coarse_id = int(cid_group[coarse_id_col].iloc[0])
+                clusters.append(
+                    Cluster(
+                        id=int(cid),
+                        label=label,
+                        size=len(cid_group),
+                        property_descriptions=property_descriptions,
+                        property_ids=property_ids,
+                        question_ids=question_ids,
+                        parent_id=int(coarse_id),
+                        parent_label=coarse_labels[0],
+                        meta={},
+                    )
+                )
+            else:
+                clusters.append(
+                    Cluster(
+                        id=int(cid),
+                        label=label,
+                        size=len(cid_group),
+                        property_descriptions=property_descriptions,
+                        property_ids=property_ids,
+                        question_ids=question_ids,
+                        meta={},
+                    )
+                )
+
+        self.log(f"Created {len(clusters)} fine clusters")
+        if is_hierarchical:
+            coarse_ids = df[coarse_id_col].dropna().unique().tolist()
+            self.log(f"Created {len(coarse_ids)} coarse clusters")
+
+        return clusters
+
+    def save(self, df: pd.DataFrame, clusters: List[Cluster]) -> Dict[str, str]:
+        """Ensure summary utilities receive expected columns.
+
+        The shared saving helpers expect `property_description_*` columns.
+        For the fixed-axes path we cluster by `category`, so we add
+        on-the-fly alias columns before delegating to the base saver.
+        """
+        df_to_save = df.copy()
+        if "category_fine_cluster_label" in df_to_save.columns and "property_description_fine_cluster_label" not in df_to_save.columns:
+            df_to_save["property_description_fine_cluster_label"] = df_to_save["category_fine_cluster_label"]
+        if "category_fine_cluster_id" in df_to_save.columns and "property_description_fine_cluster_id" not in df_to_save.columns:
+            df_to_save["property_description_fine_cluster_id"] = df_to_save["category_fine_cluster_id"]
+        return super().save(df_to_save, clusters)

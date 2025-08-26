@@ -431,9 +431,6 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
         if 'category' in p_dict and not isinstance(p_dict['category'], str):
             issues.append(f"'category' should be string, got {type(p_dict['category'])}")
         
-        if 'impact' in p_dict and not isinstance(p_dict['impact'], str):
-            issues.append(f"'impact' should be string, got {type(p_dict['impact'])}")
-        
         # Check for boolean fields
         boolean_fields = ['contains_errors', 'unexpected_behavior']
         for field in boolean_fields:
@@ -603,8 +600,6 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
             model=model,
             property_description=p.get("property_description"),
             category=p.get("category"),
-            type=p.get("type"),
-            impact=p.get("impact"),
             reason=p.get("reason"),
             evidence=p.get("evidence"),
             contains_errors=p.get("contains_errors"),
@@ -694,8 +689,6 @@ class LLMJsonParser(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin, P
                         "reason": prop.reason,
                         "evidence": prop.evidence,
                         "category": prop.category,
-                        "impact": prop.impact,
-                        "type": prop.type,
                         "behavior_type": prop.behavior_type,
                         "contains_errors": prop.contains_errors,
                         "unexpected_behavior": prop.unexpected_behavior,

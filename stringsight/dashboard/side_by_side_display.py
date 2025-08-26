@@ -120,11 +120,11 @@ def display_side_by_side_responses(
     if scores_a is not None or scores_b is not None:
         score_parts = []
         
-        if scores_a:
+        if scores_a and isinstance(scores_a, dict):
             scores_a_str = ", ".join([f"{k}: {v}" for k, v in scores_a.items()])
             score_parts.append(f"<strong>{model_a}:</strong> {scores_a_str}")
         
-        if scores_b:
+        if scores_b and isinstance(scores_b, dict):
             scores_b_str = ", ".join([f"{k}: {v}" for k, v in scores_b.items()])
             score_parts.append(f"<strong>{model_b}:</strong> {scores_b_str}")
         
@@ -226,15 +226,15 @@ def extract_side_by_side_data(row: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary with extracted side-by-side data
     """
-    # Handle score formats - convert to normalized scores_a/scores_b
-    if 'scores_a' in row and 'scores_b' in row:
-        scores_a = row.get('scores_a', {})
-        scores_b = row.get('scores_b', {})
-    elif 'score_a' in row and 'score_b' in row:
-        scores_a = row.get('score_a', {})
-        scores_b = row.get('score_b', {})
-    else:
-        scores_a, scores_b = {}, {}
+    # Extract scores for side-by-side format: score_a and score_b columns
+    scores_a = row.get('score_a', {})
+    scores_b = row.get('score_b', {})
+    
+    # Ensure they are dictionaries
+    if not isinstance(scores_a, dict):
+        scores_a = {}
+    if not isinstance(scores_b, dict):
+        scores_b = {}
     
     return {
         'model_a': row.get('model_a', 'Model A'),
@@ -242,6 +242,6 @@ def extract_side_by_side_data(row: Dict[str, Any]) -> Dict[str, Any]:
         'model_a_response': row.get('model_a_response', 'N/A'),
         'model_b_response': row.get('model_b_response', 'N/A'),
         'winner': row.get('winner', None),
-        'scores_a': scores_a,
-        'scores_b': scores_b
+        'score_a': scores_a,
+        'score_b': scores_b
     } 

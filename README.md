@@ -348,14 +348,131 @@ normalized_score(k, c) = (cluster_avg(k, c) - global_min(k)) / (global_max(k) - 
 clustered_df, model_stats = explain(
     df,
     method="side_by_side",              # or "single_model"
-    system_prompt=None # custom extraction prompt (you can also omit this and we will use our default)
+    
+    # Model Configuration
+    model_name="gpt-4.1",               # LLM for property extraction
+    embedding_model="openai",           # embedding model for clustering
+    summary_model="gpt-4.1",            # LLM for cluster summaries
+    cluster_assignment_model="gpt-4.1-mini",  # LLM for cluster assignments
+    
+    # Extraction Settings
+    system_prompt=None,                 # custom extraction prompt (you can also omit this and we will use our default)
+    task_description=None,              # detailed task description for custom prompt (single_model only)
+    temperature=0.7,                    # LLM temperature for extraction
+    top_p=0.95,                         # LLM top_p for extraction
+    max_tokens=16000,                   # max tokens for LLM responses
+    max_workers=16,                     # parallel workers for API calls
+    
+    # Clustering Settings
     min_cluster_size=30,                # minimum cluster size for a property 
-    embedding_model="openai",           # or any sentence-transformer model
     hierarchical=True,                  # create coarse clusters
+    assign_outliers=False,              # assign outliers to nearest clusters
+    
+    # Output and Logging
     output_dir="results/",              # save outputs here
     use_wandb=True,                     # log to Weights & Biases
     wandb_project="my-lmm-analysis"
 )
+
+### Model Configuration
+
+LMM-Vibes uses multiple models throughout the pipeline. You can configure each one independently:
+
+#### **Extraction Models** (`model_name`)
+Used for extracting behavioral properties from conversations:
+- **Default**: `"gpt-4.1"` - Provides high-quality property extraction
+- **Alternative**: Any LiteLLM-compatible model (e.g., `"gpt-4o-mini"` for cost savings)
+
+```python
+# Use cost-effective model for extraction
+clustered_df, model_stats = explain(df, model_name="gpt-4o-mini")
+```
+
+#### **Embedding Models** (`embedding_model`)
+Used for clustering similar behavioral properties:
+- **`"openai"`** (default) - Uses OpenAI's `text-embedding-3-large` model
+  - Highest quality embeddings
+  - Requires API calls (costs ~$0.13 per 1M tokens)
+- **Sentence Transformer models** - Free local models:
+  - `"all-MiniLM-L6-v2"` - Fast, good quality
+  - `"all-mpnet-base-v2"` - Higher quality, slower
+  - Any model from Hugging Face
+
+```python
+# Use free local embeddings
+clustered_df, model_stats = explain(df, embedding_model="all-MiniLM-L6-v2")
+
+# Use OpenAI embeddings for best quality
+clustered_df, model_stats = explain(df, embedding_model="openai")
+```
+
+#### **Clustering LLM Models**
+These models are used for generating cluster summaries and assignments:
+
+- **`summary_model`** (default: `"gpt-4.1"`) - Generates human-readable cluster names and descriptions
+- **`cluster_assignment_model`** (default: `"gpt-4.1-mini"`) - Assigns properties to hierarchical clusters
+
+```python
+# Use more cost-effective models for clustering
+clustered_df, model_stats = explain(
+    df,
+    summary_model="gpt-4o-mini",
+    cluster_assignment_model="gpt-4o-mini"
+)
+```
+
+#### **Default Model Settings**
+
+The pipeline uses these models by default:
+- **Extraction**: `gpt-4.1` - High-quality property extraction ($3.50 input, $14.00 output per 1M tokens)
+- **Cluster Summaries**: `gpt-4.1` - Generates cluster names and descriptions  
+- **Cluster Assignments**: `gpt-4.1-mini` - Assigns properties to hierarchical clusters ($0.70 input, $2.80 output per 1M tokens)
+- **Embeddings**: `"openai"` (text-embedding-3-large) - High-quality clustering (~$0.13 per 1M tokens)
+
+#### **Cost vs Quality Trade-offs**
+
+| Model | Input Cost | Output Cost | Best For |
+|-------|------------|-------------|----------|
+| `gpt-4.1` | $3.50/1M | $14.00/1M | Production analysis |
+| `gpt-4.1-mini` | $0.70/1M | $2.80/1M | Cost-effective quality |
+| `gpt-4o-mini` | $0.60/1M | $1.80/1M | Development, large datasets |
+| `gpt-4.1-nano` | $0.20/1M | $0.80/1M | Ultra cost-effective |
+
+For embedding models:
+- **OpenAI embeddings**: Best clustering quality, requires API calls (~$0.13 per 1M tokens)
+- **Local embeddings**: Free, faster startup, slightly lower quality
+
+### Task-Aware Analysis
+
+For single-model analysis, you can provide a detailed `task_description` to create a custom system prompt that focuses on task-specific behaviors:
+
+```python
+# Analyze call center responses with task-specific focus
+clustered_df, model_stats = explain(
+    df,
+    method="single_model",
+    task_description=(
+        "Evaluate call-center responses for empathy, clarity, resolution accuracy, "
+        "and policy adherence. Identify salient capabilities, common failure modes, "
+        "and user-impacting style factors."
+    ),
+    output_dir="results/call_center_analysis"
+)
+
+# Analyze coding solutions with algorithmic focus
+clustered_df, model_stats = explain(
+    df,
+    method="single_model", 
+    task_description=(
+        "Evaluate coding solutions for algorithmic problems, focusing on correctness, "
+        "time complexity, code quality, and edge case handling."
+    )
+)
+```
+
+When `task_description` is provided with `method="single_model"`, the system automatically uses a custom prompt template that incorporates your task description. This helps the LLM focus on behaviors relevant to your specific use case.
+
+> **Note**: `task_description` is only available for single-model analysis. For side-by-side comparisons, use the standard system prompts.
 ```
 
 ## Output Files

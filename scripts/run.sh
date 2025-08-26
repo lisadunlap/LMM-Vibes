@@ -16,3 +16,8 @@ python scripts/run_pipeline.py --method single_model --use_wandb --input_file da
 
 python scripts/run_pipeline.py --method side_by_side --use_wandb --input_file data/arena_webdev_sbs.jsonl --output_dir results/arena_webdev_sbs --system_prompt webdev_system_prompt_no_examples --min_cluster_size 15 --run_metrics
 python scripts/run_pipeline.py --method side_by_side --use_wandb --input_file data/arena_sbs.jsonl --output_dir results/arena_sbs --system_prompt sbs_w_metrics_system_prompt --min_cluster_size 15 --run_metrics
+
+python scripts/run_pipeline.py --method side_by_side --use_wandb --input_file data/demo_data/call_center_results_new_oai.jsonl --output_dir results/call_center_bug --system_prompt single_model_system_prompt --min_cluster_size 8 --run_metrics
+
+
+python scripts/run_pipeline.py --method single_model --use_wandb --input_file data/demo_data/airline_data.jsonl --output_dir results/taubench_airline_demo --system_prompt agent_system_prompt

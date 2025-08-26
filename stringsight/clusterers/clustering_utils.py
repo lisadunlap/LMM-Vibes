@@ -499,11 +499,25 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
         os.makedirs(f"cluster_results/{base_filename}", exist_ok=True)
         save_dir = f"cluster_results/{base_filename}"
     
-    # Convert problematic columns to strings for JSON serialization
+    # Handle JSON serialization - preserve dictionaries for score columns
     df = df.copy()
+    score_columns = [col for col in df.columns if 'score' in col.lower()]
+    
+    # Debug print to see what score columns we're finding
+    print(f"DEBUG: Available columns: {list(df.columns)}")
+    print(f"DEBUG: Detected score columns: {score_columns}")
+    
     for col in df.columns:
         if df[col].dtype == 'object':
-            df[col] = df[col].astype(str)
+            # Preserve dictionary columns (like scores) - don't convert to string
+            if col in score_columns:
+                print(f"DEBUG: Preserving score column '{col}' as dictionary")
+                # Keep as-is for JSON serialization - pandas.to_json can handle dicts
+                continue
+            else:
+                print(f"DEBUG: Converting column '{col}' to string")
+                # Convert other object columns to strings for safety
+                df[col] = df[col].astype(str)
     
     # 1. Save clustered results as JSON (preserves all data structures)
     df.to_json(f"{save_dir}/clustered_results.jsonl", orient='records', lines=True)

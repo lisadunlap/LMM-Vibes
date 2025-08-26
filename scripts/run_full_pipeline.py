@@ -16,6 +16,7 @@ from datetime import datetime
 
 from stringsight import explain
 from stringsight.core.data_objects import PropertyDataset
+from typing import Optional, Dict, Any
 
 
 def load_dataset(data_path, method="single_model"):
@@ -49,7 +50,8 @@ def run_pipeline(
     data_path,
     output_dir,
     method="single_model",
-    system_prompt="single_model_system_prompt",
+    system_prompt=None,
+    task_description: Optional[str] = None,
     clusterer="hdbscan",
     min_cluster_size=15,
     max_coarse_clusters=30,
@@ -62,6 +64,7 @@ def run_pipeline(
     extraction_cache_dir=None,
     clustering_cache_dir=None,
     metrics_cache_dir=None,
+    metrics_kwargs: Optional[Dict[str, Any]] = None,
     *,
     groupby_column: str | None = None,
     assign_outliers: bool | None = None,
@@ -91,6 +94,7 @@ def run_pipeline(
         df,
         method=method,
         system_prompt=system_prompt,
+        task_description=task_description,
         clusterer=clusterer,
         min_cluster_size=min_cluster_size,
         max_coarse_clusters=max_coarse_clusters,
@@ -104,8 +108,10 @@ def run_pipeline(
         extraction_cache_dir=extraction_cache_dir,
         clustering_cache_dir=clustering_cache_dir,
         metrics_cache_dir=metrics_cache_dir,
+        metrics_kwargs=metrics_kwargs,
         # pass groupby to clusterer via kwargs; recognized by HDBSCANClusterer config
         groupby_column=groupby_column,
+        track_costs=True,  # Enable cost tracking
     )
     
     # Calculate runtime
@@ -216,10 +222,13 @@ def main():
     
     # Pipeline parameters
     parser.add_argument("--method", type=str, default="single_model",
-                        choices=["single_model", "multi_model"],
+                        choices=["single_model", "side_by_side"],
                         help="Analysis method (default: single_model)")
-    parser.add_argument("--system_prompt", type=str, default="single_model_system_prompt",
-                        help="System prompt to use")
+    parser.add_argument("--system_prompt", type=str, default=None,
+                        help=(
+                            "System prompt name (e.g., 'single_model_system_prompt', 'sbs_system_prompt', "
+                            "'single_model_system_prompt_custom'), or omit to auto-select based on method"
+                        ))
     parser.add_argument("--clusterer", type=str, default="hdbscan",
                         choices=["hdbscan", "hierarchical", "dummy"],
                         help="Clustering algorithm (default: hdbscan)")
