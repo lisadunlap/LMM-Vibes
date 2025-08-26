@@ -85,14 +85,13 @@ class SideBySideMetrics(FunctionalMetrics):
         for conv in data.conversations:
             qid = conv.question_id
             meta = conv.meta
-            scores = conv.scores or {}
 
             # Side-by-side: conv.model is a list/tuple of two models
             model_a, model_b = conv.model[0], conv.model[1]
             expanded_rows.append(
                 {
                     "question_id": qid,
-                    "scores": self._transform_scores_for_model(scores, model_a, model_b, conv),
+                    "scores": self._transform_scores_for_model(conv.scores, model_a, model_b, conv),
                     "conversation_metadata": meta,
                     "model_name": model_a,
                 }
@@ -100,7 +99,7 @@ class SideBySideMetrics(FunctionalMetrics):
             expanded_rows.append(
                 {
                     "question_id": qid,
-                    "scores": self._transform_scores_for_model(scores, model_b, model_a, conv),
+                    "scores": self._transform_scores_for_model(conv.scores, model_b, model_a, conv),
                     "conversation_metadata": meta,
                     "model_name": model_b,
                 }
@@ -143,6 +142,8 @@ class SideBySideMetrics(FunctionalMetrics):
             "conversation_id", "conversation_metadata", "property_metadata", 
             "model", "cluster", "property_description", "scores", "cluster_metadata"
         ]
+
+
         
         # Ensure all required columns exist before filtering
         for col in important_columns:
@@ -160,54 +161,42 @@ class SideBySideMetrics(FunctionalMetrics):
         return properties
 
     @staticmethod
-    def _transform_scores_for_model(all_scores: Dict[str, Any], this_model: str, other_model: str, conversation=None) -> Dict[str, float]:
-        """Convert the side-by-side score dict into per-model numeric scores.
+    def _transform_scores_for_model(all_scores: List[Dict[str, Any]], this_model: str, other_model: str, conversation=None) -> Dict[str, float]:
+        """Convert the side-by-side score list into per-model numeric scores.
 
-        Supports both legacy format (single scores dict) and new format (scores_a/scores_b).
+        Expects scores in list format [scores_a, scores_b].
         
         - "winner": +1 if this_model won, -1 if lost, 0 if tie
         - Preserve other numeric keys as floats when possible
         """
         result: Dict[str, float] = {}
-        if isinstance(all_scores, dict):
-            # Handle new format with separate scores_a/scores_b
-            if "scores_a" in all_scores and "scores_b" in all_scores:
-                # Determine which model's scores to use
-                scores_a = all_scores.get("scores_a", {})
-                scores_b = all_scores.get("scores_b", {})
-                
-                # Match this_model to the appropriate scores based on conversation order
-                if conversation and isinstance(conversation.model, (list, tuple)) and len(conversation.model) == 2:
-                    model_a, model_b = conversation.model[0], conversation.model[1]
-                    if this_model == model_a:
-                        model_scores = scores_a
-                    elif this_model == model_b:
-                        model_scores = scores_b
-                    else:
-                        # Fallback: use scores_a for first model, scores_b for second
-                        model_scores = scores_a if this_model == model_a else scores_b
+        
+        # Handle list format [scores_a, scores_b]
+        if isinstance(all_scores, list) and len(all_scores) == 2:
+            scores_a, scores_b = all_scores[0], all_scores[1]
+            
+            # Match this_model to the appropriate scores based on conversation order
+            if conversation and isinstance(conversation.model, (list, tuple)) and len(conversation.model) == 2:
+                model_a, model_b = conversation.model[0], conversation.model[1]
+                if this_model == model_a:
+                    model_scores = scores_a
+                elif this_model == model_b:
+                    model_scores = scores_b
                 else:
                     # Fallback: use scores_a for first model, scores_b for second
-                    model_scores = scores_a if this_model < other_model else scores_b
-                
-                # Copy all numeric metrics from the model's scores
-                for k, v in model_scores.items():
-                    if isinstance(v, (int, float)):
-                        result[k] = float(v)
-                
-                # Handle winner if present
-                winner = all_scores.get("winner")
-                if isinstance(winner, str):
-                    if winner == this_model:
-                        result["winner"] = 1.0
-                    elif "tie" in winner.lower():
-                        result["winner"] = 0.0
-                    else:
-                        result["winner"] = -1.0
+                    model_scores = scores_a if this_model == model_a else scores_b
             else:
-                # Handle legacy format (current behavior)
-                # Winner conversion
-                winner = all_scores.get("winner")
+                # Fallback: use scores_a for first model, scores_b for second
+                model_scores = scores_a if this_model < other_model else scores_b
+            
+            # Copy all numeric metrics from the model's scores
+            for k, v in model_scores.items():
+                if isinstance(v, (int, float)):
+                    result[k] = float(v)
+            
+            # Handle winner if present in meta field
+            if conversation and hasattr(conversation, 'meta'):
+                winner = conversation.meta.get("winner")
                 if isinstance(winner, str):
                     if winner == this_model:
                         result["winner"] = 1.0
@@ -215,13 +204,7 @@ class SideBySideMetrics(FunctionalMetrics):
                         result["winner"] = 0.0
                     else:
                         result["winner"] = -1.0
-
-                # Copy other numeric metrics if present
-                for k, v in all_scores.items():
-                    if k == "winner":
-                        continue
-                    if isinstance(v, (int, float)):
-                        result[k] = float(v)
+        
         return result
 
     # --- Robust metrics computation for SxS to handle empty bootstrap subsets ---

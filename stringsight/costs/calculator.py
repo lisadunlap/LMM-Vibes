@@ -285,3 +285,4 @@ def estimate_clustering_cost(num_properties: int, embedding_model: str = "openai
     calculator = CostCalculator()
     result = calculator.estimate_clustering_cost(num_properties, embedding_model, **kwargs)
     return result.get("total_cost", 0.0)
+

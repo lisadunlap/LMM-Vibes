@@ -219,11 +219,10 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                 )
             scores = conversation.scores
 
-            # Handle new scores_a/scores_b format or fallback to legacy format
-            if isinstance(scores, dict) and "scores_a" in scores and "scores_b" in scores:
-                scores_a = scores.get("scores_a", {})
-                scores_b = scores.get("scores_b", {})
-                winner = scores.get("winner")
+            # Handle list format [scores_a, scores_b]
+            if isinstance(scores, list) and len(scores) == 2:
+                scores_a, scores_b = scores[0], scores[1]
+                winner = conversation.meta.get("winner")  # Winner stored in meta
                 
                 # Build the prompt with separate scores for each model
                 prompt_parts = [
@@ -244,21 +243,12 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                 
                 return "\n\n".join(prompt_parts)
             else:
-                # Legacy format - if scores is an empty dict, then we don't have scores
-                if not scores:
-                    return (
-                        f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}\n\n"
-                        f"--------------------------------\n"
-                        f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}"
-                    )
-                else:
-                    return (
-                        f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}\n\n"
-                        f"# Scores:\n {scores}\n\n"
-                        f"--------------------------------\n"
-                        f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}\n\n"
-                        f"# Scores:\n {scores}"
-                    )
+                # No scores available
+                return (
+                    f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}\n\n"
+                    f"--------------------------------\n"
+                    f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}"
+                )
         elif isinstance(conversation.model, str):
             # Single model format
             model = conversation.model if isinstance(conversation.model, str) else str(conversation.model)

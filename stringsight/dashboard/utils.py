@@ -1699,17 +1699,23 @@ def get_example_data(
             response_val = "SIDE_BY_SIDE"  # Special marker
             model_val = f"{row.get('model_a', 'Model A')} vs {row.get('model_b', 'Model B')}"
             
-            # Handle new scores_a/scores_b format for display
+            # Handle score formats for display
             if 'scores_a' in row and 'scores_b' in row:
                 scores_a = row.get('scores_a', {})
                 scores_b = row.get('scores_b', {})
-                if scores_a or scores_b:
-                    scores_info = []
-                    if scores_a:
-                        scores_info.append(f"{row.get('model_a', 'Model A')}: {scores_a}")
-                    if scores_b:
-                        scores_info.append(f"{row.get('model_b', 'Model B')}: {scores_b}")
-                    response_val = f"SIDE_BY_SIDE with scores: {' | '.join(scores_info)}"
+            elif 'score_a' in row and 'score_b' in row:
+                scores_a = row.get('score_a', {})
+                scores_b = row.get('score_b', {})
+            else:
+                scores_a, scores_b = {}, {}
+            
+            if scores_a or scores_b:
+                scores_info = []
+                if scores_a:
+                    scores_info.append(f"{row.get('model_a', 'Model A')}: {scores_a}")
+                if scores_b:
+                    scores_info.append(f"{row.get('model_b', 'Model B')}: {scores_b}")
+                response_val = f"SIDE_BY_SIDE with scores: {' | '.join(scores_info)}"
         else:
             # For single response datasets, use the existing logic
             response_val = next(

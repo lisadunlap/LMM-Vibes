@@ -226,24 +226,22 @@ def extract_side_by_side_data(row: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary with extracted side-by-side data
     """
-    # Handle new scores_a/scores_b format or fallback to legacy format
+    # Handle score formats - convert to normalized scores_a/scores_b
     if 'scores_a' in row and 'scores_b' in row:
-        return {
-            'model_a': row.get('model_a', 'Model A'),
-            'model_b': row.get('model_b', 'Model B'), 
-            'model_a_response': row.get('model_a_response', 'N/A'),
-            'model_b_response': row.get('model_b_response', 'N/A'),
-            'winner': row.get('winner', None),
-            'scores_a': row.get('scores_a', {}),
-            'scores_b': row.get('scores_b', {})
-        }
+        scores_a = row.get('scores_a', {})
+        scores_b = row.get('scores_b', {})
+    elif 'score_a' in row and 'score_b' in row:
+        scores_a = row.get('score_a', {})
+        scores_b = row.get('score_b', {})
     else:
-        # Legacy format
-        return {
-            'model_a': row.get('model_a', 'Model A'),
-            'model_b': row.get('model_b', 'Model B'), 
-            'model_a_response': row.get('model_a_response', 'N/A'),
-            'model_b_response': row.get('model_b_response', 'N/A'),
-            'winner': row.get('winner', None),
-            'score': row.get('score', None)
-        } 
+        scores_a, scores_b = {}, {}
+    
+    return {
+        'model_a': row.get('model_a', 'Model A'),
+        'model_b': row.get('model_b', 'Model B'), 
+        'model_a_response': row.get('model_a_response', 'N/A'),
+        'model_b_response': row.get('model_b_response', 'N/A'),
+        'winner': row.get('winner', None),
+        'scores_a': scores_a,
+        'scores_b': scores_b
+    } 

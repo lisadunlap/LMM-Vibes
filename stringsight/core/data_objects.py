@@ -66,10 +66,26 @@ class ConversationRecord:
     """A single conversation with prompt, responses, and metadata."""
     question_id: str 
     prompt: str
-    model: str | List[str]  # model name(s) - single string or tuple for side-by-side comparisons
-    responses: str | List[str] # {model_name: response}
-    scores: Dict[str, Any] | List[Dict[str, Any]]     # {score_name: score_value} or {"scores_a": {...}, "scores_b": {...}, "winner": "..."}
-    meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc.
+    model: str | List[str]  # model name(s) - single string or list for side-by-side comparisons
+    responses: str | List[str] # model response(s) - single string or list for side-by-side comparisons
+    scores: Dict[str, Any] | List[Dict[str, Any]]     # For single model: {score_name: score_value}. For side-by-side: [scores_a, scores_b] 
+    meta: Dict[str, Any] = field(default_factory=dict)  # winner, language, etc. (winner stored here for side-by-side)
+    
+    def __post_init__(self):
+        """Migrate legacy score formats to the new list format for side-by-side."""
+        # Handle migration of score_a/score_b from meta field to scores list for side-by-side
+        if isinstance(self.model, list) and len(self.model) == 2:
+            # Check if scores is empty and we have score_a/score_b in meta
+            if (not self.scores or self.scores == {}) and ('score_a' in self.meta and 'score_b' in self.meta):
+                # Migrate scores from meta to scores field
+                scores_a = self.meta.pop('score_a', {})
+                scores_b = self.meta.pop('score_b', {})
+                self.scores = [scores_a, scores_b]
+            elif (not self.scores or self.scores == {}) and ('scores_a' in self.meta and 'scores_b' in self.meta):
+                # Migrate scores_a/scores_b from meta to scores field  
+                scores_a = self.meta.pop('scores_a', {})
+                scores_b = self.meta.pop('scores_b', {})
+                self.scores = [scores_a, scores_b]
 
 @dataclass
 class Property:
@@ -208,18 +224,30 @@ class PropertyDataset:
                 oai_response_a, was_converted_a = check_and_convert_to_oai_format(prompt, model_a_response)
                 oai_response_b, was_converted_b = check_and_convert_to_oai_format(prompt, model_b_response)
                 
-                # Handle new scores_a/scores_b format or fallback to legacy score format
+                # Convert score formats to list format [scores_a, scores_b]
                 if 'scores_a' in row and 'scores_b' in row:
-                    scores = {
-                        "scores_a": row.get('scores_a', {}),
-                        "scores_b": row.get('scores_b', {}),
-                        "winner": row.get('winner')  # Optional comparative metric
-                    }
-                    # Remove None values
-                    scores = {k: v for k, v in scores.items() if v is not None}
+                    # Format: scores_a, scores_b columns
+                    scores_a = row.get('scores_a', {})
+                    scores_b = row.get('scores_b', {})
+                elif 'score_a' in row and 'score_b' in row:
+                    # Format: score_a, score_b columns
+                    scores_a = row.get('score_a', {})
+                    scores_b = row.get('score_b', {})
                 else:
-                    # Fallback to legacy format
-                    scores = row.get('score', {})
+                    # No score data found
+                    scores_a, scores_b = {}, {}
+                
+                scores = [scores_a, scores_b]
+                
+                # Store winner and other metadata
+                meta_with_winner = {k: v for k, v in row.items() 
+                                  if k not in ['question_id', 'prompt', 'user_prompt', 'model_a', 'model_b', 
+                                             'model_a_response', 'model_b_response', 'score', 'scores_a', 'scores_b', 'score_a', 'score_b']}
+                
+                # Add winner to meta if present
+                winner = row.get('winner')
+                if winner is not None:
+                    meta_with_winner['winner'] = winner
                 
                 conversation = ConversationRecord(
                     question_id=str(idx),  # Auto-generate as row index
@@ -227,9 +255,7 @@ class PropertyDataset:
                     model=[row.get('model_a', 'model_a'), row.get('model_b', 'model_b')],
                     responses=[oai_response_a, oai_response_b],
                     scores=scores,
-                    meta={k: v for k, v in row.items() 
-                          if k not in ['question_id', 'prompt', 'user_prompt', 'model_a', 'model_b', 
-                                     'model_a_response', 'model_b_response', 'score', 'scores_a', 'scores_b', 'winner']}
+                    meta=meta_with_winner
                 )
                 conversations.append(conversation)
                 
@@ -286,32 +312,25 @@ class PropertyDataset:
                     **conv.meta
                 }
             elif isinstance(conv.model, list):
-                # Handle new scores_a/scores_b format or fallback to legacy score format
-                if isinstance(conv.scores, dict) and "scores_a" in conv.scores and "scores_b" in conv.scores:
-                    base_row = {
-                        'question_id': conv.question_id,
-                        'prompt': conv.prompt,
-                        'model_a': conv.model[0],
-                        'model_b': conv.model[1],
-                        'model_a_response': conv.responses[0],
-                        'model_b_response': conv.responses[1],
-                        'scores_a': conv.scores.get('scores_a', {}),
-                        'scores_b': conv.scores.get('scores_b', {}),
-                        'winner': conv.scores.get('winner'),
-                        **conv.meta
-                    }
+                # Side-by-side format: scores stored as [scores_a, scores_b]
+                if isinstance(conv.scores, list) and len(conv.scores) == 2:
+                    scores_a, scores_b = conv.scores[0], conv.scores[1]
                 else:
-                    # Fallback to legacy format
-                    base_row = {
-                        'question_id': conv.question_id,
-                        'prompt': conv.prompt,
-                        'model_a': conv.model[0],
-                        'model_b': conv.model[1],
-                        'model_a_response': conv.responses[0],
-                        'model_b_response': conv.responses[1],
-                        'score': conv.scores,
-                        **conv.meta
-                    }
+                    # Fallback if scores isn't properly formatted
+                    scores_a, scores_b = {}, {}
+                
+                base_row = {
+                    'question_id': conv.question_id,
+                    'prompt': conv.prompt,
+                    'model_a': conv.model[0],
+                    'model_b': conv.model[1],
+                    'model_a_response': conv.responses[0],
+                    'model_b_response': conv.responses[1],
+                    'scores_a': scores_a,
+                    'scores_b': scores_b,
+                    'winner': conv.meta.get('winner'),  # Winner stored in meta
+                    **{k: v for k, v in conv.meta.items() if k != 'winner'}  # Exclude winner from other meta
+                }
             else:
                 raise ValueError(f"Invalid model type: {type(conv.model)}. Must be str or list.")
 
