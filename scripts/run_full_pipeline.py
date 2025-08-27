@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 
 from stringsight import explain
+from stringsight.dataprep import sample_prompts_evenly
 from stringsight.core.data_objects import PropertyDataset
 from typing import Optional, Dict, Any
 
@@ -78,10 +79,10 @@ def run_pipeline(
     # Load dataset
     df = load_dataset(data_path, method)
     
-    # Sample if requested
+    # Sample if requested (evenly by prompts across models)
     if sample_size and sample_size < len(df):
-        print(f"Sampling {sample_size} rows from {len(df)} total rows")
-        df = df.sample(n=sample_size, random_state=42)
+        print(f"Sampling evenly by prompts for target size {sample_size} from {len(df)} total rows")
+        df = sample_prompts_evenly(df, sample_size=int(sample_size), method=method, prompt_column="prompt", random_state=42)
     
     print(f"Starting pipeline with {len(df)} conversations")
     

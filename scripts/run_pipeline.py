@@ -147,6 +147,12 @@ def main():
             print("\nTry running the full pipeline first to generate the required data.")
             raise
     
+    # Prepare metrics configuration
+    metrics_kwargs = {
+        "compute_confidence_intervals": args.bootstrap_samples > 0,
+        "bootstrap_samples": args.bootstrap_samples,
+    }
+
     # Run pipeline with webdev-optimized parameters
     clustered_df, model_stats = run_pipeline(
         data_path=data_path,
@@ -164,6 +170,7 @@ def main():
         sample_size=args.sample_size,
         groupby_column=args.groupby_column,
         assign_outliers=args.assign_outliers,
+        metrics_kwargs=metrics_kwargs,
     )
     # save_examples(args.output_dir, args.method)
     

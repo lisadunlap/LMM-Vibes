@@ -1984,7 +1984,11 @@ def format_examples_display(examples: List[Dict[str, Any]],
                 {(
                     f'''<details style="margin-bottom:16px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb;">
                         <summary style="cursor:pointer; padding:12px; font-weight:600; color:#374151; border-radius:8px;">
-                            📋 Property Information
+                            {(
+                                (str(example.get("fine_cluster_label", ""))[:100] + "..." if len(str(example.get("fine_cluster_label", ""))) > 100 else str(example.get("fine_cluster_label", "")))
+                                if example.get("fine_cluster_label") not in [None, "N/A", "None", "", "null"] and str(example.get("fine_cluster_label", "")).strip() != ""
+                                else "Cluster"
+                            )}
                         </summary>
                         <div style="padding:0 12px 12px 12px; border-top:1px solid #e5e7eb;">
                             {(f'<div style="margin-top:12px;"><strong style="color:#374151;">Cluster</strong><div style="color:#4b5563; margin-top:4px;">{_convdisp._markdown(str(example["fine_cluster_label"]))}</div></div>' if example.get("fine_cluster_label") not in [None, "N/A", "None", "", "null"] and str(example.get("fine_cluster_label", "")).strip() != "" else '')}

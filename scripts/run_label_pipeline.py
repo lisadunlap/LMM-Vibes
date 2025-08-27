@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from stringsight import label
 import json
+from stringsight.dataprep import sample_prompts_evenly
 
 # -----------------------------------------------------------------------------
 # Default taxonomy – feel free to modify / replace via --taxonomy_file later.
@@ -62,8 +63,9 @@ def main() -> None:
     args = parser.parse_args()
 
     df = load_dataframe(args.input_file)
-    if args.sample_size is not None and args.sample_size < len(df):
-        df = df.sample(args.sample_size, random_state=42)
+    if args.sample_size is not None and args.sample_size > 0 and args.sample_size < len(df):
+        # Even-per-model prompt sampling for single_model datasets
+        df = sample_prompts_evenly(df, sample_size=int(args.sample_size), method="single_model", prompt_column="prompt", random_state=42)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
