@@ -18,7 +18,6 @@ import ast
 import gradio as gr
 import pandas as pd
 import plotly.express as px
-from .utils import get_example_data, format_examples_display, get_cluster_statistics
 from .utils import get_example_data, format_examples_display
 
 
@@ -194,12 +193,22 @@ def create_app() -> gr.Blocks:
         # Column selection
         with gr.Accordion("Column mapping", open=True):
             with gr.Row():
+                data_mode_dd = gr.Radio(choices=["Single", "Side-by-side"], value="Single", label="Data mode")
                 prompt_col_dd = gr.Dropdown(label="Prompt column", choices=[], value=None)
                 response_col_dd = gr.Dropdown(label="Response column", choices=[], value=None)
                 model_col_dd = gr.Dropdown(label="Model column (optional)", choices=[], value=None)
             with gr.Row():
                 score_dict_col_dd = gr.Dropdown(label="Score dict column (optional)", choices=[], value=None, info="If provided, it should be a dict per row of metric_name -> value")
                 score_cols_cg = gr.CheckboxGroup(label="Numeric score columns (optional)", choices=[], value=[], info="Select one or more numeric columns to treat as metrics")
+            # Side-by-side mappings (hidden unless Side-by-side mode)
+            with gr.Row(visible=False) as sxs_row1:
+                resp_a_col_dd = gr.Dropdown(label="Response A column", choices=[], value=None)
+                resp_b_col_dd = gr.Dropdown(label="Response B column", choices=[], value=None)
+                model_a_col_dd = gr.Dropdown(label="Model A column (optional)", choices=[], value=None)
+                model_b_col_dd = gr.Dropdown(label="Model B column (optional)", choices=[], value=None)
+            with gr.Row(visible=False) as sxs_row2:
+                score_dict_a_dd = gr.Dropdown(label="Score A dict column (optional)", choices=[], value=None)
+                score_dict_b_dd = gr.Dropdown(label="Score B dict column (optional)", choices=[], value=None)
             with gr.Row():
                 model_filter = gr.CheckboxGroup(label="Filter by model (optional)", choices=[], value=[])
                 select_all_models_btn = gr.Button("Select All Models")
@@ -207,7 +216,7 @@ def create_app() -> gr.Blocks:
         # Overview section (no tabs)
         overview_html = gr.HTML(visible=True)
         with gr.Row():
-            view_toggle = gr.Radio(choices=["Plot", "Table"], value="Plot", label="Benchmark view")
+            view_toggle = gr.Radio(choices=["Plot", "Table"], value="Plot", label="Benchmark view", visible=False)
         overview_plot = gr.Plot(visible=False)
         overview_table = gr.Dataframe(visible=False, wrap=True)
 
@@ -215,7 +224,7 @@ def create_app() -> gr.Blocks:
         with gr.Row():
             max_examples = gr.Slider(minimum=1, maximum=200, step=1, value=20, label="Max examples")
             search_tb = gr.Textbox(label="Search", placeholder="Filter by text in prompt/response")
-        with gr.Accordion("Score filter (optional)", open=False):
+        with gr.Accordion("Score filter (optional)", open=False, visible=False) as score_filter_acc:
             with gr.Row():
                 score_metric_dd = gr.Dropdown(label="Metric/column", choices=["— None —"], value="— None —")
                 score_values_cg = gr.CheckboxGroup(label="Allowed values", choices=[], value=[])
@@ -247,15 +256,27 @@ def create_app() -> gr.Blocks:
             guess_prompt = _guess_prompt_column(cols)
             guess_resp = _guess_response_column(cols)
 
-            # Guess score-dict column: any column containing dict in at least one row
+            # Guess mode and score columns
+            default_mode = "Side-by-side" if ("model_a_response" in cols and "model_b_response" in cols) else "Single"
+            # Guess score-dict column with priority: 'score' else first dict-like
             guess_score_dict: Optional[str] = None
-            for c in cols:
-                try:
-                    if df[c].apply(lambda v: isinstance(v, dict)).any():
-                        guess_score_dict = c
-                        break
-                except Exception:
-                    continue
+            if 'score' in cols:
+                guess_score_dict = 'score'
+            else:
+                for c in cols:
+                    try:
+                        if df[c].apply(lambda v: isinstance(v, dict)).any():
+                            guess_score_dict = c
+                            break
+                    except Exception:
+                        continue
+            # Side-by-side guesses
+            guess_resp_a = 'model_a_response' if 'model_a_response' in cols else None
+            guess_resp_b = 'model_b_response' if 'model_b_response' in cols else None
+            guess_model_a = 'model_a' if 'model_a' in cols else None
+            guess_model_b = 'model_b' if 'model_b' in cols else None
+            guess_score_a = 'score_a' if 'score_a' in cols else None
+            guess_score_b = 'score_b' if 'score_b' in cols else None
 
             # Build sample raw row JSON
             try:
@@ -266,6 +287,7 @@ def create_app() -> gr.Blocks:
             return (
                 gr.update(value=status, visible=True),
                 df,
+                gr.update(value=default_mode),
                 gr.update(choices=cols, value=guess_prompt),
                 gr.update(choices=cols, value=guess_resp),
                 gr.update(choices=[None] + cols, value=("model" if "model" in cols else None)),
@@ -278,60 +300,75 @@ def create_app() -> gr.Blocks:
         load_btn.click(
             _on_load,
             inputs=[file_path_tb],
-            outputs=[status_md, df_state, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, sample_row_code],
+            outputs=[status_md, df_state, data_mode_dd, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, sample_row_code],
         )
 
-        def _build_cluster_stats_card(df_in: pd.DataFrame, model_col: Optional[str], selected_models: List[str]) -> str:
+        # Toggle side-by-side mapping visibility
+        def _toggle_mode(mode: str):
+            is_sxs = (mode == "Side-by-side")
+            return (
+                gr.update(visible=not is_sxs),  # single response
+                gr.update(visible=is_sxs),      # sxs_row1
+                gr.update(visible=is_sxs),      # sxs_row2
+            )
+
+        data_mode_dd.change(
+            _toggle_mode,
+            inputs=[data_mode_dd],
+            outputs=[response_col_dd, sxs_row1, sxs_row2],
+        )
+
+        def _build_prompt_stats_card(df_in: pd.DataFrame, prompt_col: Optional[str], model_col: Optional[str], selected_models: List[str]) -> str:
             work = df_in
             if model_col and model_col in work.columns and selected_models:
                 work = work[work[model_col].isin(selected_models)]
-            try:
-                stats = get_cluster_statistics(work, selected_models=None)
-            except Exception:
-                # Fallback simple stats
-                stats = {
-                    'total_properties': len(work),
-                    'total_models': (work[model_col].nunique() if (model_col and model_col in work.columns) else 0),
-                    'fine_clusters': 0,
-                    'avg_properties_per_fine_cluster': 0,
-                }
+            # Prompt stats
+            total_prompts = int(work[prompt_col].dropna().nunique()) if (prompt_col and prompt_col in work.columns) else 0
+            total_samples = int(len(work))
 
-            total_props = stats.get('total_properties', len(work))
-            num_models = stats.get('total_models', 0)
-            fine_clusters = stats.get('fine_clusters', 0)
-            avg_per_cluster = stats.get('avg_properties_per_fine_cluster', None)
-            if avg_per_cluster is None or (isinstance(avg_per_cluster, float) and pd.isna(avg_per_cluster)):
-                avg_per_cluster = (float(total_props) / float(fine_clusters) if fine_clusters else 0.0)
+            avg_prompts_per_model: Optional[float] = None
+            shared_prompts_across_all: Optional[int] = None
+            if model_col and model_col in work.columns and prompt_col and prompt_col in work.columns:
+                models_present = work[model_col].dropna().unique().tolist()
+                if len(models_present) > 0:
+                    per_model_counts = work.groupby(model_col)[prompt_col].nunique()
+                    if not per_model_counts.empty:
+                        avg_prompts_per_model = float(per_model_counts.mean())
+                    by_prompt = work.groupby(prompt_col)[model_col].nunique()
+                    shared_prompts_across_all = int((by_prompt >= len(models_present)).sum())
+
+            apm_display = f"{avg_prompts_per_model:.1f}" if isinstance(avg_prompts_per_model, (int, float)) else "N/A"
+            shared_display = f"{shared_prompts_across_all}" if isinstance(shared_prompts_across_all, int) else "N/A"
 
             # Gradient stat card
             card = f"""
 <div style="background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%); padding: 16px 20px; border-radius: 12px; color: #13111c; box-shadow: 0 6px 16px rgba(0,0,0,0.05); margin-bottom: 12px;">
-  <div style="font-weight:700; font-size:16px; margin-bottom: 8px; color:#1f2937;">Cluster Statistics</div>
+  <div style="font-weight:700; font-size:16px; margin-bottom: 8px; color:#1f2937;">Prompt Statistics</div>
   <div style="display:flex; gap:24px; flex-wrap:wrap;">
-    <div style="min-width:140px;">
-      <div style="font-weight:800; font-size:24px; color:#111827;">{int(total_props)}</div>
-      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Total Properties</div>
+    <div style="min-width:160px;">
+      <div style="font-weight:800; font-size:24px; color:#111827;">{int(total_samples)}</div>
+      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Total Samples</div>
     </div>
-    <div style="min-width:140px;">
-      <div style="font-weight:800; font-size:24px; color:#111827;">{int(num_models)}</div>
-      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Models</div>
+    <div style="min-width:160px;">
+      <div style="font-weight:800; font-size:24px; color:#111827;">{int(total_prompts)}</div>
+      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Unique Prompts</div>
     </div>
-    <div style="min-width:140px;">
-      <div style="font-weight:800; font-size:24px; color:#111827;">{int(fine_clusters)}</div>
-      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Fine Clusters</div>
+    <div style="min-width:200px;">
+      <div style="font-weight:800; font-size:24px; color:#111827;">{apm_display}</div>
+      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Avg Prompts / Model</div>
     </div>
-    <div style="min-width:180px;">
-      <div style="font-weight:800; font-size:24px; color:#111827;">{avg_per_cluster:.1f}</div>
-      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Avg Properties/Cluster</div>
+    <div style="min-width:220px;">
+      <div style="font-weight:800; font-size:24px; color:#111827;">{shared_display}</div>
+      <div style="font-size:12px; color:#1f2937; opacity:0.9;">Prompts Shared Across All Models</div>
     </div>
   </div>
 </div>
 """
             return card
 
-        def _update_overview(df: Any, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str], view: str, selected_models: List[str]) -> Tuple[Any, Any, Any]:
+        def _update_overview(df: Any, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str], view: str, selected_models: List[str], data_mode: str) -> Tuple[Any, Any, Any, Any]:
             if df is None:
-                return gr.update(), gr.update(), gr.update(value="<p style='color:#666;padding:8px;'>No data loaded.</p>")
+                return gr.update(), gr.update(), gr.update(value="<p style='color:#666;padding:8px;'>No data loaded.</p>"), gr.update(visible=False)
 
             # Validation
             missing: List[str] = []
@@ -339,19 +376,20 @@ def create_app() -> gr.Blocks:
                 if not c or c not in df.columns:
                     missing.append(name)
             if missing:
-                return gr.update(), gr.update(), gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column(s): {', '.join(missing)}</p>")
+                return gr.update(), gr.update(), gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column(s): {', '.join(missing)}</p>"), gr.update(visible=False)
 
             # Apply model filter if provided
             work = df
             if model_col and model_col in work.columns and selected_models:
                 work = work[work[model_col].isin(selected_models)]
                 if len(work) == 0:
-                    return gr.update(), gr.update(), gr.update(value="<p style='color:#e74c3c;padding:8px;'>No rows for selected model subset.</p>")
+                    return gr.update(), gr.update(), gr.update(value="<p style='color:#e74c3c;padding:8px;'>No rows for selected model subset.</p>"), gr.update(visible=False)
 
-            # Build top cluster statistics card
-            html = _build_cluster_stats_card(
+            # Build top prompt statistics card
+            html = _build_prompt_stats_card(
                 work,
-                model_col if (model_col and model_col in work.columns) else None,
+                (prompt_col if prompt_col in work.columns else None),
+                (model_col if (model_col and model_col in work.columns) else None),
                 selected_models or [],
             )
 
@@ -389,6 +427,28 @@ def create_app() -> gr.Blocks:
                                         metric_dict[c] = v
                                 except Exception:
                                     pass
+                    # Side-by-side: add contributions from score_a/score_b if present
+                    if data_mode == "Side-by-side":
+                        for col_name, model_name_col in [("score_a", "model_a"), ("score_b", "model_b")]:
+                            if col_name in df_in.columns:
+                                sval = row[col_name]
+                                src = None
+                                if isinstance(sval, dict):
+                                    src = sval
+                                elif isinstance(sval, str):
+                                    try:
+                                        src = json.loads(sval)
+                                    except Exception:
+                                        try:
+                                            src = ast.literal_eval(sval)
+                                        except Exception:
+                                            src = None
+                                if isinstance(src, dict):
+                                    mdl = row.get(model_name_col) if model_name_col in df_in.columns else model_name_col
+                                    for k, v in src.items():
+                                        if isinstance(v, (int, float)):
+                                            metric_rows.append({'model': str(mdl), 'metric': k, 'value': float(v)})
+                                            metric_names.add(k)
                     if metric_dict:
                         model_name = str(model_series.loc[idx]) if idx in model_series.index else 'all'
                         for mname, mval in metric_dict.items():
@@ -406,28 +466,28 @@ def create_app() -> gr.Blocks:
             if view == "Plot":
                 if tidy_metrics is None or tidy_metrics.empty:
                     # Hide when no metrics to display
-                    return gr.update(visible=False), gr.update(visible=False), gr.update(value=html, visible=True)
+                    return gr.update(visible=False), gr.update(visible=False), gr.update(value=html, visible=True), gr.update(visible=False)
                 else:
                     fig = px.bar(tidy_metrics, x="metric", y="value", color="model", barmode="group", text="value")
                     fig.update_traces(texttemplate="%{text:.3f}", textposition="outside")
                     fig.update_layout(yaxis_tickformat=".3f", xaxis_title="Metric", yaxis_title="Average")
-                return gr.update(value=fig, visible=True), gr.update(visible=False), gr.update(value=html, visible=True)
+                return gr.update(value=fig, visible=True), gr.update(visible=False), gr.update(value=html, visible=True), gr.update(visible=True)
             else:
                 # table view: rows = model, columns = metrics
                 if tidy_metrics is None or tidy_metrics.empty:
-                    return gr.update(visible=False), gr.update(visible=False), gr.update(value=html, visible=True)
+                    return gr.update(visible=False), gr.update(visible=False), gr.update(value=html, visible=True), gr.update(visible=False)
                 else:
                     tbl = tidy_metrics.pivot(index='model', columns='metric', values='value').reset_index().rename_axis(None, axis=1)
-                return gr.update(visible=False), gr.update(value=tbl, visible=True), gr.update(value=html, visible=True)
+                return gr.update(visible=False), gr.update(value=tbl, visible=True), gr.update(value=html, visible=True), gr.update(visible=True)
 
-        for comp in [view_toggle, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter]:
+        for comp in [view_toggle, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, data_mode_dd]:
             comp.change(
                 _update_overview,
-                inputs=[df_state, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, view_toggle, model_filter],
-                outputs=[overview_plot, overview_table, overview_html],
+                inputs=[df_state, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, view_toggle, model_filter, data_mode_dd],
+                outputs=[overview_plot, overview_table, overview_html, view_toggle],
             )
 
-        def _normalize_dataframe(df: pd.DataFrame, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str]) -> pd.DataFrame:
+        def _normalize_dataframe(df: pd.DataFrame, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str], data_mode: str, resp_a_col: Optional[str], resp_b_col: Optional[str], model_a_col: Optional[str], model_b_col: Optional[str], score_a_col: Optional[str], score_b_col: Optional[str]) -> pd.DataFrame:
             """Map user-selected columns into the format expected by utils.get_example_data.
 
             Produces columns: 'prompt', 'response', 'model', 'score' (dict of metric->value) when possible.
@@ -435,8 +495,19 @@ def create_app() -> gr.Blocks:
             norm = df.copy()
             if prompt_col in norm.columns:
                 norm['prompt'] = norm[prompt_col].astype(str)
-            if response_col in norm.columns:
-                norm['response'] = norm[response_col]
+            if data_mode == "Side-by-side":
+                # Map A/B responses and models
+                if resp_a_col and resp_a_col in norm.columns:
+                    norm['model_a_response'] = norm[resp_a_col]
+                if resp_b_col and resp_b_col in norm.columns:
+                    norm['model_b_response'] = norm[resp_b_col]
+                if model_a_col and model_a_col in norm.columns:
+                    norm['model_a'] = norm[model_a_col]
+                if model_b_col and model_b_col in norm.columns:
+                    norm['model_b'] = norm[model_b_col]
+            else:
+                if response_col in norm.columns:
+                    norm['response'] = norm[response_col]
             if model_col and model_col in norm.columns:
                 norm['model'] = norm[model_col].astype(str)
             else:
@@ -444,6 +515,12 @@ def create_app() -> gr.Blocks:
 
             # Build score dict
             score_series = None
+            if data_mode == "Side-by-side":
+                # Set score_a / score_b if provided
+                if score_a_col and score_a_col in norm.columns:
+                    norm['score_a'] = norm[score_a_col]
+                if score_b_col and score_b_col in norm.columns:
+                    norm['score_b'] = norm[score_b_col]
             if score_dict_col and score_dict_col in norm.columns:
                 def _to_dict(val: Any) -> Dict[str, float]:
                     if isinstance(val, dict):
@@ -476,7 +553,7 @@ def create_app() -> gr.Blocks:
                 norm['score'] = score_series
             return norm
 
-        def _render_examples(df: Any, prompt_col: str, response_col: str, score_dict_col: Optional[str], score_cols: List[str], search: str, limit: int, model_col: Optional[str], selected_models: List[str], filter_metric: Optional[str], filter_values: List[str]) -> Any:
+        def _render_examples(df: Any, prompt_col: str, response_col: str, score_dict_col: Optional[str], score_cols: List[str], search: str, limit: int, model_col: Optional[str], selected_models: List[str], filter_metric: Optional[str], filter_values: List[str], data_mode: str, resp_a_col: Optional[str], resp_b_col: Optional[str], model_a_col: Optional[str], model_b_col: Optional[str], score_a_col: Optional[str], score_b_col: Optional[str]) -> Any:
             if df is None:
                 return gr.update(value="<p style='color:#666;padding:8px;'>No data loaded.</p>")
             for c, name in [(prompt_col, "prompt"), (response_col, "response")]:
@@ -514,18 +591,41 @@ def create_app() -> gr.Blocks:
                     work = work[work[sdc].apply(_match_row)]
                 elif score_cols and filter_metric in score_cols and filter_metric in work.columns:
                     work = work[work[filter_metric].astype(str).isin(list(map(str, filter_values)))]
+                else:
+                    # Side-by-side support: check score_a/score_b dicts
+                    def _dict_contains(dval: Any) -> bool:
+                        src = None
+                        if isinstance(dval, dict):
+                            src = dval
+                        elif isinstance(dval, str):
+                            try:
+                                src = json.loads(dval)
+                            except Exception:
+                                try:
+                                    src = ast.literal_eval(dval)
+                                except Exception:
+                                    src = None
+                        if isinstance(src, dict) and filter_metric in src:
+                            return str(src.get(filter_metric)) in set(map(str, filter_values))
+                        return False
+                    cols_to_check = [c for c in ['score_a','score_b'] if c in work.columns]
+                    if cols_to_check:
+                        mask = False
+                        for c in cols_to_check:
+                            mask = (mask | work[c].apply(_dict_contains)) if isinstance(mask, pd.Series) else work[c].apply(_dict_contains)
+                        work = work[mask]
 
             # Normalize columns and delegate rendering to shared utils for consistent formatting
-            norm = _normalize_dataframe(work, prompt_col, response_col, model_col, (None if (not score_dict_col or score_dict_col == NONE_OPTION) else score_dict_col), score_cols)
+            norm = _normalize_dataframe(work, prompt_col, response_col, model_col, (None if (not score_dict_col or score_dict_col == NONE_OPTION) else score_dict_col), score_cols, data_mode, resp_a_col, resp_b_col, model_a_col, model_b_col, score_a_col, score_b_col)
             norm_limited = norm.head(int(limit))
             examples = get_example_data(norm_limited, None, None, None, int(limit), show_unexpected_behavior=False, randomize=False)
             html_block = format_examples_display(examples, None, None, None, use_accordion=True, pretty_print_dicts=True)
             return gr.update(value=html_block)
 
-        for comp in [prompt_col_dd, response_col_dd, score_dict_col_dd, score_cols_cg, search_tb, max_examples, model_filter, score_metric_dd, score_values_cg]:
+        for comp in [prompt_col_dd, response_col_dd, score_dict_col_dd, score_cols_cg, search_tb, max_examples, model_filter, score_metric_dd, score_values_cg, data_mode_dd, resp_a_col_dd, resp_b_col_dd, model_a_col_dd, model_b_col_dd, score_dict_a_dd, score_dict_b_dd]:
             comp.change(
                 _render_examples,
-                inputs=[df_state, prompt_col_dd, response_col_dd, score_dict_col_dd, score_cols_cg, search_tb, max_examples, model_col_dd, model_filter, score_metric_dd, score_values_cg],
+                inputs=[df_state, prompt_col_dd, response_col_dd, score_dict_col_dd, score_cols_cg, search_tb, max_examples, model_col_dd, model_filter, score_metric_dd, score_values_cg, data_mode_dd, resp_a_col_dd, resp_b_col_dd, model_a_col_dd, model_b_col_dd, score_dict_a_dd, score_dict_b_dd],
                 outputs=[examples_html],
             )
 
@@ -578,6 +678,29 @@ def create_app() -> gr.Blocks:
                 metrics_choices += sorted(keys)
             elif score_cols:
                 metrics_choices += [c for c in score_cols if c in work.columns]
+            # Side-by-side: include keys from score_a/score_b if present
+            if ('score_a' in work.columns) or ('score_b' in work.columns):
+                def _extract_keys_from(val: Any) -> List[str]:
+                    if isinstance(val, dict):
+                        return list(val.keys())
+                    if isinstance(val, str):
+                        try:
+                            d = json.loads(val)
+                        except Exception:
+                            try:
+                                d = ast.literal_eval(val)
+                            except Exception:
+                                d = None
+                        return list(d.keys()) if isinstance(d, dict) else []
+                    return []
+                keys = set()
+                for col in ['score_a','score_b']:
+                    if col in work.columns:
+                        keys.update([k for sub in work[col].apply(_extract_keys_from).tolist() for k in sub])
+                metrics_choices = list(dict.fromkeys([NONE_OPTION] + sorted(keys)))
+            # Toggle score filter accordion visibility
+            has_metrics = len([m for m in metrics_choices if m != NONE_OPTION]) > 0
+            score_filter_acc.update(visible=has_metrics)
             return gr.update(choices=metrics_choices, value=(metrics_choices[0] if metrics_choices else NONE_OPTION)), gr.update(choices=values_choices, value=[])
 
         # Update metric choices when columns or filters change

@@ -120,7 +120,7 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         status_text = (
             f'<div style="background-color:#e7f3ff;border:1px solid #2f6fef;color:#1f4bd6;padding:8px 12px;border-radius:6px;font-weight:600;display:inline-block;margin-bottom:8px;">'
             f'Cluster scope: Selected {len(chosen_clusters)} of {len(all_available_clusters)}. '
-            f'<span style="font-weight:400">Select other properties above.</span>'
+            f'<span style="font-weight:400">Select other properties below .</span>'
             f'</div>\n\n'
         )
     mapping_text_parts.append(status_text)
@@ -587,7 +587,7 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
             label="Plot Type",
             choices=["frequency", "quality"],
             value="frequency",
-            info="Choose between frequency (proportion) or quality metrics"
+            info=None
         )
         
         # Quality metric dropdown (only visible for quality plots)

@@ -191,11 +191,11 @@ def create_app() -> gr.Blocks:
 
     /* Outline style for search bars (container-level only) */
     #clusters-search, #examples-search {
-        border: 2px solid #c7d2fe !important;
+        background: #ffffff !important;
+        border: 1px solid #d1d5db !important; /* gray-300 */
         border-radius: 8px !important;
         padding: 6px 8px !important;
-        box-shadow: 0 0 0 2px rgba(199,210,254,0.2) inset;
-        background: initial !important;
+        box-shadow: none !important; /* keep inner textbox shadow; don't add on container */
     }
     /* Make Plots tab property selector more pronounced (border + larger summary text) */
     #plots-properties-acc {
