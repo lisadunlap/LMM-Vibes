@@ -19,6 +19,7 @@ from .state import app_state, BASE_RESULTS_DIR
 from .data_loader import load_pipeline_results, get_available_models
 from .metrics_adapter import get_all_models
 from stringsight import explain, label
+from stringsight.dataprep import sample_prompts_evenly
 from .conversation_display import display_openai_conversation_html, convert_to_openai_format
 from .demo_examples import get_demo_names, get_demo_config
 import json
@@ -722,8 +723,8 @@ def run_pipeline_handler(
         # Step 5: Sample dataset if requested
         original_size = len(df)
         if sample_size and sample_size > 0 and sample_size < len(df):
-            progress(0.18, f"Sampling {int(sample_size)} rows from {original_size} total...")
-            df = df.sample(n=int(sample_size), random_state=42)
+            progress(0.18, f"Sampling evenly by prompts for target {int(sample_size)} from {original_size} total...")
+            df = sample_prompts_evenly(df, sample_size=int(sample_size), method=method, prompt_column="prompt", random_state=42)
         
         # Step 6: Prepare parameters
         progress(0.2, "Configuring pipeline...")

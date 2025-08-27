@@ -31,6 +31,26 @@ def extract_quoted_fragments(evidence: Any) -> Dict[str, List[str]]:
     quoted: List[str] = []
     unquoted: List[str] = []
 
+    def _expand_bulleted_and_lines(fragment: str) -> List[str]:
+        """Split fragment on newlines and bullet-like prefixes and return items.
+
+        - Recognizes '-', '*', '•' and similar bullets, as well as numeric/alpha lists like '1.' or 'a)'.
+        - Keeps only non-empty, trimmed items.
+        """
+        if not fragment:
+            return []
+        items: List[str] = []
+        for line in re.split(r"[\r\n]+", fragment):
+            line = line.strip()
+            if not line:
+                continue
+            # Strip common bullet markers
+            line = re.sub(r"^(?:[\-\*\u2022\u2023\u25CF\u25A0\u25E6\u2013\u2014]+|\(?\d+[\.)]|[A-Za-z][\.)])\s+", "", line)
+            cleaned = line.strip()
+            if cleaned:
+                items.append(cleaned)
+        return items
+
     def _from_str(s: str) -> None:
         # Capture content inside matching quotes
         # Handles multiple quoted segments, keeps inner text only
@@ -43,18 +63,36 @@ def extract_quoted_fragments(evidence: Any) -> Dict[str, List[str]]:
                     # Split on ellipses (ASCII ... or Unicode …) and contiguous sequences thereof
                     parts = re.split(r'(?:\.{3}|…)+', frag)
                     for p in parts:
-                        p = re.sub(r"\s+", " ", p).strip()
-                        if p:
-                            quoted.append(p)
+                        p_orig = p
+                        p_norm = re.sub(r"\s+", " ", p).strip()
+                        if p_norm:
+                            quoted.append(p_norm)
+                        # Also add individual bullet/line items derived from the original spacing
+                        for item in _expand_bulleted_and_lines(p_orig):
+                            item_norm = re.sub(r"\s+", " ", item).strip()
+                            if item_norm and item_norm != p_norm:
+                                quoted.append(item_norm)
             # Remove the quoted parts from the string to detect remaining unquoted
             s_wo = re.sub(r'"[^\"]+"|\'[^\']+\'', " ", s)
             residue = s_wo.strip()
             if residue:
-                unquoted.append(residue)
+                # Keep the whole residue
+                unquoted.append(re.sub(r"\s+", " ", residue))
+                # And add bullet/line-derived pieces
+                for item in _expand_bulleted_and_lines(residue):
+                    item_norm = re.sub(r"\s+", " ", item).strip()
+                    if item_norm:
+                        unquoted.append(item_norm)
         else:
             s = s.strip()
             if s:
-                unquoted.append(s)
+                # Keep the whole string
+                unquoted.append(re.sub(r"\s+", " ", s))
+                # And add bullet/line-derived pieces
+                for item in _expand_bulleted_and_lines(s):
+                    item_norm = re.sub(r"\s+", " ", item).strip()
+                    if item_norm:
+                        unquoted.append(item_norm)
 
     if isinstance(evidence, list):
         for item in evidence:
@@ -92,9 +130,13 @@ def find_exact_matches(text: str, phrase: str) -> List[Tuple[int, int]]:
     """
     if not phrase:
         return []
-    # Build a boundary-safe pattern. We escape the phrase and require non-word boundaries at ends.
-    # Use lookaround to avoid consuming boundary characters.
-    pattern = r"(?<!\w)" + re.escape(phrase) + r"(?!\w)"
+    # Normalize internal whitespace in the phrase and make it flexible in the pattern (\s+).
+    tokens = re.split(r"\s+", phrase.strip())
+    if not tokens:
+        return []
+    escaped_tokens = [re.escape(t) for t in tokens]
+    # Boundary-safe pattern using lookarounds; allow variable whitespace between tokens.
+    pattern = r"(?<!\w)" + r"\s+".join(escaped_tokens) + r"(?!\w)"
     matches: List[Tuple[int, int]] = []
     for m in re.finditer(pattern, text, flags=re.IGNORECASE):
         matches.append((m.start(), m.end()))

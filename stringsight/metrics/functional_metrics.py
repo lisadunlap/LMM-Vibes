@@ -227,8 +227,8 @@ class FunctionalMetrics(PipelineStage, LoggingMixin, TimingMixin):
         cluster_scores = self._compute_cluster_scores(df, cluster_names, model_names)
         model_scores = self._compute_model_scores(df, cluster_names, model_names)
 
-        # Add bootstrap analysis if enabled
-        if self.compute_bootstrap:
+        # Add bootstrap analysis if enabled and sample count > 0
+        if self.compute_bootstrap and self.bootstrap_samples > 0:
             self.log(f"Adding bootstrap confidence intervals with {self.bootstrap_samples} samples...")
             model_cluster_scores, cluster_scores, model_scores = self._add_bootstrap_analysis(
                 df, model_cluster_scores, cluster_scores, model_scores
