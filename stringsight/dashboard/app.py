@@ -155,13 +155,16 @@ def create_app() -> gr.Blocks:
     /* Round the tab buttons into pills with clear active state */
     .tabs .tab-nav button { border-radius:9999px !important; padding:6px 12px !important; }
     .tabs .tab-nav button.selected { background:#eef2ff !important; color:#3730a3 !important; }
-    /* Tone down color for model selection group (Gradio renders as pill labels) */
-    #selected-models label { background: #f8fafc !important; color: #111827 !important; border: 1px solid #e2e8f0 !important; }
-    #selected-models label:hover { background: #f1f5f9 !important; }
+    /* Tone down color for selection groups (sidebar + plots) rendered as pill labels */
+    #selected-models label, #plot-clusters label { background: #f8fafc !important; color: #111827 !important; border: 1px solid #e2e8f0 !important; }
+    #selected-models label:hover, #plot-clusters label:hover { background: #f1f5f9 !important; }
     #selected-models .selected, #selected-models [data-selected="true"],
     #selected-models label[aria-pressed="true"],
-    #selected-models label:has(input:checked) { background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #111827 !important; }
-    #selected-models input[type="checkbox"] { accent-color: #94a3b8 !important; }
+    #selected-models label:has(input:checked),
+    #plot-clusters .selected, #plot-clusters [data-selected="true"],
+    #plot-clusters label[aria-pressed="true"],
+    #plot-clusters label:has(input:checked) { background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #111827 !important; }
+    #selected-models input[type="checkbox"], #plot-clusters input[type="checkbox"] { accent-color: #94a3b8 !important; }
     /* Help panel card */
     #help-panel { margin: 8px 12px; padding: 12px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; }
     #help-panel .gr-prose, #help-panel .prose, #help-panel .markdown, #help-panel p, #help-panel div { background: #ffffff !important; }

@@ -10,7 +10,7 @@ from ..core.stage import PipelineStage
 
 def get_clusterer(
     method: str = "hdbscan",
-    min_cluster_size: int = 30,
+    min_cluster_size: int | None = None,
     embedding_model: str = "openai",
     hierarchical: bool = False,
     assign_outliers: bool = False,

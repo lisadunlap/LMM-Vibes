@@ -13,7 +13,7 @@ class ClusterConfig:
     into a lightweight module to avoid importing heavy dependencies at import time.
     """
     # Core clustering
-    min_cluster_size: int = 30
+    min_cluster_size: Optional[int] = None
     verbose: bool = True
     include_embeddings: bool = True
     context: Optional[str] = None
@@ -48,8 +48,8 @@ class ClusterConfig:
     wandb_run_name: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if self.min_samples is None:
-            self.min_samples = min(self.min_cluster_size, max(5, self.min_cluster_size // 2))
+        # Keep min_samples as provided (None means let HDBSCAN use its default = min_cluster_size)
+        pass
 
     @classmethod
     def from_args(cls, args: Any) -> "ClusterConfig":

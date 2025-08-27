@@ -36,6 +36,7 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         max_tokens: int = 16000,
         max_workers: int = 16,
         cache_dir: str = ".cache/stringsight",
+        include_scores_in_prompt: bool = True,
         **kwargs
     ):
         """
@@ -67,6 +68,8 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
         self.max_workers = max_workers
         # Keep cache instance for other potential uses, but LLM calls will go through llm_utils
         self.cache = LMDBCache(cache_dir=cache_dir)
+        # Control whether to include numeric scores/winner context in prompts
+        self.include_scores_in_prompt = include_scores_in_prompt
 
     def __del__(self):
         """Cleanup LMDB cache on deletion."""
@@ -229,16 +232,16 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                     f"# Model A (Name: \"{model_a}\") conversation:\n {response_a}"
                 ]
                 
-                if scores_a:
+                if self.include_scores_in_prompt and scores_a:
                     prompt_parts.append(f"# Model A Scores:\n {scores_a}")
                 
                 prompt_parts.append("--------------------------------")
                 prompt_parts.append(f"# Model B (Name: \"{model_b}\") conversation:\n {response_b}")
                 
-                if scores_b:
+                if self.include_scores_in_prompt and scores_b:
                     prompt_parts.append(f"# Model B Scores:\n {scores_b}")
                 
-                if winner:
+                if self.include_scores_in_prompt and winner:
                     prompt_parts.append(f"# Winner: {winner}")
                 
                 return "\n\n".join(prompt_parts)
@@ -263,14 +266,12 @@ class OpenAIExtractor(LoggingMixin, TimingMixin, ErrorHandlingMixin, WandbMixin,
                 )
             scores = conversation.scores
 
-            if not scores:
-                print("No scores found")
+            if not scores or not self.include_scores_in_prompt:
                 return response
-            else:
-                return (
-                    f"{response}\n\n"
-                    f"# Scores:\n {scores}"
-                )
+            return (
+                f"{response}\n\n"
+                f"# Scores:\n {scores}"
+            )
         else:
             raise ValueError(f"Invalid conversation format: {conversation}")
     

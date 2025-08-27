@@ -25,9 +25,10 @@ def explain(
     top_p: float = 0.95,
     max_tokens: int = 16000,
     max_workers: int = 16,
+    include_scores_in_prompt: bool = True,
     # Clustering parameters  
     clusterer: Union[str, "PipelineStage"] = "hdbscan",
-    min_cluster_size: int = 30,
+    min_cluster_size: int | None = None,
     embedding_model: str = "openai",
     prettify_labels: bool = False,
     hierarchical: bool = False,
@@ -263,6 +264,7 @@ def explain(
             top_p=top_p,
             max_tokens=max_tokens,
             max_workers=max_workers,
+            include_scores_in_prompt=include_scores_in_prompt,
             clusterer=clusterer,
             min_cluster_size=min_cluster_size,
             embedding_model=embedding_model,
@@ -379,6 +381,7 @@ def _build_default_pipeline(
     top_p: float,
     max_tokens: int,
     max_workers: int,
+    include_scores_in_prompt: bool,
     clusterer: Union[str, "PipelineStage"],
     min_cluster_size: int,
     embedding_model: str,
@@ -439,6 +442,7 @@ def _build_default_pipeline(
         'top_p': top_p,
         'max_tokens': max_tokens,
         'max_workers': max_workers,
+        'include_scores_in_prompt': include_scores_in_prompt,
         'output_dir': extraction_output,
         **common_config
     }

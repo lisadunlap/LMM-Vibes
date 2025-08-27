@@ -57,11 +57,14 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         .sum()
         .sort_values('proportion', ascending=False)
     )
+    all_available_clusters = cluster_freq['cluster'].tolist()
+    chosen_clusters: List[str] = []
     if selected_clusters:
         chosen_clusters = [c for c in selected_clusters if c in cluster_freq['cluster'].tolist()]
         model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(chosen_clusters)]
     else:
         default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
+        chosen_clusters = default_top
         model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(default_top)]
 
     # Decide whether to abbreviate property names based on word count
@@ -69,7 +72,24 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     unique_properties = sorted(model_cluster_df['cluster'].unique())
     should_abbreviate = any(len(str(prop).split()) > 6 for prop in unique_properties)
 
+    # Build display legend and status text
     mapping_text_parts: List[str] = []
+    is_showing_all = set(chosen_clusters) == set(all_available_clusters) and len(all_available_clusters) > 0
+    if is_showing_all:
+        status_text = (
+            f'<div style="background-color:#e7f3ff;border:1px solid #2f6fef;color:#1f4bd6;padding:8px 12px;border-radius:6px;font-weight:600;display:inline-block;margin-bottom:8px;">'
+            f'Cluster scope: All clusters ({len(all_available_clusters)}). '
+            f'<span style="font-weight:400">Tip: adjust selection in "Select properties to display" above.</span>'
+            f'</div>\n\n'
+        )
+    else:
+        status_text = (
+            f'<div style="background-color:#e7f3ff;border:1px solid #2f6fef;color:#1f4bd6;padding:8px 12px;border-radius:6px;font-weight:600;display:inline-block;margin-bottom:8px;">'
+            f'Cluster scope: Selected {len(chosen_clusters)} of {len(all_available_clusters)}. '
+            f'<span style="font-weight:400">Select other properties above.</span>'
+            f'</div>\n\n'
+        )
+    mapping_text_parts.append(status_text)
     if should_abbreviate:
         property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
         model_cluster_df['display_label'] = model_cluster_df['cluster'].map(property_mapping)
@@ -202,18 +222,38 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
         .sum()
         .sort_values('proportion', ascending=False)
     )
+    all_available_clusters = cluster_freq['cluster'].tolist()
+    chosen_clusters: List[str] = []
     if selected_clusters:
         chosen_clusters = [c for c in selected_clusters if c in cluster_freq['cluster'].tolist()]
         plot_df = plot_df[plot_df['cluster'].isin(chosen_clusters)]
     else:
         default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
+        chosen_clusters = default_top
         plot_df = plot_df[plot_df['cluster'].isin(default_top)]
 
     # Decide whether to abbreviate property names based on word count
     unique_properties = sorted(plot_df['cluster'].unique())
     should_abbreviate = any(len(str(prop).split()) > 6 for prop in unique_properties)
 
+    # Build display legend and status text
     mapping_text_parts: List[str] = []
+    is_showing_all = set(chosen_clusters) == set(all_available_clusters) and len(all_available_clusters) > 0
+    if is_showing_all:
+        status_text = (
+            f'<div style="background-color:#e7f3ff;border:1px solid #2f6fef;color:#1f4bd6;padding:8px 12px;border-radius:6px;font-weight:600;display:inline-block;margin-bottom:8px;">'
+            f'Cluster scope: All clusters ({len(all_available_clusters)}). '
+            f'<span style="font-weight:400">Tip: adjust selection in "Select properties to display" above.</span>'
+            f'</div>\n\n'
+        )
+    else:
+        status_text = (
+            f'<div style="background-color:#e7f3ff;border:1px solid #2f6fef;color:#1f4bd6;padding:8px 12px;border-radius:6px;font-weight:600;display:inline-block;margin-bottom:8px;">'
+            f'Cluster scope: Selected {len(chosen_clusters)} of {len(all_available_clusters)}. '
+            f'<span style="font-weight:400">Select other properties above.</span>'
+            f'</div>\n\n'
+        )
+    mapping_text_parts.append(status_text)
     if should_abbreviate:
         property_mapping = {prop: f"P{i+1}" for i, prop in enumerate(unique_properties)}
         plot_df['display_label'] = plot_df['cluster'].map(property_mapping)
@@ -358,7 +398,8 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
             choices=[],
             value=[],
             info="Defaults to the top 15 by frequency.",
-            show_label=False
+            show_label=False,
+            elem_id="plot-clusters"
         )
 
     # Plot controls in a row

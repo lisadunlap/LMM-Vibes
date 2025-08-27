@@ -37,7 +37,7 @@ class HDBSCANClusterer(BaseClusterer):
 
     def __init__(
         self,
-        min_cluster_size: int = 30,
+        min_cluster_size: int | None = None,
         embedding_model: str = "openai",
         hierarchical: bool = False,
         assign_outliers: bool = False,
@@ -157,7 +157,8 @@ class HDBSCANClusterer(BaseClusterer):
 
         # 1️⃣  Move tiny clusters to Outliers
         label_counts = df[fine_label_col].value_counts()
-        too_small_labels = label_counts[label_counts < int(getattr(self.config, "min_cluster_size", 1))].index
+        min_size_threshold = int((getattr(self.config, "min_cluster_size", 1) or 1))
+        too_small_labels = label_counts[label_counts < min_size_threshold].index
         for label in too_small_labels:
             mask = df[fine_label_col] == label
             cid = df.loc[mask, fine_id_col].iloc[0] if not df.loc[mask].empty else None

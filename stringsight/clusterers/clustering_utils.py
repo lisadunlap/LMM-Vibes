@@ -511,11 +511,9 @@ def save_clustered_results(df, base_filename, include_embeddings=True, config=No
         if df[col].dtype == 'object':
             # Preserve dictionary columns (like scores) - don't convert to string
             if col in score_columns:
-                print(f"DEBUG: Preserving score column '{col}' as dictionary")
                 # Keep as-is for JSON serialization - pandas.to_json can handle dicts
                 continue
             else:
-                print(f"DEBUG: Converting column '{col}' to string")
                 # Convert other object columns to strings for safety
                 df[col] = df[col].astype(str)
     

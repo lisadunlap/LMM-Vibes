@@ -359,21 +359,31 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
     # Step 2: Run HDBSCAN clustering
     if config.verbose:
         print("Starting HDBSCAN clustering...")
-        print(f"Parameters: min_cluster_size={config.min_cluster_size}, data_shape={embeddings.shape}")
 
-    # 🛡️ Guard against small datasets ------------------------------------
+    # Determine effective min_cluster_size (autoset if None)
     n_points = embeddings.shape[0]
-    if n_points < config.min_cluster_size:
+    if getattr(config, 'min_cluster_size', None) is None:
+        # Autoset per rule: 1% if <500, else 0.5%; apply small floor
+        pct = 0.01 if n_points < 500 else 0.005
+        effective_min_cluster_size = max(3, int(np.ceil(pct * max(1, n_points))))
+    else:
+        effective_min_cluster_size = int(config.min_cluster_size)
+
+    if config.verbose:
+        print(f"Parameters: min_cluster_size={effective_min_cluster_size}, data_shape={embeddings.shape}")
+        
+    # 🛡️ Guard against small datasets ------------------------------------
+    if n_points <= effective_min_cluster_size:
         if config.verbose:
             print(
-                f"Number of points ({n_points}) is less than min_cluster_size "
-                f"({config.min_cluster_size}). Assigning all items to outliers (-1)."
+                f"Number of points ({n_points}) is less than or equal to min_cluster_size "
+                f"({effective_min_cluster_size}). Assigning all items to outliers (-1)."
             )
         cluster_labels = np.full(n_points, -1, dtype=int)
         clusterer = None
     else:
         clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=config.min_cluster_size,
+            min_cluster_size=effective_min_cluster_size,
             min_samples=config.min_samples,
             metric='euclidean',
             cluster_selection_method='eom',
@@ -441,7 +451,7 @@ def hdbscan_cluster_categories(df, column_name, config=None, **kwargs) -> pd.Dat
         # Generate outlier cluster summaries
         outlier_cluster_names = generate_coarse_labels(
             outlier_items,
-            max_coarse_clusters=len(outlier_items) // config.min_cluster_size,
+            max_coarse_clusters=len(outlier_items) // max(1, effective_min_cluster_size),
             systems_prompt=outlier_clustering_systems_prompt,
             model=config.summary_model,
             verbose=config.verbose,

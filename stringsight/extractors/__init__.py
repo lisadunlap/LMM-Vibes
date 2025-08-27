@@ -16,6 +16,7 @@ def get_extractor(
     top_p: float = 0.95,
     max_tokens: int = 16000,
     max_workers: int = 16,
+    include_scores_in_prompt: bool = True,
     **kwargs
 ) -> PipelineStage:
     """
@@ -45,6 +46,7 @@ def get_extractor(
             top_p=top_p,
             max_tokens=max_tokens,
             max_workers=max_workers,
+            include_scores_in_prompt=include_scores_in_prompt,
             **kwargs
         )
     else:

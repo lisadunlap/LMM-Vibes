@@ -6,6 +6,7 @@ including interactive bar charts and heatmaps with confidence intervals, organiz
 """
 
 import json
+import re
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -23,6 +24,17 @@ import wandb
 pio.templates.default = "plotly_white"
 warnings.filterwarnings('ignore')
 
+
+def _safe_filename(text: str) -> str:
+    """Create a filesystem-safe filename fragment from arbitrary metric names.
+    Replaces non-alphanumeric characters (including spaces and slashes) with underscores.
+    Collapses consecutive underscores and trims edge underscores.
+    """
+    # Replace any sequence of characters that is not A-Z, a-z, 0-9, dot, dash, or underscore
+    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", text)
+    # Collapse multiple underscores
+    sanitized = re.sub(r"_+", "_", sanitized)
+    return sanitized.strip("_")
 
 def create_model_cluster_dataframe(model_cluster_scores: Dict[str, Any]) -> pd.DataFrame:
     """Convert model-cluster scores to a tidy dataframe."""
@@ -662,6 +674,7 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
     
     # Cluster quality scores (average across all models for each quality metric)
     for metric in quality_metrics:
+        safe_metric = _safe_filename(metric)
         quality_col = f'quality_{metric}'
         if quality_col in cluster_df.columns:
             ci_lower = f'{quality_col}_ci_lower' if f'{quality_col}_ci_lower' in cluster_df.columns else None
@@ -671,11 +684,12 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
                 cluster_df, model_cluster_df, quality_col, f'Average Quality {metric.title()} per Cluster',
                 ci_lower_col=ci_lower, ci_upper_col=ci_upper
             )
-            save_plotly_figure(fig, output_dir / f'per_cluster_quality_{metric}',
+            save_plotly_figure(fig, output_dir / f'per_cluster_quality_{safe_metric}',
                               wandb_key=f'Plots/per_cluster/quality_{metric}' if log_to_wandb else None)
     
     # Cluster quality delta scores (how each cluster compares to overall average)
     for metric in quality_metrics:
+        safe_metric = _safe_filename(metric)
         quality_delta_col = f'quality_delta_{metric}'
         if quality_delta_col in cluster_df.columns:
             ci_lower = f'{quality_delta_col}_ci_lower' if f'{quality_delta_col}_ci_lower' in cluster_df.columns else None
@@ -686,7 +700,7 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
                 cluster_df, model_cluster_df, quality_delta_col, f'Quality Delta {metric.title()} per Cluster',
                 ci_lower_col=ci_lower, ci_upper_col=ci_upper, significant_col=significant_col
             )
-            save_plotly_figure(fig, output_dir / f'per_cluster_quality_delta_{metric}',
+            save_plotly_figure(fig, output_dir / f'per_cluster_quality_delta_{safe_metric}',
                               wandb_key=f'Plots/per_cluster/quality_delta_{metric}' if log_to_wandb else None)
     
     # =============================================================================
@@ -696,13 +710,14 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
     
     # Model quality scores (for each quality metric)  
     for metric in quality_metrics:
+        safe_metric = _safe_filename(metric)
         quality_col = f'quality_{metric}'
         if quality_col in model_df.columns:
             # Don't include confidence intervals for quality metrics
             fig = create_interactive_model_plot(
                 model_df, model_cluster_df, quality_col, f'Quality {metric.title()} by Model'
             )
-            save_plotly_figure(fig, output_dir / f'per_model_quality_{metric}',
+            save_plotly_figure(fig, output_dir / f'per_model_quality_{safe_metric}',
                               wandb_key=f'Plots/per_model/quality_{metric}' if log_to_wandb else None)
     
     # =============================================================================
@@ -724,6 +739,7 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
     
     # Quality across clusters per model (for each quality metric)
     for metric in quality_metrics:
+        safe_metric = _safe_filename(metric)
         quality_col = f'quality_{metric}'
         if quality_col in model_cluster_df.columns:
             ci_lower = f'{quality_col}_ci_lower' if f'{quality_col}_ci_lower' in model_cluster_df.columns else None
@@ -733,7 +749,7 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
                 model_cluster_df, quality_col, f'Quality {metric.title()} across Clusters per Model',
                 ci_lower_col=ci_lower, ci_upper_col=ci_upper
             )
-            save_plotly_figure(fig, output_dir / f'per_model_cluster_quality_{metric}',
+            save_plotly_figure(fig, output_dir / f'per_model_cluster_quality_{safe_metric}',
                               wandb_key=f'Plots/per_model_cluster/quality_{metric}' if log_to_wandb else None)
     
     # Proportion delta (salience) across clusters per model
@@ -775,12 +791,13 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
     
     # Quality heatmaps
     for metric in quality_metrics:
+        safe_metric = _safe_filename(metric)
         quality_col = f'quality_{metric}'
         if quality_col in model_cluster_df.columns:
             fig = create_interactive_heatmap(
                 model_cluster_df, quality_col, f'Quality: {metric.title()}'
             )
-            save_plotly_figure(fig, output_dir / f'model_cluster_quality_{metric}_heatmap',
+            save_plotly_figure(fig, output_dir / f'model_cluster_quality_{safe_metric}_heatmap',
                               wandb_key=f'Plots/heatmaps/quality_{metric}' if log_to_wandb else None)
         
         quality_delta_col = f'quality_delta_{metric}'
@@ -790,7 +807,7 @@ def generate_all_plots(model_cluster_scores: Dict[str, Any], cluster_scores: Dic
                 model_cluster_df, quality_delta_col, f'Quality Delta: {metric.title()}',
                 significant_col=significant_col
             )
-            save_plotly_figure(fig, output_dir / f'model_cluster_quality_delta_{metric}_heatmap',
+            save_plotly_figure(fig, output_dir / f'model_cluster_quality_delta_{safe_metric}_heatmap',
                               wandb_key=f'Plots/heatmaps/quality_delta_{metric}' if log_to_wandb else None)
     
     return len(quality_metrics) 
