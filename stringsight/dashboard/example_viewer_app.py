@@ -204,23 +204,22 @@ def create_app() -> gr.Blocks:
                 model_filter = gr.CheckboxGroup(label="Filter by model (optional)", choices=[], value=[])
                 select_all_models_btn = gr.Button("Select All Models")
 
-        with gr.Tabs():
-            with gr.TabItem("Overview"):
-                with gr.Row():
-                    view_toggle = gr.Radio(choices=["Plot", "Table"], value="Plot", label="View type")
-                overview_plot = gr.Plot(visible=True)
-                overview_table = gr.Dataframe(visible=False, wrap=True)
-                overview_html = gr.HTML(visible=True)
+        # Overview section (no tabs)
+        overview_html = gr.HTML(visible=True)
+        with gr.Row():
+            view_toggle = gr.Radio(choices=["Plot", "Table"], value="Plot", label="Benchmark view")
+        overview_plot = gr.Plot(visible=False)
+        overview_table = gr.Dataframe(visible=False, wrap=True)
 
-            with gr.TabItem("Examples"):
-                with gr.Row():
-                    max_examples = gr.Slider(minimum=1, maximum=200, step=1, value=20, label="Max examples")
-                    search_tb = gr.Textbox(label="Search", placeholder="Filter by text in prompt/response")
-                with gr.Accordion("Score filter (optional)", open=False):
-                    with gr.Row():
-                        score_metric_dd = gr.Dropdown(label="Metric/column", choices=["— None —"], value="— None —")
-                        score_values_cg = gr.CheckboxGroup(label="Allowed values", choices=[], value=[])
-                examples_html = gr.HTML(value="<p style='color:#666;padding:8px;'>Load data to view examples</p>")
+        # Examples section
+        with gr.Row():
+            max_examples = gr.Slider(minimum=1, maximum=200, step=1, value=20, label="Max examples")
+            search_tb = gr.Textbox(label="Search", placeholder="Filter by text in prompt/response")
+        with gr.Accordion("Score filter (optional)", open=False):
+            with gr.Row():
+                score_metric_dd = gr.Dropdown(label="Metric/column", choices=["— None —"], value="— None —")
+                score_values_cg = gr.CheckboxGroup(label="Allowed values", choices=[], value=[])
+        examples_html = gr.HTML(value="<p style='color:#666;padding:8px;'>Load data to view examples</p>")
 
         # Handlers
         NONE_OPTION = "— None —"

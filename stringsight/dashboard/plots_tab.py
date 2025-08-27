@@ -418,7 +418,47 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
             x=0
         )
     )
-    
+
+    # Add per-model horizontal baseline lines (mean quality across all clusters pre-significance filtering)
+    try:
+        baseline_df = model_cluster_df.copy()
+        # Apply model and tag filters to baseline like the main plot did
+        if selected_models:
+            concrete_models = [m for m in selected_models if m != "all"]
+            if concrete_models:
+                baseline_df = baseline_df[baseline_df["model"].isin(concrete_models)]
+        if selected_tags:
+            metrics = app_state.get("metrics", {})
+            cluster_scores = metrics.get("cluster_scores", {})
+            def _first_allowed(meta_obj: Any) -> Any:
+                return extract_allowed_tag(meta_obj)
+            allowed = set(map(str, selected_tags))
+            allowed_clusters = {c for c, d in cluster_scores.items() if str(_first_allowed(d.get("metadata"))) in allowed}
+            if allowed_clusters:
+                baseline_df = baseline_df[baseline_df['cluster'].isin(allowed_clusters)]
+        baseline_df = baseline_df[baseline_df['cluster'] != "No properties"]
+        if quality_col in baseline_df.columns:
+            baseline_df[quality_col] = pd.to_numeric(baseline_df[quality_col], errors='coerce')
+            categories = property_order
+            model_to_color: dict[str, Any] = {}
+            for tr in fig.data:
+                if hasattr(tr, 'name') and tr.name and hasattr(tr, 'marker') and getattr(tr.marker, 'color', None):
+                    model_to_color[str(tr.name)] = tr.marker.color
+            mean_quality = baseline_df.groupby('model')[quality_col].mean()
+            for model_name, yval in mean_quality.items():
+                color = model_to_color.get(str(model_name), 'rgba(100,100,100,0.6)')
+                fig.add_trace(go.Scatter(
+                    x=categories,
+                    y=[yval] * len(categories),
+                    mode='lines',
+                    name=f"avg {model_name}",
+                    line=dict(color=color, width=3),
+                    hovertemplate=f"{model_name} avg {quality_metric}: %{{y:.3f}}<extra></extra>",
+                    showlegend=True
+                ))
+    except Exception:
+        pass
+
     # save figure to file
     fig.write_html(f"model_cluster_quality_{quality_metric}_plot.html")
     
