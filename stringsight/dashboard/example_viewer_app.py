@@ -209,6 +209,8 @@ def create_app() -> gr.Blocks:
             with gr.Row(visible=False) as sxs_row2:
                 score_dict_a_dd = gr.Dropdown(label="Score A dict column (optional)", choices=[], value=None)
                 score_dict_b_dd = gr.Dropdown(label="Score B dict column (optional)", choices=[], value=None)
+            sxs_metrics_md = gr.Markdown(visible=False, value="")
+            columns_md = gr.Markdown(visible=True, value="")
             with gr.Row():
                 model_filter = gr.CheckboxGroup(label="Filter by model (optional)", choices=[], value=[])
                 select_all_models_btn = gr.Button("Select All Models")
@@ -233,7 +235,7 @@ def create_app() -> gr.Blocks:
         # Handlers
         NONE_OPTION = "— None —"
 
-        def _on_load(path: str) -> Tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any]:
+        def _on_load(path: str) -> Tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any]:
             try:
                 df, warns = _read_input_file(path)
             except Exception as e:
@@ -278,6 +280,36 @@ def create_app() -> gr.Blocks:
             guess_score_a = 'score_a' if 'score_a' in cols else None
             guess_score_b = 'score_b' if 'score_b' in cols else None
 
+            # Detect metric keys for SxS info display
+            def _extract_keys_from_series(series):
+                keys = set()
+                for val in series:
+                    src = None
+                    if isinstance(val, dict):
+                        src = val
+                    elif isinstance(val, str):
+                        try:
+                            src = json.loads(val)
+                        except Exception:
+                            try:
+                                src = ast.literal_eval(val)
+                            except Exception:
+                                src = None
+                    if isinstance(src, dict):
+                        keys.update(list(src.keys()))
+                return sorted(keys)
+            sxs_keys: List[str] = []
+            try:
+                if 'score_a' in cols:
+                    sxs_keys.extend(_extract_keys_from_series(df['score_a']))
+                if 'score_b' in cols:
+                    sxs_keys.extend(_extract_keys_from_series(df['score_b']))
+            except Exception:
+                pass
+            sxs_keys = sorted(list(dict.fromkeys(sxs_keys)))
+            sxs_metrics_text = ("Detected SxS metrics: " + ", ".join(sxs_keys)) if sxs_keys else "Detected SxS metrics: none"
+            columns_text = "**Available columns**: " + ", ".join(cols)
+
             # Build sample raw row JSON
             try:
                 first_row_json = json.dumps(df.iloc[0].to_dict(), ensure_ascii=False, indent=2, default=str)
@@ -295,12 +327,20 @@ def create_app() -> gr.Blocks:
                 gr.update(choices=cols, value=[]),
                 gr.update(choices=[], value=[]),
                 gr.update(value=first_row_json),
+                gr.update(choices=cols, value=guess_resp_a),
+                gr.update(choices=cols, value=guess_resp_b),
+                gr.update(choices=[None] + cols, value=guess_model_a),
+                gr.update(choices=[None] + cols, value=guess_model_b),
+                gr.update(choices=[NONE_OPTION] + cols, value=(guess_score_a if guess_score_a else NONE_OPTION)),
+                gr.update(choices=[NONE_OPTION] + cols, value=(guess_score_b if guess_score_b else NONE_OPTION)),
+                gr.update(value=sxs_metrics_text),
+                gr.update(value=columns_text),
             )
 
         load_btn.click(
             _on_load,
             inputs=[file_path_tb],
-            outputs=[status_md, df_state, data_mode_dd, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, sample_row_code],
+            outputs=[status_md, df_state, data_mode_dd, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, sample_row_code, resp_a_col_dd, resp_b_col_dd, model_a_col_dd, model_b_col_dd, score_dict_a_dd, score_dict_b_dd, sxs_metrics_md, columns_md],
         )
 
         # Toggle side-by-side mapping visibility
@@ -310,12 +350,15 @@ def create_app() -> gr.Blocks:
                 gr.update(visible=not is_sxs),  # single response
                 gr.update(visible=is_sxs),      # sxs_row1
                 gr.update(visible=is_sxs),      # sxs_row2
+                gr.update(visible=not is_sxs),  # score_dict_col_dd
+                gr.update(visible=not is_sxs),  # score_cols_cg
+                gr.update(visible=is_sxs),      # sxs_metrics_md
             )
 
         data_mode_dd.change(
             _toggle_mode,
             inputs=[data_mode_dd],
-            outputs=[response_col_dd, sxs_row1, sxs_row2],
+            outputs=[response_col_dd, sxs_row1, sxs_row2, score_dict_col_dd, score_cols_cg, sxs_metrics_md],
         )
 
         def _build_prompt_stats_card(df_in: pd.DataFrame, prompt_col: Optional[str], model_col: Optional[str], selected_models: List[str]) -> str:
@@ -366,15 +409,22 @@ def create_app() -> gr.Blocks:
 """
             return card
 
-        def _update_overview(df: Any, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str], view: str, selected_models: List[str], data_mode: str) -> Tuple[Any, Any, Any, Any]:
+        def _update_overview(df: Any, prompt_col: str, response_col: str, model_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str], view: str, selected_models: List[str], data_mode: str, resp_a_col: Optional[str], resp_b_col: Optional[str]) -> Tuple[Any, Any, Any, Any]:
             if df is None:
                 return gr.update(), gr.update(), gr.update(value="<p style='color:#666;padding:8px;'>No data loaded.</p>"), gr.update(visible=False)
 
             # Validation
             missing: List[str] = []
-            for c, name in [(prompt_col, "prompt"), (response_col, "response")]:
-                if not c or c not in df.columns:
-                    missing.append(name)
+            # Always need prompt
+            if not prompt_col or prompt_col not in df.columns:
+                missing.append("prompt")
+            # Require appropriate response fields based on mode
+            if data_mode == "Single":
+                if not response_col or response_col not in df.columns:
+                    missing.append("response")
+            else:
+                if (not resp_a_col or resp_a_col not in df.columns) or (not resp_b_col or resp_b_col not in df.columns):
+                    missing.append("response_a/response_b")
             if missing:
                 return gr.update(), gr.update(), gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column(s): {', '.join(missing)}</p>"), gr.update(visible=False)
 
@@ -480,10 +530,10 @@ def create_app() -> gr.Blocks:
                     tbl = tidy_metrics.pivot(index='model', columns='metric', values='value').reset_index().rename_axis(None, axis=1)
                 return gr.update(visible=False), gr.update(value=tbl, visible=True), gr.update(value=html, visible=True), gr.update(visible=True)
 
-        for comp in [view_toggle, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, data_mode_dd]:
+        for comp in [view_toggle, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, model_filter, data_mode_dd, resp_a_col_dd, resp_b_col_dd]:
             comp.change(
                 _update_overview,
-                inputs=[df_state, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, view_toggle, model_filter, data_mode_dd],
+                inputs=[df_state, prompt_col_dd, response_col_dd, model_col_dd, score_dict_col_dd, score_cols_cg, view_toggle, model_filter, data_mode_dd, resp_a_col_dd, resp_b_col_dd],
                 outputs=[overview_plot, overview_table, overview_html, view_toggle],
             )
 
@@ -556,9 +606,16 @@ def create_app() -> gr.Blocks:
         def _render_examples(df: Any, prompt_col: str, response_col: str, score_dict_col: Optional[str], score_cols: List[str], search: str, limit: int, model_col: Optional[str], selected_models: List[str], filter_metric: Optional[str], filter_values: List[str], data_mode: str, resp_a_col: Optional[str], resp_b_col: Optional[str], model_a_col: Optional[str], model_b_col: Optional[str], score_a_col: Optional[str], score_b_col: Optional[str]) -> Any:
             if df is None:
                 return gr.update(value="<p style='color:#666;padding:8px;'>No data loaded.</p>")
-            for c, name in [(prompt_col, "prompt"), (response_col, "response")]:
-                if not c or c not in df.columns:
-                    return gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column: {name}</p>")
+            # Validate prompt
+            if not prompt_col or prompt_col not in df.columns:
+                return gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column: prompt</p>")
+            # Validate responses depending on mode
+            if data_mode == "Single":
+                if not response_col or response_col not in df.columns:
+                    return gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required column: response</p>")
+            else:
+                if (not resp_a_col or resp_a_col not in df.columns) or (not resp_b_col or resp_b_col not in df.columns):
+                    return gr.update(value=f"<p style='color:#e74c3c;padding:8px;'>Missing required columns: response_a/response_b</p>")
 
             work = df
             # Apply model filter
@@ -642,9 +699,9 @@ def create_app() -> gr.Blocks:
         )
 
         # Populate score filter metric and values
-        def _populate_score_filter(df: Any, model_col: Optional[str], selected_models: List[str], search: str, prompt_col: Optional[str], response_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str]) -> Tuple[Any, Any]:
+        def _populate_score_filter(df: Any, model_col: Optional[str], selected_models: List[str], search: str, prompt_col: Optional[str], response_col: Optional[str], score_dict_col: Optional[str], score_cols: List[str]) -> Tuple[Any, Any, Any]:
             if df is None:
-                return gr.update(choices=[NONE_OPTION], value=NONE_OPTION), gr.update(choices=[], value=[])
+                return gr.update(choices=[NONE_OPTION], value=NONE_OPTION), gr.update(choices=[], value=[]), gr.update(visible=False)
             work = df
             if model_col and model_col in work.columns and selected_models:
                 work = work[work[model_col].isin(selected_models)]
@@ -698,17 +755,20 @@ def create_app() -> gr.Blocks:
                     if col in work.columns:
                         keys.update([k for sub in work[col].apply(_extract_keys_from).tolist() for k in sub])
                 metrics_choices = list(dict.fromkeys([NONE_OPTION] + sorted(keys)))
-            # Toggle score filter accordion visibility
+            # Toggle score filter accordion visibility via output
             has_metrics = len([m for m in metrics_choices if m != NONE_OPTION]) > 0
-            score_filter_acc.update(visible=has_metrics)
-            return gr.update(choices=metrics_choices, value=(metrics_choices[0] if metrics_choices else NONE_OPTION)), gr.update(choices=values_choices, value=[])
+            return (
+                gr.update(choices=metrics_choices, value=(metrics_choices[0] if metrics_choices else NONE_OPTION)),
+                gr.update(choices=values_choices, value=[]),
+                gr.update(visible=has_metrics),
+            )
 
         # Update metric choices when columns or filters change
-        for comp in [score_dict_col_dd, score_cols_cg, model_filter, search_tb, prompt_col_dd, response_col_dd]:
+        for comp in [score_dict_col_dd, score_cols_cg, model_filter, search_tb, prompt_col_dd, response_col_dd, data_mode_dd]:
             comp.change(
                 _populate_score_filter,
                 inputs=[df_state, model_col_dd, model_filter, search_tb, prompt_col_dd, response_col_dd, score_dict_col_dd, score_cols_cg],
-                outputs=[score_metric_dd, score_values_cg],
+                outputs=[score_metric_dd, score_values_cg, score_filter_acc],
             )
 
         # Update value choices when metric changes
