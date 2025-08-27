@@ -14,7 +14,7 @@ from .state import app_state
 from .utils import extract_allowed_tag, ALLOWED_TAGS
 
 
-def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None, sort_by: str = "salience_desc", significance_filter: bool = False, top_n: int = 15) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of proportion by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -40,6 +40,9 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     # Filter out "No properties" clusters
     model_cluster_df = model_cluster_df[model_cluster_df['cluster'] != "No properties"]
 
+    # Keep a baseline copy (post model/tags filtering, pre significance/cluster selection)
+    baseline_df = model_cluster_df.copy()
+
     # Optional: filter clusters by selected tags using metrics.cluster_scores metadata
     if selected_tags:
         metrics = app_state.get("metrics", {})
@@ -51,19 +54,50 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         if allowed_clusters:
             model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(allowed_clusters)]
 
-    # Determine which clusters to include: user-selected or default top 15 by aggregated frequency
-    cluster_freq = (
-        model_cluster_df.groupby('cluster', as_index=False)['proportion']
-        .sum()
-        .sort_values('proportion', ascending=False)
-    )
-    all_available_clusters = cluster_freq['cluster'].tolist()
+    # Optional: apply significance filter (frequency mode uses proportion_delta_significant)
+    if significance_filter and 'proportion_delta_significant' in model_cluster_df.columns:
+        sig_by_cluster = model_cluster_df.groupby('cluster')['proportion_delta_significant'].any()
+        allowed_sig = set(sig_by_cluster[sig_by_cluster].index.tolist())
+        if allowed_sig:
+            model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(allowed_sig)]
+
+    # Determine which clusters to include: user-selected or Top N by chosen sort
+    if model_cluster_df.empty:
+        return None, "No clusters available after filters."
+
+    # Compute cluster scores according to sort_by
+    if sort_by.startswith('frequency_'):
+        scores = model_cluster_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+        ascending = sort_by.endswith('_asc')
+    elif sort_by.startswith('salience_'):
+        if 'proportion_delta' in model_cluster_df.columns:
+            if sort_by.endswith('_desc'):
+                scores = model_cluster_df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+                ascending = False
+            else:
+                scores = model_cluster_df.groupby('cluster')['proportion_delta'].min().rename('score').reset_index()
+                ascending = True
+        else:
+            scores = model_cluster_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+            ascending = False
+    else:
+        # default to salience_desc
+        if 'proportion_delta' in model_cluster_df.columns:
+            scores = model_cluster_df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+        else:
+            scores = model_cluster_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+        ascending = False
+
+    scores = scores.sort_values(['score', 'cluster'], ascending=[ascending, True])
+    ranked_clusters = scores['cluster'].tolist()
+
+    all_available_clusters = ranked_clusters
     chosen_clusters: List[str] = []
     if selected_clusters:
-        chosen_clusters = [c for c in selected_clusters if c in cluster_freq['cluster'].tolist()]
+        chosen_clusters = [c for c in selected_clusters if c in ranked_clusters]
         model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(chosen_clusters)]
     else:
-        default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
+        default_top = ranked_clusters[: max(1, int(top_n))]
         chosen_clusters = default_top
         model_cluster_df = model_cluster_df[model_cluster_df['cluster'].isin(default_top)]
 
@@ -144,6 +178,28 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
         )
     )
     
+    # Add per-model horizontal baseline lines (mean proportion across all clusters)
+    try:
+        categories = property_order
+        model_to_color: dict[str, Any] = {}
+        for tr in fig.data:
+            if hasattr(tr, 'name') and tr.name and hasattr(tr, 'marker') and getattr(tr.marker, 'color', None):
+                model_to_color[str(tr.name)] = tr.marker.color
+        mean_prop = baseline_df.groupby('model')['proportion'].mean()
+        for model_name, yval in mean_prop.items():
+            color = model_to_color.get(str(model_name), 'rgba(100,100,100,0.6)')
+            fig.add_trace(go.Scatter(
+                x=categories,
+                y=[yval] * len(categories),
+                mode='lines',
+                name=f"avg {model_name}",
+                line=dict(color=color, width=3),
+                hovertemplate=f"{model_name} avg proportion: %{{y:.3f}}<extra></extra>",
+                showlegend=True
+            ))
+    except Exception:
+        pass
+
     # save figure to file
     fig.write_html("model_cluster_proportion_plot.html")
     
@@ -164,7 +220,7 @@ def create_proportion_plot(selected_clusters: Optional[List[str]] = None, show_c
     return fig, mapping_text
 
 
-def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None, sort_by: str = "quality_delta_desc", significance_filter: bool = False, top_n: int = 15) -> Tuple[go.Figure, str]:
     """Create a grouped bar plot of quality by property and model."""
     if app_state.get("model_cluster_df") is None:
         return None, "No model cluster data loaded. Please load data first."
@@ -215,20 +271,73 @@ def create_quality_plot(quality_metric: str = "helpfulness", selected_clusters: 
     # Filter out "No properties" clusters
     plot_df = plot_df[plot_df['cluster'] != "No properties"]
 
-    # Determine which clusters to include: user-selected or default top 15 by aggregated frequency
-    cluster_freq = (
-        plot_df[plot_df['cluster'] != "No properties"]
-        .groupby('cluster', as_index=False)['proportion']
-        .sum()
-        .sort_values('proportion', ascending=False)
-    )
-    all_available_clusters = cluster_freq['cluster'].tolist()
+    # Optional: apply significance filter (quality plot uses quality_delta_{metric}_significant when available)
+    if significance_filter:
+        metric_flag_col = f"quality_delta_{quality_metric}_significant"
+        if metric_flag_col in plot_df.columns:
+            sig_by_cluster = plot_df.groupby('cluster')[metric_flag_col].any()
+        else:
+            sig_cols = [c for c in plot_df.columns if c.startswith('quality_delta_') and c.endswith('_significant')]
+            sig_by_cluster = plot_df.groupby('cluster')[sig_cols].any().any(axis=1) if sig_cols else None
+        if sig_by_cluster is not None:
+            allowed_sig = set(sig_by_cluster[sig_by_cluster].index.tolist())
+            if allowed_sig:
+                plot_df = plot_df[plot_df['cluster'].isin(allowed_sig)]
+
+    # Determine which clusters to include: user-selected or Top N by chosen sort
+    if plot_df.empty:
+        return None, "No clusters available after filters."
+
+    # Compute cluster scores according to sort_by
+    if sort_by.startswith('quality_delta'):
+        qd_col = f"quality_delta_{quality_metric}"
+        if qd_col in plot_df.columns:
+            if sort_by.endswith('_desc'):
+                scores = plot_df.groupby('cluster')[qd_col].max().rename('score').reset_index()
+                ascending = False
+            else:
+                scores = plot_df.groupby('cluster')[qd_col].min().rename('score').reset_index()
+                ascending = True
+        else:
+            # Fallback to relative frequency delta then frequency
+            if 'proportion_delta' in plot_df.columns:
+                scores = plot_df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+                ascending = False
+            else:
+                scores = plot_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+                ascending = False
+    elif sort_by.startswith('quality_'):
+        if sort_by.endswith('_desc'):
+            scores = plot_df.groupby('cluster')[quality_col].max().rename('score').reset_index()
+            ascending = False
+        else:
+            scores = plot_df.groupby('cluster')[quality_col].min().rename('score').reset_index()
+            ascending = True
+    elif sort_by.startswith('salience_'):
+        if 'proportion_delta' in plot_df.columns:
+            if sort_by.endswith('_desc'):
+                scores = plot_df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+                ascending = False
+            else:
+                scores = plot_df.groupby('cluster')['proportion_delta'].min().rename('score').reset_index()
+                ascending = True
+        else:
+            scores = plot_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+            ascending = False
+    else:
+        scores = plot_df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+        ascending = False
+
+    scores = scores.sort_values(['score', 'cluster'], ascending=[ascending, True])
+    ranked_clusters = scores['cluster'].tolist()
+
+    all_available_clusters = ranked_clusters
     chosen_clusters: List[str] = []
     if selected_clusters:
-        chosen_clusters = [c for c in selected_clusters if c in cluster_freq['cluster'].tolist()]
+        chosen_clusters = [c for c in selected_clusters if c in ranked_clusters]
         plot_df = plot_df[plot_df['cluster'].isin(chosen_clusters)]
     else:
-        default_top = cluster_freq['cluster'].head(15).tolist() if len(cluster_freq) > 15 else cluster_freq['cluster'].tolist()
+        default_top = ranked_clusters[: max(1, int(top_n))]
         chosen_clusters = default_top
         plot_df = plot_df[plot_df['cluster'].isin(default_top)]
 
@@ -379,27 +488,56 @@ def update_quality_metric_visibility(plot_type: str) -> gr.Dropdown:
     return gr.update(choices=[], value=None, visible=False)
 
 
-def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Tuple[go.Figure, str]:
+def update_plots_sort_choices(plot_type: str) -> gr.Dropdown:
+    """Update the Sort By dropdown choices based on plot type (quality vs frequency)."""
+    if plot_type == "quality":
+        choices = [
+            ("Quality (Descending)", "quality_desc"),
+            ("Quality (Ascending)", "quality_asc"),
+            ("Quality Delta Δ (Descending)", "quality_delta_desc"),
+            ("Quality Delta Δ (Ascending)", "quality_delta_asc"),
+        ]
+        return gr.update(choices=choices, value="quality_delta_desc")
+    # Frequency mode
+    choices = [
+        ("Relative Frequency (Descending)", "salience_desc"),
+        ("Relative Frequency (Ascending)", "salience_asc"),
+        ("Frequency (Descending)", "frequency_desc"),
+        ("Frequency (Ascending)", "frequency_asc"),
+    ]
+    return gr.update(choices=choices, value="salience_desc")
+
+
+def update_significance_checkbox_label(plot_type: str) -> gr.Checkbox:
+    """Update the significance checkbox label based on plot type."""
+    if plot_type == "quality":
+        return gr.update(label="Filter by Quality Significance")
+    return gr.update(label="Filter by Frequency Significance")
+
+
+def create_plot_with_toggle(plot_type: str, quality_metric: str = "helpfulness", selected_clusters: Optional[List[str]] = None, show_ci: bool = False, selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None, sort_by: str = "salience_desc", significance_filter: bool = False, top_n: int = 15) -> Tuple[go.Figure, str]:
     """Create a plot based on the selected type (frequency or quality)."""
     if plot_type == "frequency":
-        return create_proportion_plot(selected_clusters, show_ci, selected_models, selected_tags)
+        return create_proportion_plot(selected_clusters, show_ci, selected_models, selected_tags, sort_by=sort_by, significance_filter=significance_filter, top_n=top_n)
     elif plot_type == "quality":
-        return create_quality_plot(quality_metric, selected_clusters, show_ci, selected_models, selected_tags)
+        return create_quality_plot(quality_metric, selected_clusters, show_ci, selected_models, selected_tags, sort_by=sort_by, significance_filter=significance_filter, top_n=top_n)
     else:
         return None, f"Unknown plot type: {plot_type}"
 
 
-def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, gr.Dropdown, gr.CheckboxGroup]:
+def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, gr.Dropdown, gr.CheckboxGroup, gr.Checkbox, gr.Dropdown, gr.Slider]:
     """Create the plots tab interface with a toggle between frequency and quality plots."""
-    # Accordion at the top for selecting specific properties
-    with gr.Accordion("Select properties to display", open=False):
-        cluster_selector = gr.CheckboxGroup(
-            label="Select Clusters (Properties)",
-            choices=[],
-            value=[],
-            info="Defaults to the top 15 by frequency.",
-            show_label=False,
-            elem_id="plot-clusters"
+    # Help accordion at the top explaining plot metrics
+    with gr.Accordion("What are these metrics?", open=False):
+        gr.Markdown(
+            """
+            - **Proportion**: Share of a model's battles that fall into a cluster (0–1).
+            - **Relative frequency (Δ)**: Difference between a model's cluster frequency and the average across models.
+            - **Quality metrics**: Absolute quality scores inside each cluster (e.g., helpfulness).
+            - **Confidence intervals**: 95% CIs as error bars when available.
+            - **Significance filter**: Frequency mode uses Δ frequency significance; Quality mode uses Δ quality significance.
+            - **Sorting**: Frequency/Δ frequency use per-cluster max/min across models; Quality/Δ quality do the same for the selected metric.
+            """
         )
 
     # Plot controls in a row
@@ -420,7 +558,19 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
             info="Select which quality metric to display",
             visible=False  # Initially hidden, shown when quality is selected
         )
-
+        # Sort By dropdown (updated dynamically)
+        plots_sort_by = gr.Dropdown(
+            label="Sort Clusters By",
+            choices=[("Relative Frequency (Descending)", "salience_desc"), ("Relative Frequency (Ascending)", "salience_asc"), ("Frequency (Descending)", "frequency_desc"), ("Frequency (Ascending)", "frequency_asc")],
+            value="salience_desc",
+        )
+        # Significance filter (single checkbox)
+        significance_checkbox = gr.Checkbox(
+            label="Filter by Frequency Significance",
+            value=False,
+        )
+        # Top N slider
+        top_n_slider = gr.Slider(label="Top N Clusters", minimum=1, maximum=50, value=15, step=1)
 
     # Add checkbox for confidence intervals
     show_ci_checkbox = gr.Checkbox(
@@ -437,15 +587,17 @@ def create_plots_tab() -> Tuple[gr.Plot, gr.Markdown, gr.Checkbox, gr.Dropdown, 
     
     # Mapping text should appear directly below the plot
     plot_info = gr.Markdown("")
-    
-    return plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector
+    # Move property selection to bottom
+    with gr.Accordion("Select properties to display", open=False, elem_id="plots-properties-acc"):
+        cluster_selector = gr.CheckboxGroup(
+            label="Select Clusters (Properties)", choices=[], value=[], info="Defaults to Top N after filters/sorting.", show_label=False, elem_id="plot-clusters"
+        )
+
+    return plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector, significance_checkbox, plots_sort_by, top_n_slider
 
 
-def update_cluster_selection(selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None) -> Any:
-    """Populate the cluster selector choices and default selection (top 15 by frequency).
-
-    If selected_models is provided, restrict clusters to those computed from the selected models.
-    """
+def update_cluster_selection(selected_models: Optional[List[str]] = None, selected_tags: Optional[List[str]] = None, plot_type: str = "frequency", quality_metric: Optional[str] = None, significance_filter: bool = False, sort_by: str = "salience_desc", top_n: int = 15) -> Any:
+    """Populate the cluster selector choices and default selection using filters and sort."""
     if app_state.get("model_cluster_df") is None:
         return gr.update(choices=[], value=[])
     df = app_state["model_cluster_df"]
@@ -469,17 +621,37 @@ def update_cluster_selection(selected_models: Optional[List[str]] = None, select
         return gr.update(choices=[], value=[])
     # Exclude "No properties"
     df = df[df['cluster'] != "No properties"].copy()
-    freq = (
-        df.groupby('cluster', as_index=False)['proportion']
-        .sum()
-        .sort_values('proportion', ascending=False)
-    )
-    clusters_ordered = freq['cluster'].tolist()
+    # Rank clusters by selected sort
+    if plot_type == 'quality' and quality_metric:
+        qd_col = f"quality_delta_{quality_metric}"
+        q_col = f"quality_{quality_metric}"
+        if sort_by.startswith('quality_delta') and qd_col in df.columns:
+            scores = df.groupby('cluster')[qd_col].max().rename('score').reset_index()
+            ascending = sort_by.endswith('_asc')
+        elif sort_by.startswith('quality_') and q_col in df.columns:
+            scores = df.groupby('cluster')[q_col].max().rename('score').reset_index()
+            ascending = sort_by.endswith('_asc')
+        elif sort_by.startswith('salience_') and 'proportion_delta' in df.columns:
+            scores = df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+            ascending = sort_by.endswith('_asc')
+        else:
+            scores = df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+            ascending = False
+    else:
+        if sort_by.startswith('salience_') and 'proportion_delta' in df.columns:
+            scores = df.groupby('cluster')['proportion_delta'].max().rename('score').reset_index()
+            ascending = sort_by.endswith('_asc')
+        else:
+            scores = df.groupby('cluster')['proportion'].max().rename('score').reset_index()
+            ascending = sort_by.endswith('_asc')
+
+    scores = scores.sort_values(['score', 'cluster'], ascending=[ascending, True])
+    clusters_ordered = scores['cluster'].tolist()
     # Build label-value tuples; strip '**' from labels only (values remain raw)
     label_value_choices = []
     for cluster in clusters_ordered:
         raw_val = str(cluster)
         label = raw_val.replace('**', '')
         label_value_choices.append((label, raw_val))
-    default_values = [str(cluster) for cluster in clusters_ordered[:15]]
+    default_values = [str(cluster) for cluster in clusters_ordered[: max(1, int(top_n))]]
     return gr.update(choices=label_value_choices, value=default_values)

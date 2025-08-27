@@ -57,7 +57,15 @@ from .examples_tab import (
     update_example_dropdowns,
     view_examples,
 )
-from .plots_tab import create_plots_tab, create_plot_with_toggle, update_quality_metric_visibility, update_cluster_selection, get_available_quality_metrics
+from .plots_tab import (
+    create_plots_tab,
+    create_plot_with_toggle,
+    update_quality_metric_visibility,
+    update_plots_sort_choices,
+    update_significance_checkbox_label,
+    update_cluster_selection,
+    get_available_quality_metrics,
+)
 from .run_pipeline_tab import create_run_pipeline_tab
 
 # app_state now comes from dashboard.state
@@ -165,6 +173,45 @@ def create_app() -> gr.Blocks:
     #plot-clusters label[aria-pressed="true"],
     #plot-clusters label:has(input:checked) { background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #111827 !important; }
     #selected-models input[type="checkbox"], #plot-clusters input[type="checkbox"] { accent-color: #94a3b8 !important; }
+    /* Outline style for key accordions */
+    #overview-filter-acc, #examples-filter-acc {
+        border: 2px solid #c7d2fe !important;
+        border-radius:8px !important;
+        padding: 8px 10px !important;
+        box-shadow: 0 0 0 2px rgba(199,210,254,0.25) inset;
+        background: initial !important;
+        color: initial !important;
+    }
+    #overview-filter-acc .label-wrap, #overview-filter-acc summary,
+    #examples-filter-acc .label-wrap, #examples-filter-acc summary {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        color:#3730a3 !important;
+    }
+
+    /* Outline style for search bars (container-level only) */
+    #clusters-search, #examples-search {
+        border: 2px solid #c7d2fe !important;
+        border-radius: 8px !important;
+        padding: 6px 8px !important;
+        box-shadow: 0 0 0 2px rgba(199,210,254,0.2) inset;
+        background: initial !important;
+    }
+    /* Make Plots tab property selector more pronounced (border + larger summary text) */
+    #plots-properties-acc {
+        border: 2px solid #c7d2fe !important;
+        border-radius:8px !important;
+        padding: 8px 10px !important;
+        box-shadow: 0 0 0 2px rgba(199,210,254,0.25) inset;
+        background: initial !important;
+        color: initial !important;
+    }
+    #plots-properties-acc .label-wrap, #plots-properties-acc summary {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        color:#3730a3 !important;
+    }
+    /* Do not override inner control backgrounds to preserve checkbox contrast */
     /* Help panel card */
     #help-panel { margin: 8px 12px; padding: 12px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; }
     #help-panel .gr-prose, #help-panel .prose, #help-panel .markdown, #help-panel p, #help-panel div { background: #ffffff !important; }
@@ -397,7 +444,7 @@ def create_app() -> gr.Blocks:
                     # Tab 1: Overview
                     with gr.TabItem("📊 Overview", id=1) as overview_tab:
                         # Accordion for Filter Controls
-                        with gr.Accordion("Filter Controls", open=False, visible=True) as filter_controls_acc:
+                        with gr.Accordion("Filter Controls", open=False, visible=True, elem_id="overview-filter-acc") as filter_controls_acc:
                             with gr.Row():
                                 min_cluster_size = gr.Slider(
                                     label="Minimum Cluster Size",
@@ -482,7 +529,7 @@ def create_app() -> gr.Blocks:
                                 show_label=False,
                                 placeholder="Search in property clusters...",
                                 info="Search for specific terms in property clusters"
-                            )
+                            , elem_id="clusters-search")
                         
                         clusters_display = gr.HTML(
                             label="Interactive Cluster Viewer",
@@ -500,10 +547,11 @@ def create_app() -> gr.Blocks:
                             label="Search Properties",
                             show_label=False,
                             placeholder="Search clusters or property descriptions...",
-                            info="Search for specific terms in cluster names or property descriptions to filter examples"
+                            info="Search for specific terms in cluster names or property descriptions to filter examples",
+                            elem_id="examples-search"
                         )
                                 
-                        with gr.Accordion("Search & Filter Options", open=False):
+                        with gr.Accordion("Search & Filter Options", open=False, elem_id="examples-filter-acc"):
                             
                             with gr.Row():
                                 with gr.Column(scale=1):
@@ -563,7 +611,7 @@ def create_app() -> gr.Blocks:
                     
                     # Tab 4: Plots
                     with gr.TabItem("📊 Plots", id=4) as plots_tab:
-                        plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector = create_plots_tab()
+                        plot_display, plot_info, show_ci_checkbox, plot_type_dropdown, quality_metric_dropdown, cluster_selector, significance_checkbox, plots_sort_by, top_n_slider = create_plots_tab()
                         # Internal state to carry a valid metric during chained updates
                         quality_metric_state = gr.State(value=None)
         
@@ -905,7 +953,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
-                    inputs=[selected_models, selected_tags],
+                    inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -917,7 +965,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
                     outputs=[plot_display, plot_info]
                 ))
         else:
@@ -969,7 +1017,7 @@ def create_app() -> gr.Blocks:
                     outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
                 ).then(
                     fn=update_cluster_selection,
-                    inputs=[selected_models, selected_tags],
+                    inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
                     outputs=[cluster_selector]
                 ).then(
                     fn=update_quality_metric_visibility,
@@ -981,7 +1029,7 @@ def create_app() -> gr.Blocks:
                     outputs=[quality_metric_state]
                 ).then(
                     fn=create_plot_with_toggle,
-                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+                    inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
                     outputs=[plot_display, plot_info]
                 ))
         
@@ -1079,21 +1127,58 @@ def create_app() -> gr.Blocks:
         # Plots Tab Handlers
         show_ci_checkbox.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         )
         
         # Quality metric dropdown handlers (only for quality plots)
         quality_metric_dropdown.change(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_dropdown, significance_checkbox, plots_sort_by, top_n_slider],
+            outputs=[cluster_selector]
+        ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         )
         
         # Cluster selector change updates the plot and mapping text
         cluster_selector.change(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
+            outputs=[plot_display, plot_info]
+        )
+
+        # Significance filter: update cluster defaults and plot
+        significance_checkbox.change(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_dropdown, significance_checkbox, plots_sort_by, top_n_slider],
+            outputs=[cluster_selector]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
+            outputs=[plot_display, plot_info]
+        )
+
+        # Sort By change: update cluster defaults and plot
+        plots_sort_by.change(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_dropdown, significance_checkbox, plots_sort_by, top_n_slider],
+            outputs=[cluster_selector]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
+            outputs=[plot_display, plot_info]
+        )
+
+        # Top N change: update cluster defaults and plot
+        top_n_slider.change(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_dropdown, significance_checkbox, plots_sort_by, top_n_slider],
+            outputs=[cluster_selector]
+        ).then(
+            fn=create_plot_with_toggle,
+            inputs=[plot_type_dropdown, quality_metric_dropdown, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         )
 
@@ -1103,12 +1188,24 @@ def create_app() -> gr.Blocks:
             inputs=[plot_type_dropdown],
             outputs=[quality_metric_dropdown]
         ).then(
+            fn=update_plots_sort_choices,
+            inputs=[plot_type_dropdown],
+            outputs=[plots_sort_by]
+        ).then(
+            fn=update_significance_checkbox_label,
+            inputs=[plot_type_dropdown],
+            outputs=[significance_checkbox]
+        ).then(
             fn=compute_plots_quality_metric,
             inputs=[plot_type_dropdown, quality_metric_dropdown],
             outputs=[quality_metric_state]
         ).then(
+            fn=update_cluster_selection,
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
+            outputs=[cluster_selector]
+        ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         )
         
@@ -1178,7 +1275,7 @@ def create_app() -> gr.Blocks:
             outputs=[examples_display]
         ).then(
             fn=update_cluster_selection,
-            inputs=[selected_models],
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
             outputs=[cluster_selector]
         ).then(
             fn=compute_plots_quality_metric,
@@ -1186,7 +1283,7 @@ def create_app() -> gr.Blocks:
             outputs=[quality_metric_state]
         ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         )
         
@@ -1208,11 +1305,11 @@ def create_app() -> gr.Blocks:
             outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
         ).then(
             fn=update_cluster_selection,
-            inputs=[selected_models, selected_tags],
+            inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
             outputs=[cluster_selector]
         ).then(
             fn=create_plot_with_toggle,
-            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+            inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
             outputs=[plot_display, plot_info]
         ).then(
             fn=view_examples,
@@ -1295,7 +1392,7 @@ def create_app() -> gr.Blocks:
                 outputs=[filter_controls_acc, metrics_acc, refresh_overview_btn, quality_plot_display, quality_table_display, overview_display]
             ).then(
                 fn=update_cluster_selection,
-                inputs=[selected_models, selected_tags],
+                inputs=[selected_models, selected_tags, plot_type_dropdown, quality_metric_state, significance_checkbox, plots_sort_by, top_n_slider],
                 outputs=[cluster_selector]
             ).then(
                 fn=update_quality_metric_visibility,
@@ -1307,7 +1404,7 @@ def create_app() -> gr.Blocks:
                 outputs=[quality_metric_state]
             ).then(
                 fn=create_plot_with_toggle,
-                inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags],
+                inputs=[plot_type_dropdown, quality_metric_state, cluster_selector, show_ci_checkbox, selected_models, selected_tags, plots_sort_by, significance_checkbox, top_n_slider],
                 outputs=[plot_display, plot_info]
             ))
         
