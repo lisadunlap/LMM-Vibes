@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, Component } from "react";
 import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Divider, TextField, Autocomplete, Chip, FormControlLabel, Switch, Accordion, AccordionSummary, AccordionDetails, Pagination } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { detectAndValidate, dfSelect, dfGroupPreview, dfGroupRows, dfCustom } from "./lib/api";
@@ -41,10 +41,47 @@ const CustomCodeInput = React.memo(function CustomCodeInput({
   );
 });
 
+class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error?: Error}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h4" color="error" gutterBottom>
+            Something went wrong
+          </Typography>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </Typography>
+          <Button variant="contained" onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
+        </Box>
+      );
+    }
+
+    return <>{this.props.children}</>;
+  }
+}
+
 function App() {
-  const [rows, setRows] = useState<Record<string, any>[]>([]);
-  const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]);
-  const [columns, setColumns] = useState<string[]>([]);
+  // Data management layers as suggested
+  const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]); // Raw uploaded data
+  const [operationalRows, setOperationalRows] = useState<Record<string, any>[]>([]); // Cleaned, filtered columns
+  const [currentRows, setCurrentRows] = useState<Record<string, any>[]>([]); // With filters applied
+  
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
@@ -56,11 +93,32 @@ function App() {
     const { rows, columns } = await parseFile(file);
     const detected = detectMethodFromColumns(columns);
     setMethod(detected);
+    
     // Flatten scores on the client (defensive in case backend preview doesn't)
     const { rows: normRows, columns: normCols } = flattenScores(rows, detected);
-    setRows(normRows);
-    setOriginalRows(normRows);
-    setColumns(normCols);
+    
+    // Set data layers
+    setOriginalRows(normRows); // Raw uploaded data
+    
+    // Create operational data (only allowed columns)
+    const scoreCols = detected === 'single_model'
+      ? normCols.filter(c => c.startsWith('score_'))
+      : detected === 'side_by_side'
+        ? normCols.filter(c => c.startsWith('score_a_') || c.startsWith('score_b_'))
+        : [];
+    const allowedCols = detected === 'single_model'
+      ? ['prompt', 'model', ...scoreCols, 'model_response']
+      : detected === 'side_by_side'
+        ? ['prompt', 'model_a', 'model_b', ...scoreCols, 'model_a_response', 'model_b_response']
+        : normCols;
+    
+    const operationalData = normRows.map(row => 
+      Object.fromEntries(allowedCols.filter(col => col in row).map(col => [col, row[col]]))
+    );
+    
+    setOperationalRows(operationalData);
+    setCurrentRows(operationalData); // Start with operational data
+    
     try {
       await detectAndValidate(file); // optional backend validation
     } catch (_) {}
@@ -94,38 +152,31 @@ function App() {
     [method]
   );
 
+  // Get allowed columns from operational data
   const allowedColumns = useMemo(() => {
-    const scoreCols = method === 'single_model'
-      ? columns.filter(c => c.startsWith('score_'))
-      : method === 'side_by_side'
-        ? columns.filter(c => c.startsWith('score_a_') || c.startsWith('score_b_'))
-        : [];
-    return method === 'single_model'
-      ? ['prompt', 'model', ...scoreCols, 'model_response']
-      : method === 'side_by_side'
-        ? ['prompt', 'model_a', 'model_b', ...scoreCols, 'model_a_response', 'model_b_response']
-        : [];
-  }, [method, columns]);
+    if (operationalRows.length === 0) return [];
+    return Object.keys(operationalRows[0]);
+  }, [operationalRows]);
 
-  // Memoize expensive data overview calculations
+  // Memoize expensive data overview calculations using current data
   const dataOverview = useMemo(() => {
-    if (rows.length === 0) return null;
-    const uniquePrompts = new Set(rows.map(r => r?.prompt)).size;
+    if (currentRows.length === 0) return null;
+    const uniquePrompts = new Set(currentRows.map(r => r?.prompt)).size;
     let uniqueModels = 0;
     if (method === 'single_model') {
-      uniqueModels = new Set(rows.map(r => r?.model)).size;
+      uniqueModels = new Set(currentRows.map(r => r?.model)).size;
     } else if (method === 'side_by_side') {
       uniqueModels = new Set([
-        ...rows.map(r => r?.model_a || ''),
-        ...rows.map(r => r?.model_b || '')
+        ...currentRows.map(r => r?.model_a || ''),
+        ...currentRows.map(r => r?.model_b || '')
       ]).size;
     }
     return {
-      rowCount: rows.length.toLocaleString(),
+      rowCount: currentRows.length.toLocaleString(),
       uniquePrompts: uniquePrompts.toLocaleString(),
       uniqueModels: uniqueModels.toLocaleString(),
     };
-  }, [rows, method]);
+  }, [currentRows, method]);
 
   // -------- Data Ops State ---------
   type Filter = { column: string; values: string[]; negated: boolean };
@@ -135,33 +186,39 @@ function App() {
   const [pendingNegated, setPendingNegated] = useState<boolean>(false);
 
   const categoricalColumns = useMemo(() => {
-    if (rows.length === 0) return [] as string[];
+    if (operationalRows.length === 0) return [] as string[];
     const cols = new Set<string>();
-    for (const c of columns) {
-      const uniq = new Set(rows.slice(0, 500).map(r => r?.[c])).size;
+    for (const c of allowedColumns) {
+      const uniq = new Set(operationalRows.slice(0, 500).map(r => r?.[c])).size;
       if (uniq > 0 && uniq <= 50) cols.add(c);
     }
     return Array.from(cols);
-  }, [rows, columns]);
+  }, [operationalRows, allowedColumns]);
+
+  const numericCols = useMemo(() => {
+    if (operationalRows.length === 0) return [] as string[];
+    const first = operationalRows[0];
+    return allowedColumns.filter(c => typeof first?.[c] === 'number');
+  }, [operationalRows, allowedColumns]);
 
   const uniqueValuesFor = useMemo(() => {
     const cache = new Map<string, string[]>();
     return (col: string) => {
       if (cache.has(col)) return cache.get(col)!;
       const s = new Set<string>();
-      rows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
+      operationalRows.forEach(r => { const v = r?.[col]; if (v !== undefined && v !== null) s.add(String(v)); });
       const result = Array.from(s).sort();
       cache.set(col, result);
       return result;
     };
-  }, [rows]);
+  }, [operationalRows]);
 
   const applyFilters = useCallback(async (newFilters: Filter[]) => {
     setFilters(newFilters);
     const include = Object.fromEntries(newFilters.filter(f => !f.negated && f.values.length).map(f => [f.column, f.values]));
     const exclude = Object.fromEntries(newFilters.filter(f => f.negated && f.values.length).map(f => [f.column, f.values]));
-    // Fast path: do it locally first to keep UI responsive
-    const locallyFiltered = originalRows.filter(r => {
+    // Fast path: filter operational data locally first
+    const locallyFiltered = operationalRows.filter(r => {
       for (const [col, vals] of Object.entries(include)) {
         if (!vals.includes(String(r[col]))) return false;
       }
@@ -170,22 +227,22 @@ function App() {
       }
       return true;
     });
-    setRows(locallyFiltered);
-    // Fire-and-forget server-side (for consistency with backend semantics)
+    setCurrentRows(locallyFiltered);
+    // Optional backend validation (using smaller operational dataset)
     try {
-      const res = await dfSelect({ rows: originalRows, include, exclude });
-      if (Array.isArray(res.rows)) setRows(res.rows);
+      const res = await dfSelect({ rows: operationalRows, include, exclude });
+      if (Array.isArray(res.rows)) setCurrentRows(res.rows);
     } catch (e) { /* ignore to keep UI snappy */ }
-  }, [originalRows]);
+  }, [operationalRows]);
 
   const resetAll = useCallback(() => {
-    setRows(originalRows);
+    setCurrentRows(operationalRows); // Reset to operational data, not original
     setFilters([]);
     setGroupBy(null);
     setGroupPreview([]);
     setExpandedGroup(null);
     setCustomCode("");
-  }, [originalRows]);
+  }, [operationalRows]);
 
   // -------- GroupBy State ---------
   const [groupBy, setGroupBy] = useState<string | null>(null);
@@ -195,28 +252,56 @@ function App() {
   const [groupRows, setGroupRows] = useState<Record<string, any>[]>([]);
   const [groupTotal, setGroupTotal] = useState<number>(0);
 
-  const numericCols = useMemo(() => {
-    if (rows.length === 0) return [] as string[];
-    const first = rows[0];
-    return columns.filter(c => typeof first?.[c] === 'number');
-  }, [rows, columns]);
-
-  async function refreshGroupPreview(by: string) {
+  const refreshGroupPreview = useCallback(async (by: string) => {
+    console.log('🟡 refreshGroupPreview called with:', by);
+    console.log('🟡 operational rows length:', operationalRows.length, 'numericCols:', numericCols);
+    
+    // Local-first groupby (like filters)
+    const grouped = new Map<any, any[]>();
+    operationalRows.forEach(row => {
+      const key = row[by];
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(row);
+    });
+    
+    const localGroups = Array.from(grouped.entries()).map(([value, rows]) => {
+      const count = rows.length;
+      const means: Record<string, number> = {};
+      numericCols.forEach(col => {
+        const nums = rows.map(r => Number(r[col])).filter(n => !isNaN(n));
+        if (nums.length > 0) {
+          means[col] = nums.reduce((sum, n) => sum + n, 0) / nums.length;
+        }
+      });
+      return { value, count, means };
+    });
+    
+    console.log('🟡 Local groupby result:', localGroups);
+    setGroupPreview(localGroups);
+    
+    // Optional backend validation (fire-and-forget)
     try {
-      const res = await dfGroupPreview({ rows, by, numeric_cols: numericCols });
-      setGroupPreview(res.groups || []);
-    } catch (e) { console.error(e); }
-  }
+      console.log('🟡 Making API call to dfGroupPreview...');
+      const res = await dfGroupPreview({ rows: operationalRows, by, numeric_cols: numericCols });
+      console.log('🟡 dfGroupPreview response:', res);
+      // Only update if backend gives different result
+      if (JSON.stringify(res.groups) !== JSON.stringify(localGroups)) {
+        setGroupPreview(res.groups || localGroups);
+      }
+    } catch (e) { 
+      console.log('🟡 Backend failed, using local groupby result'); 
+    }
+  }, [operationalRows, numericCols]);
 
-  async function loadGroupRows(value: any, page = 1) {
+  const loadGroupRows = useCallback(async (value: any, page = 1) => {
     if (!groupBy) return;
     try {
-      const res = await dfGroupRows({ rows, by: groupBy, value, page, page_size: 10 });
+      const res = await dfGroupRows({ rows: operationalRows, by: groupBy, value, page, page_size: 10 });
       setGroupRows(res.rows || []);
       setGroupTotal(res.total || 0);
       setGroupPage(page);
     } catch (e) { console.error(e); }
-  }
+  }, [operationalRows, groupBy]);
 
   // -------- Custom Code ---------
   const [customCode, setCustomCode] = useState<string>("");
@@ -228,14 +313,15 @@ function App() {
   
   const runCustom = useCallback(async () => {
     try {
-      const res = await dfCustom({ rows, code: customCode });
+      const res = await dfCustom({ rows: currentRows, code: customCode });
       if (res.error) { setCustomError(res.error); return; }
       setCustomError(null);
-      setRows(res.rows || []);
+      setCurrentRows(res.rows || []);
     } catch (e: any) {
+      console.error('runCustom error:', e);
       setCustomError(String(e?.message || e));
     }
-  }, [rows, customCode]);
+  }, [currentRows, customCode]);
 
   return (
     <Box>
@@ -262,7 +348,7 @@ function App() {
         )}
 
         {/* Data Ops bar */}
-        {rows.length > 0 && (
+        {currentRows.length > 0 && (
           <Box sx={{ p: 1.5, border: '1px solid #E5E7EB', borderRadius: 2, background: '#FFFFFF', mb: 2 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
               {/* Filters */}
@@ -313,9 +399,21 @@ function App() {
                 <Autocomplete
                   size="small"
                   sx={{ minWidth: 220 }}
-                  options={columns}
+                  options={allowedColumns}
                   value={groupBy}
-                  onChange={(_, v) => { setGroupBy(v); setExpandedGroup(null); setGroupRows([]); if (v) refreshGroupPreview(v); else setGroupPreview([]); }}
+                  onChange={(_, v) => { 
+                    console.log('🔵 GroupBy onChange triggered with value:', v);
+                    setGroupBy(v); 
+                    setExpandedGroup(null); 
+                    setGroupRows([]); 
+                    if (v) {
+                      console.log('🔵 Calling refreshGroupPreview with:', v);
+                      refreshGroupPreview(v);
+                    } else {
+                      console.log('🔵 Clearing group preview');
+                      setGroupPreview([]);
+                    }
+                  }}
                   renderInput={(params) => <TextField {...params} label="Group by" />}
                 />
               </Stack>
@@ -354,7 +452,7 @@ function App() {
                   </Box>
                   <DataTable
                     rows={groupRows}
-                    columns={columns}
+                    columns={allowedColumns}
                     responseKeys={responseKeys}
                     onView={onView}
                     allowedColumns={allowedColumns}
@@ -365,16 +463,16 @@ function App() {
           </Box>
         )}
         {useMemo(() => 
-          rows.length > 0 ? (
+          currentRows.length > 0 ? (
             <DataTable
-              rows={rows}
-              columns={columns}
+              rows={currentRows}
+              columns={allowedColumns}
               responseKeys={responseKeys}
               onView={onView}
               allowedColumns={allowedColumns}
             />
           ) : null,
-          [rows, columns, responseKeys, onView, allowedColumns]
+          [currentRows, allowedColumns, responseKeys, onView]
         )}
       </Container>
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ '& .MuiDrawer-paper': { width: '50vw', maxWidth: 900, p: 2 } }} ModalProps={{ keepMounted: true, disableRestoreFocus: true }}>
@@ -389,4 +487,10 @@ function App() {
   );
 }
 
-export default App
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
