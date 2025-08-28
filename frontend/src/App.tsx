@@ -113,9 +113,10 @@ function App() {
         ? ['prompt', 'model_a', 'model_b', ...scoreCols, 'model_a_response', 'model_b_response']
         : normCols;
     
-    const operationalData = normRows.map(row => 
-      Object.fromEntries(allowedCols.filter(col => col in row).map(col => [col, row[col]]))
-    );
+    const operationalData = normRows.map((row, index) => ({
+      __index: index, // Add original dataframe index
+      ...Object.fromEntries(allowedCols.filter(col => col in row).map(col => [col, row[col]]))
+    }));
     
     setOperationalRows(operationalData);
     setCurrentRows(operationalData); // Start with operational data
@@ -158,12 +159,13 @@ function App() {
     if (operationalRows.length === 0) return [];
     const allColumns = Object.keys(operationalRows[0]);
     
-    // Order: prompt → response columns → remaining (same as DataTable)
+    // Order: index → prompt → response columns → remaining
+    const indexCol = allColumns.filter((c) => c === '__index');
     const promptFirst = allColumns.filter((c) => c === 'prompt');
     const resp = allColumns.filter((c) => responseKeys.includes(c));
-    const remaining = allColumns.filter((c) => c !== 'prompt' && !responseKeys.includes(c));
+    const remaining = allColumns.filter((c) => c !== '__index' && c !== 'prompt' && !responseKeys.includes(c));
     
-    return [...promptFirst, ...resp, ...remaining];
+    return [...indexCol, ...promptFirst, ...resp, ...remaining];
   }, [operationalRows, responseKeys]);
 
   // Memoize expensive data overview calculations using current data
@@ -197,6 +199,8 @@ function App() {
     if (operationalRows.length === 0) return [] as string[];
     const cols = new Set<string>();
     for (const c of allowedColumns) {
+      // Skip index column - it's not categorical
+      if (c === '__index') continue;
       const uniq = new Set(operationalRows.slice(0, 500).map(r => r?.[c])).size;
       if (uniq > 0 && uniq <= 50) cols.add(c);
     }
@@ -206,7 +210,7 @@ function App() {
   const numericCols = useMemo(() => {
     if (operationalRows.length === 0) return [] as string[];
     const first = operationalRows[0];
-    return allowedColumns.filter(c => typeof first?.[c] === 'number');
+    return allowedColumns.filter(c => typeof first?.[c] === 'number' || c === '__index');
   }, [operationalRows, allowedColumns]);
 
   const uniqueValuesFor = useMemo(() => {
@@ -379,15 +383,24 @@ function App() {
           </Box>
         )}
 
-        {/* Data Ops bar */}
+        {/* Data Ops bar - fixed width, no horizontal scroll */}
         {currentRows.length > 0 && (
-          <Box sx={{ p: 1.5, border: '1px solid #E5E7EB', borderRadius: 2, background: '#FFFFFF', mb: 1 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
+          <Box sx={{ 
+            p: 1.5, 
+            border: '1px solid #E5E7EB', 
+            borderRadius: 2, 
+            background: '#FFFFFF', 
+            mb: 1,
+            width: '100%',
+            maxWidth: '100vw',
+            overflow: 'hidden'
+          }}>
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }}>
               {/* Filters */}
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                 <Autocomplete
                   size="small"
-                  sx={{ minWidth: 220 }}
+                  sx={{ minWidth: 180, maxWidth: 220, flex: '0 1 auto' }}
                   options={categoricalColumns}
                   value={pendingColumn}
                   onChange={(_, v) => { setPendingColumn(v); setPendingValues([]); setPendingNegated(false); }}
@@ -396,7 +409,7 @@ function App() {
                 {pendingColumn && (
                   <Autocomplete
                     multiple size="small"
-                    sx={{ minWidth: 260 }}
+                    sx={{ minWidth: 200, maxWidth: 300, flex: '0 1 auto' }}
                     options={uniqueValuesFor(pendingColumn)}
                     value={pendingValues}
                     onChange={(_, v) => setPendingValues(v)}
@@ -430,7 +443,7 @@ function App() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <Autocomplete
                   size="small"
-                  sx={{ minWidth: 220 }}
+                  sx={{ minWidth: 160, maxWidth: 220, flex: '0 1 auto' }}
                   options={allowedColumns}
                   value={groupBy}
                   onChange={(_, v) => { 
@@ -485,7 +498,8 @@ function App() {
                     <Box sx={{ width: 24 }} /> {/* Space for arrow */}
                     {allowedColumns.map(col => (
                       <Typography key={col} variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                        {col === 'prompt' ? 'PROMPT' : 
+                        {col === '__index' ? 'INDEX' :
+                         col === 'prompt' ? 'PROMPT' : 
                          col === 'model' ? 'MODEL' : 
                          col === 'model_response' ? 'RESPONSE' :
                          col === 'model_a' ? 'MODEL A' :
@@ -634,7 +648,7 @@ function App() {
               allowedColumns={allowedColumns}
             />
           );
-        }, [currentRows, allowedColumns, responseKeys, onView, groupBy, groupPreview])}
+        }, [currentRows, allowedColumns, responseKeys, onView, groupBy, groupPreview, groupPagination])}
       </Container>
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ '& .MuiDrawer-paper': { width: '50vw', maxWidth: 900, p: 2 } }} ModalProps={{ keepMounted: true, disableRestoreFocus: true }}>
         {selectedTrace?.type === "single" && (
