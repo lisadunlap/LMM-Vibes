@@ -51,4 +51,29 @@ export async function listPath(path: string, exts?: string[]) {
   return res.json();
 }
 
+// DataFrame ops
+export async function dfSelect(body: { rows: any[]; include?: Record<string, any[]>; exclude?: Record<string, any[]>; }) {
+  const res = await fetch(`${API_BASE}/df/select`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function dfGroupPreview(body: { rows: any[]; by: string; numeric_cols?: string[]; }) {
+  const res = await fetch(`${API_BASE}/df/groupby/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function dfGroupRows(body: { rows: any[]; by: string; value: any; page?: number; page_size?: number; }) {
+  const res = await fetch(`${API_BASE}/df/groupby/rows`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function dfCustom(body: { rows: any[]; code: string; }) {
+  const res = await fetch(`${API_BASE}/df/custom`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 

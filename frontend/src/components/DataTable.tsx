@@ -1,27 +1,25 @@
 import React, { useMemo } from "react";
 import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from "@tanstack/react-table";
-import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Fade } from "@mui/material";
+import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Fade } from "@mui/material";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 
-export function DataTable({
+const DataTable = React.memo(function DataTable({
   rows,
   columns,
   responseKeys,
   onView,
-  method,
   allowedColumns,
 }: {
   rows: Record<string, any>[];
   columns: string[];
   responseKeys: string[]; // keys where an eye icon should appear
-  onView: (rowIndex: number, key?: string) => void;
-  method: "single_model" | "side_by_side" | "unknown";
+  onView: (row: Record<string, any>) => void;
   allowedColumns?: string[]; // limit visible columns
 }) {
   const columnHelper = createColumnHelper<Record<string, any>>();
 
   const MAX_LEN = 200;
-  function TruncatedCell({ text }: { text: string }) {
+  const TruncatedCell = React.memo(function TruncatedCell({ text }: { text: string }) {
     const [expanded, setExpanded] = React.useState(false);
     if (!expanded && text.length > MAX_LEN) {
       return (
@@ -40,7 +38,16 @@ export function DataTable({
       );
     }
     return <span>{text}</span>;
-  }
+  });
+
+  // Animate only on initial mount (first paint) for the first 20 rows
+  const animateOnMountRef = React.useRef(true);
+  React.useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      animateOnMountRef.current = false;
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const displayColumns = useMemo(() => {
     const human: Record<string, string> = {
@@ -66,49 +73,59 @@ export function DataTable({
     const remaining = baseRaw.filter((c) => c !== 'prompt' && !responseKeys.includes(c));
     const base = [...promptFirst, ...resp, ...remaining];
 
-    return base.map((col) =>
-      columnHelper.accessor((row) => row[col], {
+    return base.map((col) => {
+      const isResponse = responseKeys.includes(col);
+      return columnHelper.accessor((row) => row[col], {
         id: col,
-        header: () => human[col] ?? col.toUpperCase(),
+        header: human[col] ?? col.toUpperCase(),
         cell: (info) => {
-          if (responseKeys.includes(col)) {
+          if (isResponse) {
             return (
-              <Tooltip title="View full response">
-                <Button
-                  size="small"
-                  variant="text"
-                  color="secondary"
-                  startIcon={<VisibilityOutlinedIcon />}
-                  onClick={() => onView(info.row.index, col)}
-                  sx={{ fontWeight: 600 }}
-                >
-                  View
-                </Button>
-              </Tooltip>
+              <Button
+                size="small"
+                variant="text"
+                color="secondary"
+                startIcon={<VisibilityOutlinedIcon />}
+                onClick={() => onView(info.row.original)}
+                sx={{ fontWeight: 600 }}
+              >
+                View
+              </Button>
             );
           }
           const value = info.getValue();
-          // Render score dictionaries compactly
+          // Treat nested objects as simple strings (scores should be flattened already)
           if (typeof value === "object" && value !== null) {
-            const text = JSON.stringify(value);
-            return <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: 12 }}>{text}</span>;
+            return <span>[object]</span>;
           }
           const str = String(value ?? "");
           return <TruncatedCell text={str} />;
         },
-      })
-    );
-  }, [columns, allowedColumns, responseKeys, columnHelper, onView]);
+      });
+    });
+  }, [columns, allowedColumns, responseKeys, onView]);
+
+  // Limit rendering for large datasets
+  const displayRows = useMemo(() => {
+    // Only render first 1000 rows to prevent UI lag
+    return rows.length > 1000 ? rows.slice(0, 1000) : rows;
+  }, [rows]);
 
   const table = useReactTable({
-    data: rows,
+    data: displayRows,
     columns: displayColumns,
     getCoreRowModel: getCoreRowModel(),
   });
 
   return (
-    <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
-      <Table size="small">
+    <>
+      {rows.length > 1000 && (
+        <Box sx={{ mb: 1, p: 1, backgroundColor: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 1, fontSize: 14 }}>
+          Showing first 1,000 of {rows.length.toLocaleString()} rows for performance. Use filters to narrow results.
+        </Box>
+      )}
+      <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+        <Table size="small">
         <TableHead sx={{ backgroundColor: '#F3F4F6' }}>
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id}>
@@ -121,23 +138,30 @@ export function DataTable({
           ))}
         </TableHead>
         <TableBody>
-          {table.getRowModel().rows.map((r, idx) => (
-            <Fade in timeout={Math.min(250 + idx * 90, 2000)} key={r.id}>
-              <TableRow hover>
+          {table.getRowModel().rows.map((r, idx) => {
+            const rowEl = (
+              <TableRow hover key={r.id}>
                 {r.getVisibleCells().map((c) => (
                   <TableCell key={c.id} sx={{ borderBottom: '1px solid #E5E7EB' }}>
                     {flexRender(c.column.columnDef.cell, c.getContext())}
                   </TableCell>
                 ))}
               </TableRow>
-            </Fade>
-          ))}
+            );
+            if (animateOnMountRef.current && idx < 20) {
+              return (
+                <Fade in timeout={Math.min(250 + idx * 90, 2000)} key={`fade-${r.id}`}>
+                  {rowEl}
+                </Fade>
+              );
+            }
+            return rowEl;
+          })}
         </TableBody>
-      </Table>
-    </TableContainer>
+        </Table>
+      </TableContainer>
+    </>
   );
-}
+});
 
 export default DataTable;
-
-
