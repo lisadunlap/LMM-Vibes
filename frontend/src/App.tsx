@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, Component } from "react";
-import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Divider, TextField, Autocomplete, Chip, FormControlLabel, Switch, Accordion, AccordionSummary, AccordionDetails, Pagination } from "@mui/material";
+import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Divider, TextField, Autocomplete, Chip, FormControlLabel, Switch, Accordion, AccordionSummary, AccordionDetails, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { detectAndValidate, dfSelect, dfGroupPreview, dfGroupRows, dfCustom } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
 import { parseFile } from "./lib/parse";
@@ -152,11 +153,18 @@ function App() {
     [method]
   );
 
-  // Get allowed columns from operational data
+  // Get allowed columns from operational data with proper ordering
   const allowedColumns = useMemo(() => {
     if (operationalRows.length === 0) return [];
-    return Object.keys(operationalRows[0]);
-  }, [operationalRows]);
+    const allColumns = Object.keys(operationalRows[0]);
+    
+    // Order: prompt → response columns → remaining (same as DataTable)
+    const promptFirst = allColumns.filter((c) => c === 'prompt');
+    const resp = allColumns.filter((c) => responseKeys.includes(c));
+    const remaining = allColumns.filter((c) => c !== 'prompt' && !responseKeys.includes(c));
+    
+    return [...promptFirst, ...resp, ...remaining];
+  }, [operationalRows, responseKeys]);
 
   // Memoize expensive data overview calculations using current data
   const dataOverview = useMemo(() => {
@@ -251,6 +259,30 @@ function App() {
   const [groupPage, setGroupPage] = useState<number>(1);
   const [groupRows, setGroupRows] = useState<Record<string, any>[]>([]);
   const [groupTotal, setGroupTotal] = useState<number>(0);
+  const [groupPagination, setGroupPagination] = useState<Map<string, number>>(new Map());
+
+  // Truncated Cell component for grouped view
+  const TruncatedCell = React.memo(function TruncatedCell({ text }: { text: string }) {
+    const [expanded, setExpanded] = React.useState(false);
+    const MAX_LEN = 200;
+    if (!expanded && text.length > MAX_LEN) {
+      return (
+        <span>
+          {text.slice(0, MAX_LEN)}…{' '}
+          <Button size="small" variant="text" onClick={() => setExpanded(true)}>Expand</Button>
+        </span>
+      );
+    }
+    if (expanded && text.length > MAX_LEN) {
+      return (
+        <span>
+          {text}{' '}
+          <Button size="small" variant="text" onClick={() => setExpanded(false)}>Collapse</Button>
+        </span>
+      );
+    }
+    return <span>{text}</span>;
+  });
 
   const refreshGroupPreview = useCallback(async (by: string) => {
     console.log('🟡 refreshGroupPreview called with:', by);
@@ -324,7 +356,7 @@ function App() {
   }, [currentRows, customCode]);
 
   return (
-    <Box>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="fixed">
         <Toolbar sx={{ gap: 2 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>StringSight · Evaluation Console</Typography>
@@ -338,7 +370,7 @@ function App() {
       </AppBar>
       {/* offset for fixed AppBar */}
       <Box sx={{ height: (theme) => theme.mixins.toolbar.minHeight }} />
-      <Container maxWidth={false} sx={{ py: 2 }}>
+      <Container maxWidth={false} sx={{ py: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
         {dataOverview && (
           <Box sx={{ mb: 2, color: 'text.secondary' }}>
             <strong>{dataOverview.rowCount}</strong> rows ·{' '}
@@ -349,7 +381,7 @@ function App() {
 
         {/* Data Ops bar */}
         {currentRows.length > 0 && (
-          <Box sx={{ p: 1.5, border: '1px solid #E5E7EB', borderRadius: 2, background: '#FFFFFF', mb: 2 }}>
+          <Box sx={{ p: 1.5, border: '1px solid #E5E7EB', borderRadius: 2, background: '#FFFFFF', mb: 1 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
               {/* Filters */}
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
@@ -432,38 +464,168 @@ function App() {
           </Box>
         )}
 
-        {/* Group Preview */}
-        {groupBy && groupPreview.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            {groupPreview.map((g) => (
-              <Accordion key={String(g.value)} expanded={expandedGroup === g.value} onChange={(_, isExp) => { setExpandedGroup(isExp ? g.value : null); if (isExp) loadGroupRows(g.value, 1); }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ width: '100%', alignItems: { md: 'center' } }}>
-                    <Box sx={{ fontWeight: 600 }}>{String(g.value)}</Box>
-                    <Box sx={{ color: 'text.secondary' }}>count: {g.count}</Box>
-                    <Box sx={{ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {Object.entries(g.means).slice(0, 6).map(([k, v]) => `${k}=${(v as number).toFixed(3)}`).join(' · ')}
-                    </Box>
-                  </Stack>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box sx={{ mb: 1 }}>
-                    <Pagination count={Math.max(1, Math.ceil(groupTotal / 10))} page={groupPage} onChange={(_, p) => loadGroupRows(g.value, p)} size="small" />
+        {useMemo(() => {
+          if (currentRows.length === 0) return null;
+          
+          // If groupBy is active, show accordion view that looks like table rows
+          if (groupBy && groupPreview.length > 0) {
+            // Group the current rows by the selected column
+            const groupedRows = new Map<any, any[]>();
+            currentRows.forEach(row => {
+              const key = row[groupBy];
+              if (!groupedRows.has(key)) groupedRows.set(key, []);
+              groupedRows.get(key)!.push(row);
+            });
+            
+            return (
+              <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
+                {/* Table Header - only shown once at the top */}
+                <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB' }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', minWidth: 'max-content' }}>
+                    <Box sx={{ width: 24 }} /> {/* Space for arrow */}
+                    {allowedColumns.map(col => (
+                      <Typography key={col} variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                        {col === 'prompt' ? 'PROMPT' : 
+                         col === 'model' ? 'MODEL' : 
+                         col === 'model_response' ? 'RESPONSE' :
+                         col === 'model_a' ? 'MODEL A' :
+                         col === 'model_b' ? 'MODEL B' :
+                         col === 'model_a_response' ? 'RESPONSE A' :
+                         col === 'model_b_response' ? 'RESPONSE B' :
+                         col.toUpperCase()}
+                      </Typography>
+                    ))}
                   </Box>
-                  <DataTable
-                    rows={groupRows}
-                    columns={allowedColumns}
-                    responseKeys={responseKeys}
-                    onView={onView}
-                    allowedColumns={allowedColumns}
-                  />
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </Box>
-        )}
-        {useMemo(() => 
-          currentRows.length > 0 ? (
+                </Box>
+                
+                {/* Grouped Rows */}
+                {Array.from(groupedRows.entries()).map(([groupValue, rows]) => {
+                  const groupKey = String(groupValue);
+                  const currentPage = groupPagination.get(groupKey) || 1;
+                  const pageSize = 10;
+                  const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+                  const totalPages = Math.ceil(rows.length / pageSize);
+                  
+                  const handlePageChange = (page: number) => {
+                    setGroupPagination(prev => new Map(prev).set(groupKey, page));
+                  };
+                  
+                  return (
+                    <Accordion key={String(groupValue)} sx={{ '&:before': { display: 'none' }, boxShadow: 'none', border: 'none' }}>
+                      <AccordionSummary 
+                        expandIcon={null}
+                        sx={{ 
+                          backgroundColor: '#F9FAFB',
+                          borderBottom: '1px solid #E5E7EB',
+                          minHeight: 48,
+                          '&.Mui-expanded': { minHeight: 48 },
+                          '& .MuiAccordionSummary-content': { margin: '12px 0' },
+                          cursor: 'pointer',
+                          '&:hover': { backgroundColor: '#F3F4F6' }
+                        }}
+                      >
+                                                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', width: '100%', minWidth: 'max-content' }}>
+                            <ExpandMoreIcon sx={{ fontSize: 20, color: '#6B7280' }} />
+                            
+                            {allowedColumns.map((col, idx) => {
+                              if (idx === 0) {
+                                // First column: Show group value with count bubble
+                                return (
+                                  <Box key={col} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                                      {String(groupValue).length > 50 ? String(groupValue).slice(0, 50) + '...' : String(groupValue)}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ 
+                                      backgroundColor: '#E0E7FF', 
+                                      color: '#3730A3', 
+                                      px: 1.5, 
+                                      py: 0.25, 
+                                      borderRadius: 9999,
+                                      fontSize: 11,
+                                      fontWeight: 500,
+                                      textAlign: 'center',
+                                      minWidth: 20
+                                    }}>
+                                      {rows.length}
+                                    </Typography>
+                                  </Box>
+                                );
+                              } else if (responseKeys.includes(col)) {
+                                // Response columns: Empty
+                                return <Box key={col} />;
+                              } else {
+                                // Other columns: Show mean if it's numeric
+                                const groupStats = groupPreview.find(g => g.value === groupValue);
+                                const mean = groupStats?.means[col];
+                                if (typeof mean === 'number') {
+                                  return (
+                                    <Typography key={col} variant="body2" sx={{ 
+                                      color: '#6B7280', 
+                                      fontStyle: 'italic',
+                                      fontSize: 13
+                                    }}>
+                                      avg: {mean.toFixed(2)}
+                                    </Typography>
+                                  );
+                                }
+                                return <Box key={col} />;
+                              }
+                            })}
+                          </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ p: 0 }}>
+                        {/* Show paginated rows without header */}
+                        <Box>
+                          {paginatedRows.map((row, idx) => (
+                            <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', p: 2, borderBottom: idx < paginatedRows.length - 1 ? '1px solid #E5E7EB' : 'none', minWidth: 'max-content' }}>
+                              <Box sx={{ width: 24 }} /> {/* Space for arrow alignment */}
+                              {allowedColumns.map(col => (
+                                <Box key={col}>
+                                  {responseKeys.includes(col) ? (
+                                    <Button
+                                      size="small"
+                                      variant="text"
+                                      color="secondary"
+                                      startIcon={<VisibilityOutlinedIcon />}
+                                      onClick={() => onView(row)}
+                                      sx={{ fontWeight: 600 }}
+                                    >
+                                      View
+                                    </Button>
+                                  ) : (
+                                    <Typography variant="body2" sx={{ 
+                                      maxWidth: 200
+                                    }}>
+                                      <TruncatedCell text={String(row[col] || '')} />
+                                    </Typography>
+                                  )}
+                                </Box>
+                              ))}
+                            </Box>
+                          ))}
+                          
+                          {/* Pagination for this group */}
+                          {totalPages > 1 && (
+                            <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', borderTop: '1px solid #E5E7EB' }}>
+                              <Pagination 
+                                count={totalPages} 
+                                page={currentPage} 
+                                onChange={(_, page) => handlePageChange(page)} 
+                                size="small" 
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </Box>
+            );
+          }
+          
+          // Normal flat table view when no groupBy
+          return (
             <DataTable
               rows={currentRows}
               columns={allowedColumns}
@@ -471,9 +633,8 @@ function App() {
               onView={onView}
               allowedColumns={allowedColumns}
             />
-          ) : null,
-          [currentRows, allowedColumns, responseKeys, onView]
-        )}
+          );
+        }, [currentRows, allowedColumns, responseKeys, onView, groupBy, groupPreview])}
       </Container>
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ '& .MuiDrawer-paper': { width: '50vw', maxWidth: 900, p: 2 } }} ModalProps={{ keepMounted: true, disableRestoreFocus: true }}>
         {selectedTrace?.type === "single" && (

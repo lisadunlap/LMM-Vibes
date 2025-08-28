@@ -71,6 +71,23 @@ clustered_df, model_stats = explain(
 python -m stringsight.dashboard.launcher --share
 ```
 
+### Dashboard: Plots Tab Controls
+
+- **Plot Type**: Switch between frequency (proportion) and quality plots.
+- **Quality Metric**: Visible in quality mode; choose which `quality_*` metric to display.
+- **Sort Clusters By**:
+  - Frequency (Descending/Ascending): per-cluster max/min `proportion` across selected models.
+  - Relative Frequency Δ (Descending/Ascending): per-cluster max/min `proportion_delta` across models.
+  - Quality Delta Δ (Descending/Ascending, quality mode only): per-cluster max/min `quality_delta_{metric}` across models.
+- **Filter by Significance**:
+  - Frequency mode: keeps clusters where any selected model has `proportion_delta_significant = True`.
+  - Quality mode: keeps clusters where any selected model has `quality_delta_{metric}_significant = True` (falls back to any quality-delta significant flag if metric-specific is unavailable).
+- **Top N Clusters**: Limits the plotted clusters to the Top N after applying filters and sorting. Manual selections override defaults.
+
+Notes:
+- Tag filters in the sidebar apply consistently to plots.
+- Confidence interval toggles are respected when CI columns are available in the data.
+
 ## Outputs
 
 After running `explain`, you receive two main outputs:
@@ -123,6 +140,29 @@ df = pd.DataFrame({
     "score": [{"accuracy": 1, "helpfulness": 4.5}, {"accuracy": 0, "helpfulness": 3.8}, {"accuracy": 1, "helpfulness": 4.2}]
 })
 ```
+
+## Sampling behavior
+
+When you provide a sample size (via CLI, dashboard, or code) the pipeline applies sampling before extraction:
+
+- **single_model (balanced datasets)**: If every prompt is answered by all models exactly once, we automatically sample prompts evenly across models. We select K = int(N/M) prompts (N = requested sample size, M = number of models) and include all rows for those prompts. This keeps per-model coverage aligned.
+- **Otherwise**: Falls back to standard row-level sampling.
+
+You can use the helper directly:
+
+```python
+from stringsight.dataprep import sample_prompts_evenly
+
+df_sampled = sample_prompts_evenly(
+    df,
+    sample_size=2000,
+    method="single_model",       # or "side_by_side" (falls back to row sampling)
+    prompt_column="prompt",
+    random_state=42,
+)
+```
+
+This sampling behavior is used automatically in the CLI (`scripts/run_full_pipeline.py`, `scripts/run_label_pipeline.py`) and the dashboard Run Pipeline tab when a sample size is provided.
 
 ### Side-by-Side Comparisons
 Compare two models head-to-head (Arena-style battles).
