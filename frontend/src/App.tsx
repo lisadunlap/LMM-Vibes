@@ -2,6 +2,8 @@ import React, { useState, useCallback, useMemo, Component } from "react";
 import { Box, AppBar, Toolbar, Typography, Container, Button, Drawer, Stack, Divider, TextField, Autocomplete, Chip, FormControlLabel, Switch, Accordion, AccordionSummary, AccordionDetails, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { detectAndValidate, dfSelect, dfGroupPreview, dfGroupRows, dfCustom } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
 import { parseFile } from "./lib/parse";
@@ -168,26 +170,6 @@ function App() {
     return [...indexCol, ...promptFirst, ...resp, ...remaining];
   }, [operationalRows, responseKeys]);
 
-  // Memoize expensive data overview calculations using current data
-  const dataOverview = useMemo(() => {
-    if (currentRows.length === 0) return null;
-    const uniquePrompts = new Set(currentRows.map(r => r?.prompt)).size;
-    let uniqueModels = 0;
-    if (method === 'single_model') {
-      uniqueModels = new Set(currentRows.map(r => r?.model)).size;
-    } else if (method === 'side_by_side') {
-      uniqueModels = new Set([
-        ...currentRows.map(r => r?.model_a || ''),
-        ...currentRows.map(r => r?.model_b || '')
-      ]).size;
-    }
-    return {
-      rowCount: currentRows.length.toLocaleString(),
-      uniquePrompts: uniquePrompts.toLocaleString(),
-      uniqueModels: uniqueModels.toLocaleString(),
-    };
-  }, [currentRows, method]);
-
   // -------- Data Ops State ---------
   type Filter = { column: string; values: string[]; negated: boolean };
   const [filters, setFilters] = useState<Filter[]>([]);
@@ -254,6 +236,8 @@ function App() {
     setGroupPreview([]);
     setExpandedGroup(null);
     setCustomCode("");
+    setSortColumn(null);
+    setSortDirection(null);
   }, [operationalRows]);
 
   // -------- GroupBy State ---------
@@ -264,6 +248,88 @@ function App() {
   const [groupRows, setGroupRows] = useState<Record<string, any>[]>([]);
   const [groupTotal, setGroupTotal] = useState<number>(0);
   const [groupPagination, setGroupPagination] = useState<Map<string, number>>(new Map());
+
+  // -------- Sorting State ---------
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+
+  // Sort function
+  const handleSort = useCallback((column: string) => {
+    if (sortColumn === column) {
+      // Cycle through: asc -> desc -> none
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      // New column, start with asc
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }, [sortColumn, sortDirection]);
+
+  // Apply sorting to currentRows with performance optimization
+  const sortedRows = useMemo(() => {
+    if (!sortColumn || !sortDirection) return currentRows;
+    
+    // Use faster array copy and optimize comparison
+    const result = currentRows.slice();
+    
+    // Pre-determine if column is numeric for better performance
+    const isNumericColumn = currentRows.length > 0 && 
+      currentRows.slice(0, 10).every(row => {
+        const val = row[sortColumn];
+        return val == null || !isNaN(Number(val));
+      });
+    
+    result.sort((a, b) => {
+      let aVal = a[sortColumn];
+      let bVal = b[sortColumn];
+      
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortDirection === 'asc' ? 1 : -1;
+      if (bVal == null) return sortDirection === 'asc' ? -1 : 1;
+      
+      if (isNumericColumn) {
+        // Numeric comparison
+        aVal = Number(aVal);
+        bVal = Number(bVal);
+        const diff = aVal - bVal;
+        return sortDirection === 'asc' ? diff : -diff;
+      } else {
+        // String comparison with cached lowercase
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+        const comp = aStr.localeCompare(bStr);
+        return sortDirection === 'asc' ? comp : -comp;
+      }
+    });
+    
+    return result;
+  }, [currentRows, sortColumn, sortDirection]);
+
+  // Memoize expensive data overview calculations using sorted data
+  const dataOverview = useMemo(() => {
+    if (sortedRows.length === 0) return null;
+    const uniquePrompts = new Set(sortedRows.map(r => r?.prompt)).size;
+    let uniqueModels = 0;
+    if (method === 'single_model') {
+      uniqueModels = new Set(sortedRows.map(r => r?.model)).size;
+    } else if (method === 'side_by_side') {
+      uniqueModels = new Set([
+        ...sortedRows.map(r => r?.model_a || ''),
+        ...sortedRows.map(r => r?.model_b || '')
+      ]).size;
+    }
+    return {
+      rowCount: sortedRows.length.toLocaleString(),
+      uniquePrompts: uniquePrompts.toLocaleString(),
+      uniqueModels: uniqueModels.toLocaleString(),
+    };
+  }, [sortedRows, method]);
 
   // Truncated Cell component for grouped view
   const TruncatedCell = React.memo(function TruncatedCell({ text }: { text: string }) {
@@ -349,15 +415,18 @@ function App() {
   
   const runCustom = useCallback(async () => {
     try {
-      const res = await dfCustom({ rows: currentRows, code: customCode });
+      const res = await dfCustom({ rows: sortedRows, code: customCode });
       if (res.error) { setCustomError(res.error); return; }
       setCustomError(null);
       setCurrentRows(res.rows || []);
+      // Reset sorting when custom code is applied
+      setSortColumn(null);
+      setSortDirection(null);
     } catch (e: any) {
       console.error('runCustom error:', e);
       setCustomError(String(e?.message || e));
     }
-  }, [currentRows, customCode]);
+  }, [sortedRows, customCode]);
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -384,7 +453,7 @@ function App() {
         )}
 
         {/* Data Ops bar - fixed width, no horizontal scroll */}
-        {currentRows.length > 0 && (
+        {sortedRows.length > 0 && (
           <Box sx={{ 
             p: 1.5, 
             border: '1px solid #E5E7EB', 
@@ -478,13 +547,13 @@ function App() {
         )}
 
         {useMemo(() => {
-          if (currentRows.length === 0) return null;
+          if (sortedRows.length === 0) return null;
           
           // If groupBy is active, show accordion view that looks like table rows
           if (groupBy && groupPreview.length > 0) {
-            // Group the current rows by the selected column
+            // Group the sorted rows by the selected column
             const groupedRows = new Map<any, any[]>();
-            currentRows.forEach(row => {
+            sortedRows.forEach(row => {
               const key = row[groupBy];
               if (!groupedRows.has(key)) groupedRows.set(key, []);
               groupedRows.get(key)!.push(row);
@@ -497,17 +566,21 @@ function App() {
                   <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center' }}>
                     <Box sx={{ width: 24 }} /> {/* Space for arrow */}
                     {allowedColumns.map(col => (
-                      <Typography key={col} variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                        {col === '__index' ? 'INDEX' :
-                         col === 'prompt' ? 'PROMPT' : 
-                         col === 'model' ? 'MODEL' : 
-                         col === 'model_response' ? 'RESPONSE' :
-                         col === 'model_a' ? 'MODEL A' :
-                         col === 'model_b' ? 'MODEL B' :
-                         col === 'model_a_response' ? 'RESPONSE A' :
-                         col === 'model_b_response' ? 'RESPONSE B' :
-                         col.toUpperCase()}
-                      </Typography>
+                      <Box key={col} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }} onClick={() => handleSort(col)}>
+                        <Typography variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                          {col === '__index' ? 'INDEX' :
+                           col === 'prompt' ? 'PROMPT' : 
+                           col === 'model' ? 'MODEL' : 
+                           col === 'model_response' ? 'RESPONSE' :
+                           col === 'model_a' ? 'MODEL A' :
+                           col === 'model_b' ? 'MODEL B' :
+                           col === 'model_a_response' ? 'RESPONSE A' :
+                           col === 'model_b_response' ? 'RESPONSE B' :
+                           col.toUpperCase()}
+                        </Typography>
+                        {sortColumn === col && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
+                        {sortColumn === col && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12, color: '#374151' }} />}
+                      </Box>
                     ))}
                   </Box>
                 </Box>
@@ -607,11 +680,18 @@ function App() {
                                       View
                                     </Button>
                                   ) : (
-                                    <Typography variant="body2" sx={{ 
-                                      maxWidth: 200
-                                    }}>
-                                      <TruncatedCell text={String(row[col] || '')} />
-                                    </Typography>
+                                    (() => {
+                                      const value = row[col];
+                                      const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
+                                      return (
+                                        <Typography variant="body2" sx={{ 
+                                          maxWidth: 200,
+                                          textAlign: isNumeric ? 'center' : 'left'
+                                        }}>
+                                          <TruncatedCell text={String(value || '')} />
+                                        </Typography>
+                                      );
+                                    })()
                                   )}
                                 </Box>
                               ))}
@@ -641,14 +721,17 @@ function App() {
           // Normal flat table view when no groupBy
           return (
             <DataTable
-              rows={currentRows}
+              rows={sortedRows}
               columns={allowedColumns}
               responseKeys={responseKeys}
               onView={onView}
               allowedColumns={allowedColumns}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSort={handleSort}
             />
           );
-        }, [currentRows, allowedColumns, responseKeys, onView, groupBy, groupPreview, groupPagination])}
+        }, [sortedRows, allowedColumns, responseKeys, onView, groupBy, groupPreview, groupPagination, sortColumn, sortDirection, handleSort])}
       </Container>
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ '& .MuiDrawer-paper': { width: '50vw', maxWidth: 900, p: 2 } }} ModalProps={{ keepMounted: true, disableRestoreFocus: true }}>
         {selectedTrace?.type === "single" && (

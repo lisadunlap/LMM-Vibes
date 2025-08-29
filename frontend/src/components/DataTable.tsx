@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from "@tanstack/react-table";
 import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Fade } from "@mui/material";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 const DataTable = React.memo(function DataTable({
   rows,
@@ -9,12 +11,18 @@ const DataTable = React.memo(function DataTable({
   responseKeys,
   onView,
   allowedColumns,
+  sortColumn,
+  sortDirection,
+  onSort,
 }: {
   rows: Record<string, any>[];
   columns: string[];
   responseKeys: string[]; // keys where an eye icon should appear
   onView: (row: Record<string, any>) => void;
   allowedColumns?: string[]; // limit visible columns
+  sortColumn?: string | null;
+  sortDirection?: 'asc' | 'desc' | null;
+  onSort?: (column: string) => void;
 }) {
   const columnHelper = createColumnHelper<Record<string, any>>();
 
@@ -51,6 +59,7 @@ const DataTable = React.memo(function DataTable({
 
   const displayColumns = useMemo(() => {
     const human: Record<string, string> = {
+      __index: "INDEX",
       prompt: "PROMPT",
       model: "MODEL",
       model_response: "RESPONSE",
@@ -67,11 +76,12 @@ const DataTable = React.memo(function DataTable({
       ? allowedColumns.filter((c) => columns.includes(c))
       : columns;
 
-    // Order: prompt → response columns → remaining
+    // Order: index → prompt → response columns → remaining
+    const indexCol = baseRaw.filter((c) => c === '__index');
     const promptFirst = baseRaw.filter((c) => c === 'prompt');
     const resp = baseRaw.filter((c) => responseKeys.includes(c));
-    const remaining = baseRaw.filter((c) => c !== 'prompt' && !responseKeys.includes(c));
-    const base = [...promptFirst, ...resp, ...remaining];
+    const remaining = baseRaw.filter((c) => c !== '__index' && c !== 'prompt' && !responseKeys.includes(c));
+    const base = [...indexCol, ...promptFirst, ...resp, ...remaining];
 
     return base.map((col) => {
       const isResponse = responseKeys.includes(col);
@@ -99,7 +109,15 @@ const DataTable = React.memo(function DataTable({
             return <span>[object]</span>;
           }
           const str = String(value ?? "");
-          return <TruncatedCell text={str} />;
+          
+          // Check if this is a numeric column (index or numeric value)
+          const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
+          
+          return (
+            <Box sx={{ textAlign: isNumeric ? 'center' : 'left' }}>
+              <TruncatedCell text={str} />
+            </Box>
+          );
         },
       });
     });
@@ -121,7 +139,7 @@ const DataTable = React.memo(function DataTable({
     <>
       {rows.length > 1000 && (
         <Box sx={{ mb: 1, p: 1, backgroundColor: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 1, fontSize: 14 }}>
-          Showing first 1,000 of {rows.length.toLocaleString()} rows for performance. Use filters to narrow results.
+          Showing first 1,000 of {rows.length.toLocaleString()} rows for performance. Use filters to narrow results or sort by clicking column headers.
         </Box>
       )}
       <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
@@ -130,8 +148,23 @@ const DataTable = React.memo(function DataTable({
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id}>
               {hg.headers.map((h) => (
-                <TableCell key={h.id} sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4 }}>
-                  {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                <TableCell 
+                  key={h.id} 
+                  sx={{ 
+                    color: '#374151', 
+                    fontWeight: 700, 
+                    fontSize: 12, 
+                    letterSpacing: 0.4,
+                    cursor: onSort ? 'pointer' : 'default',
+                    '&:hover': onSort ? { backgroundColor: '#F9FAFB' } : {}
+                  }}
+                  onClick={() => onSort && onSort(h.column.id)}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                    {onSort && sortColumn === h.column.id && sortDirection === 'asc' && <ArrowUpwardIcon sx={{ fontSize: 12 }} />}
+                    {onSort && sortColumn === h.column.id && sortDirection === 'desc' && <ArrowDownwardIcon sx={{ fontSize: 12 }} />}
+                  </Box>
                 </TableCell>
               ))}
             </TableRow>
@@ -150,7 +183,7 @@ const DataTable = React.memo(function DataTable({
             );
             if (animateOnMountRef.current && idx < 20) {
               return (
-                <Fade in timeout={Math.min(250 + idx * 90, 2000)} key={`fade-${r.id}`}>
+                <Fade in timeout={Math.min(500 + idx * 150, 4000)} key={`fade-${r.id}`}>
                   {rowEl}
                 </Fade>
               );
