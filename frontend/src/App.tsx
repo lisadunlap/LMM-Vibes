@@ -494,7 +494,7 @@ function App() {
               <Box sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>
                 {/* Table Header - only shown once at the top */}
                 <Box sx={{ backgroundColor: '#F3F4F6', p: 2, borderBottom: '1px solid #E5E7EB' }}>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', minWidth: 'max-content' }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center' }}>
                     <Box sx={{ width: 24 }} /> {/* Space for arrow */}
                     {allowedColumns.map(col => (
                       <Typography key={col} variant="subtitle2" sx={{ color: '#374151', fontWeight: 700, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' }}>
@@ -538,7 +538,7 @@ function App() {
                           '&:hover': { backgroundColor: '#F3F4F6' }
                         }}
                       >
-                                                  <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', width: '100%', minWidth: 'max-content' }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', width: '100%' }}>
                             <ExpandMoreIcon sx={{ fontSize: 20, color: '#6B7280' }} />
                             
                             {allowedColumns.map((col, idx) => {
@@ -591,7 +591,7 @@ function App() {
                         {/* Show paginated rows without header */}
                         <Box>
                           {paginatedRows.map((row, idx) => (
-                            <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', p: 2, borderBottom: idx < paginatedRows.length - 1 ? '1px solid #E5E7EB' : 'none', minWidth: 'max-content' }}>
+                            <Box key={idx} sx={{ display: 'grid', gridTemplateColumns: `auto repeat(${allowedColumns.length}, 1fr)`, gap: 2, alignItems: 'center', p: 2, borderBottom: idx < paginatedRows.length - 1 ? '1px solid #E5E7EB' : 'none' }}>
                               <Box sx={{ width: 24 }} /> {/* Space for arrow alignment */}
                               {allowedColumns.map(col => (
                                 <Box key={col}>
