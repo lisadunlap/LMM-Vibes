@@ -4,6 +4,7 @@ import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, Ta
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import FormattedCell from './FormattedCell';
 
 const DataTable = React.memo(function DataTable({
   rows,
@@ -113,9 +114,16 @@ const DataTable = React.memo(function DataTable({
           // Check if this is a numeric column (index or numeric value)
           const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
           
+          // Check if this is a prompt column that should use rich formatting
+          const isPrompt = col === 'prompt';
+          
           return (
             <Box sx={{ textAlign: isNumeric ? 'center' : 'left' }}>
-              <TruncatedCell text={str} />
+              {isPrompt ? (
+                <FormattedCell text={str} isPrompt={true} />
+              ) : (
+                <TruncatedCell text={str} />
+              )}
             </Box>
           );
         },

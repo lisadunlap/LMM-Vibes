@@ -4,13 +4,17 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { detectAndValidate, dfSelect, dfGroupPreview, dfGroupRows, dfCustom } from "./lib/api";
+import { detectAndValidate, dfGroupPreview, dfGroupRows, dfCustom } from "./lib/api";
 import { flattenScores } from "./lib/normalize";
 import { parseFile } from "./lib/parse";
 import { detectMethodFromColumns, ensureOpenAIFormat } from "./lib/traces";
 import DataTable from "./components/DataTable";
 import ConversationTrace from "./components/ConversationTrace";
 import SideBySideTrace from "./components/SideBySideTrace";
+import FormattedCell from "./components/FormattedCell";
+import FilterSummary from "./components/FilterSummary";
+import type { DataOperation } from "./types/operations";
+import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
 // Memoized component to prevent re-renders affecting TextField responsiveness
 const CustomCodeInput = React.memo(function CustomCodeInput({
@@ -170,12 +174,17 @@ function App() {
     return [...indexCol, ...promptFirst, ...resp, ...remaining];
   }, [operationalRows, responseKeys]);
 
-  // -------- Data Ops State ---------
-  type Filter = { column: string; values: string[]; negated: boolean };
-  const [filters, setFilters] = useState<Filter[]>([]);
+  // -------- Data Operations Chain ---------
+  const [operationChain, setOperationChain] = useState<DataOperation[]>([]);
   const [pendingColumn, setPendingColumn] = useState<string | null>(null);
   const [pendingValues, setPendingValues] = useState<string[]>([]);
   const [pendingNegated, setPendingNegated] = useState<boolean>(false);
+  
+  // Legacy filter interface for compatibility
+  type Filter = { column: string; values: string[]; negated: boolean };
+  const filters: Filter[] = operationChain
+    .filter(op => op.type === 'filter')
+    .map(op => op as any);
 
   const categoricalColumns = useMemo(() => {
     if (operationalRows.length === 0) return [] as string[];
@@ -207,35 +216,92 @@ function App() {
     };
   }, [operationalRows]);
 
-  const applyFilters = useCallback(async (newFilters: Filter[]) => {
-    setFilters(newFilters);
-    const include = Object.fromEntries(newFilters.filter(f => !f.negated && f.values.length).map(f => [f.column, f.values]));
-    const exclude = Object.fromEntries(newFilters.filter(f => f.negated && f.values.length).map(f => [f.column, f.values]));
-    // Fast path: filter operational data locally first
-    const locallyFiltered = operationalRows.filter(r => {
-      for (const [col, vals] of Object.entries(include)) {
-        if (!vals.includes(String(r[col]))) return false;
+  // Apply the entire operation chain to operational data
+  const applyOperationChain = useCallback(async (operations: DataOperation[]) => {
+    console.log('🔄 Applying operation chain:', operations);
+    
+    if (operations.length === 0) {
+      setCurrentRows(operationalRows);
+      return;
+    }
+    
+    let currentData = [...operationalRows];
+    
+    // Apply operations in sequence
+    for (const operation of operations) {
+      switch (operation.type) {
+        case 'filter': {
+          const filterOp = operation as any;
+          currentData = currentData.filter(row => {
+            const rowValue = String(row[filterOp.column] || '');
+            const matchesValues = filterOp.values.includes(rowValue);
+            return filterOp.negated ? !matchesValues : matchesValues;
+          });
+          console.log(`🔍 Filter ${filterOp.column}: ${currentData.length} rows`);
+          break;
+        }
+        case 'custom': {
+          const customOp = operation as any;
+          try {
+            const res = await dfCustom({ rows: currentData, code: customOp.code });
+            if (res.error) {
+              console.error('Custom operation failed:', res.error);
+              break;
+            }
+            currentData = res.rows || currentData;
+            console.log(`🐍 Custom code: ${currentData.length} rows`);
+          } catch (e) {
+            console.error('Custom operation error:', e);
+          }
+          break;
+        }
+        case 'sort': {
+          const sortOp = operation as any;
+          currentData = [...currentData].sort((a, b) => {
+            let aVal = a[sortOp.column];
+            let bVal = b[sortOp.column];
+            
+            if (aVal == null && bVal == null) return 0;
+            if (aVal == null) return sortOp.direction === 'asc' ? 1 : -1;
+            if (bVal == null) return sortOp.direction === 'asc' ? -1 : 1;
+            
+            const aNum = Number(aVal);
+            const bNum = Number(bVal);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              const diff = aNum - bNum;
+              return sortOp.direction === 'asc' ? diff : -diff;
+            } else {
+              const comp = String(aVal).toLowerCase().localeCompare(String(bVal).toLowerCase());
+              return sortOp.direction === 'asc' ? comp : -comp;
+            }
+          });
+          console.log(`🔄 Sort ${sortOp.column} ${sortOp.direction}: ${currentData.length} rows`);
+          break;
+        }
       }
-      for (const [col, vals] of Object.entries(exclude)) {
-        if (vals.includes(String(r[col]))) return false;
-      }
-      return true;
-    });
-    setCurrentRows(locallyFiltered);
-    // Optional backend validation (using smaller operational dataset)
-    try {
-      const res = await dfSelect({ rows: operationalRows, include, exclude });
-      if (Array.isArray(res.rows)) setCurrentRows(res.rows);
-    } catch (e) { /* ignore to keep UI snappy */ }
+    }
+    
+    console.log(`🎯 Final result: ${currentData.length} rows`);
+    setCurrentRows(currentData);
   }, [operationalRows]);
 
+  // Legacy wrapper for backward compatibility
+  const applyFilters = useCallback(async (newFilters: Filter[]) => {
+    const filterOps = newFilters.map(f => createFilterOperation(f.column, f.values, f.negated));
+    const nonFilterOps = operationChain.filter(op => op.type !== 'filter');
+    const newChain = [...filterOps, ...nonFilterOps];
+    setOperationChain(newChain);
+    await applyOperationChain(newChain);
+  }, [operationChain, applyOperationChain]);
+
   const resetAll = useCallback(() => {
-    setCurrentRows(operationalRows); // Reset to operational data, not original
-    setFilters([]);
+    setCurrentRows(operationalRows);
+    setOperationChain([]);
     setGroupBy(null);
     setGroupPreview([]);
     setExpandedGroup(null);
     setCustomCode("");
+    setCustomError(null);
     setSortColumn(null);
     setSortDirection(null);
   }, [operationalRows]);
@@ -255,20 +321,28 @@ function App() {
 
   // Sort function
   const handleSort = useCallback((column: string) => {
+    let newDirection: 'asc' | 'desc' | null = 'asc';
+    
     if (sortColumn === column) {
-      // Cycle through: asc -> desc -> none
       if (sortDirection === 'asc') {
-        setSortDirection('desc');
+        newDirection = 'desc';
       } else if (sortDirection === 'desc') {
-        setSortColumn(null);
-        setSortDirection(null);
+        newDirection = null;
       }
-    } else {
-      // New column, start with asc
-      setSortColumn(column);
-      setSortDirection('asc');
     }
-  }, [sortColumn, sortDirection]);
+    
+    setSortColumn(newDirection ? column : null);
+    setSortDirection(newDirection);
+    
+    // Update operation chain
+    const nonSortOps = operationChain.filter(op => op.type !== 'sort');
+    const newChain = newDirection 
+      ? [...nonSortOps, createSortOperation(column, newDirection)]
+      : nonSortOps;
+    
+    setOperationChain(newChain);
+    void applyOperationChain(newChain);
+  }, [sortColumn, sortDirection, operationChain, applyOperationChain]);
 
   // Apply sorting to currentRows with performance optimization
   const sortedRows = useMemo(() => {
@@ -414,19 +488,49 @@ function App() {
   }, []);
   
   const runCustom = useCallback(async () => {
+    if (!customCode.trim()) return;
+    
     try {
-      const res = await dfCustom({ rows: sortedRows, code: customCode });
-      if (res.error) { setCustomError(res.error); return; }
+      // Add custom operation to chain
+      const customOp = createCustomCodeOperation(customCode);
+      const newChain = [...operationChain, customOp];
+      setOperationChain(newChain);
       setCustomError(null);
-      setCurrentRows(res.rows || []);
-      // Reset sorting when custom code is applied
-      setSortColumn(null);
-      setSortDirection(null);
+      await applyOperationChain(newChain);
+      setCustomCode(""); // Clear after successful application
     } catch (e: any) {
       console.error('runCustom error:', e);
       setCustomError(String(e?.message || e));
     }
-  }, [sortedRows, customCode]);
+  }, [customCode, operationChain, applyOperationChain]);
+
+  // Operation management callbacks
+  const removeOperation = useCallback((operationId: string) => {
+    const newChain = operationChain.filter(op => op.id !== operationId);
+    setOperationChain(newChain);
+    
+    // Update UI state for removed operations
+    const removedOp = operationChain.find(op => op.id === operationId);
+    if (removedOp?.type === 'sort') {
+      setSortColumn(null);
+      setSortDirection(null);
+    }
+    
+    void applyOperationChain(newChain);
+  }, [operationChain, applyOperationChain]);
+
+  // Legacy filter removal for backward compatibility
+  const removeFilter = useCallback((index: number) => {
+    const filterOps = operationChain.filter(op => op.type === 'filter');
+    if (index < filterOps.length) {
+      removeOperation(filterOps[index].id);
+    }
+  }, [operationChain, removeOperation]);
+
+  const clearCustomCode = useCallback(() => {
+    setCustomCode("");
+    setCustomError(null);
+  }, []);
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -502,7 +606,7 @@ function App() {
                   }}
                 >Add Filter</Button>
                 {filters.map((f, i) => (
-                  <Chip key={`${f.column}-${i}`} label={`${f.column}: ${f.negated ? 'NOT ' : ''}${f.values.join(', ')}`} onDelete={() => void applyFilters(filters.filter((_, idx) => idx !== i))} />
+                  <Chip key={`${f.column}-${i}`} label={`${f.column}: ${f.negated ? 'NOT ' : ''}${f.values.join(', ')}`} onDelete={() => removeFilter(i)} />
                 ))}
               </Stack>
 
@@ -546,8 +650,15 @@ function App() {
           </Box>
         )}
 
+        {/* Operation Chain Summary */}
+        <FilterSummary
+          operations={operationChain}
+          onRemoveOperation={removeOperation}
+        />
+
         {useMemo(() => {
-          if (sortedRows.length === 0) return null;
+          // Always show table structure, even when empty
+          if (operationalRows.length === 0) return null;
           
           // If groupBy is active, show accordion view that looks like table rows
           if (groupBy && groupPreview.length > 0) {
@@ -683,12 +794,17 @@ function App() {
                                     (() => {
                                       const value = row[col];
                                       const isNumeric = col === '__index' || (value !== null && value !== undefined && !isNaN(Number(value)) && value !== '');
+                                      const isPrompt = col === 'prompt';
                                       return (
                                         <Typography variant="body2" sx={{ 
                                           maxWidth: 200,
                                           textAlign: isNumeric ? 'center' : 'left'
                                         }}>
-                                          <TruncatedCell text={String(value || '')} />
+                                          {isPrompt ? (
+                                            <FormattedCell text={String(value || '')} isPrompt={true} />
+                                          ) : (
+                                            <TruncatedCell text={String(value || '')} />
+                                          )}
                                         </Typography>
                                       );
                                     })()

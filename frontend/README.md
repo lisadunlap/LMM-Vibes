@@ -196,6 +196,107 @@ Current API endpoints:
 - `POST /df_group_rows` - Group pagination
 - `POST /df_custom` - Custom pandas code
 
+## 🚀 Packaging & Distribution Roadmap
+
+### 🎯 **Vision: Local-Only Pip Package**
+
+The long-term goal is to package StringSight as a single pip install with completely local execution - no cloud dependencies, maximum privacy, and instant startup.
+
+### 📦 **Target User Experience**
+
+```bash
+# One-time installation
+pip install stringsight
+
+# Daily usage - single command startup
+stringsight serve
+# 🏠 StringSight running locally at http://localhost:8080
+# 🚀 Ready in ~10 seconds
+# 📊 Upload your evaluation data to get started
+# 🔒 All data stays on your machine
+
+# Optional: Pre-load data
+stringsight serve --data my_evaluations.jsonl
+# 📊 Loaded 1,247 evaluations, ready for analysis
+```
+
+### 🏗️ **Implementation Strategy**
+
+**Phase 1: Bundled Distribution**
+- Pre-build React frontend into static files
+- Bundle frontend assets with Python package
+- Single entry point via FastAPI + StaticFiles
+- Auto-detect free ports, no configuration needed
+
+**Phase 2: Enhanced CLI**
+- `stringsight serve --open` - Auto-opens browser
+- `stringsight serve --port 3000` - Custom port selection
+- `stringsight convert` - File format utilities
+- `stringsight --version` - Version management
+
+**Phase 3: Local Productivity**
+- `stringsight export --format pdf` - Report generation
+- `stringsight merge file1.jsonl file2.jsonl` - Data utilities
+- `stringsight backup` - Local data management
+- Performance optimizations for large datasets
+
+### 🏠 **Local-Only Benefits**
+
+**🔒 Privacy & Security**
+- Evaluation data never leaves user's machine
+- Perfect for proprietary model outputs
+- No API keys or cloud accounts required
+- Works in air-gapped/secure environments
+
+**⚡ Performance & Reliability**
+- Zero network latency
+- Works completely offline
+- No bandwidth costs for large datasets
+- Consistent performance regardless of internet
+
+**💰 Cost & Simplicity**
+- No ongoing cloud costs or usage limits
+- No account creation or authentication
+- Works behind corporate firewalls
+- Perfect for academic and research use
+
+### 📋 **Package Structure Plan**
+
+```
+stringsight/
+├── cli.py                 # Entry point (stringsight serve)
+├── api.py                 # FastAPI backend with data processing
+├── frontend_dist/         # Pre-built React bundle
+│   ├── index.html
+│   ├── assets/           # JS/CSS bundles
+│   └── favicon.ico
+├── utils/
+│   ├── file_handlers.py  # JSONL/CSV/JSON parsing
+│   ├── data_processing.py # Pandas operations
+│   └── export.py         # Report generation
+└── templates/            # Export templates (PDF, etc.)
+```
+
+### 🎯 **Development Milestones**
+
+1. **Frontend Build Pipeline** - Automated bundling for distribution
+2. **CLI Interface** - Single command startup with options
+3. **Package Configuration** - setup.py with proper static file handling
+4. **Cross-Platform Testing** - Windows/Mac/Linux compatibility
+5. **Performance Optimization** - Sub-10 second startup time
+6. **Documentation** - Installation and usage guides
+
+### 🌟 **Target Markets**
+
+- **ML Researchers**: Private evaluation of model outputs
+- **Enterprise AI Teams**: Secure analysis of proprietary data  
+- **Academic Labs**: Cost-effective evaluation tools
+- **Individual Practitioners**: Simple, powerful evaluation workflow
+
+This packaging approach prioritizes **privacy**, **simplicity**, and **performance** - making StringSight accessible to anyone who needs to analyze evaluation data without compromising on security or requiring cloud infrastructure.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
