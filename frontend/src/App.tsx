@@ -13,6 +13,7 @@ import ConversationTrace from "./components/ConversationTrace";
 import SideBySideTrace from "./components/SideBySideTrace";
 import FormattedCell from "./components/FormattedCell";
 import FilterSummary from "./components/FilterSummary";
+import { ColumnSelector, type ColumnMapping } from "./components/ColumnSelector";
 import type { DataOperation } from "./types/operations";
 import { createFilterOperation, createCustomCodeOperation, createSortOperation } from "./types/operations";
 
@@ -92,45 +93,201 @@ function App() {
   const [method, setMethod] = useState<"single_model" | "side_by_side" | "unknown">("unknown");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
+  
+  // Flexible column mapping state
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [autoDetectedMapping, setAutoDetectedMapping] = useState<ColumnMapping | null>(null);
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
+  const [mappingValid, setMappingValid] = useState(false);
+  const [mappingErrors, setMappingErrors] = useState<string[]>([]);
+  const [filterNotice, setFilterNotice] = useState<string | null>(null);
   // Remote-path loading removed for now
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Parse the file
     const { rows, columns } = await parseFile(file);
-    const detected = detectMethodFromColumns(columns);
-    setMethod(detected);
     
-    // Flatten scores on the client (defensive in case backend preview doesn't)
-    const { rows: normRows, columns: normCols } = flattenScores(rows, detected);
+    // Store raw data and columns
+    setOriginalRows(rows);
+    setAvailableColumns(columns);
+    setFilterNotice(null);
     
-    // Set data layers
-    setOriginalRows(normRows); // Raw uploaded data
+    // Try to auto-detect column mapping using legacy method as fallback
+    const legacyDetected = detectMethodFromColumns(columns);
     
-    // Create operational data (only allowed columns)
-    const scoreCols = detected === 'single_model'
-      ? normCols.filter(c => c.startsWith('score_'))
-      : detected === 'side_by_side'
-        ? normCols.filter(c => c.startsWith('score_a_') || c.startsWith('score_b_'))
-        : [];
-    const allowedCols = detected === 'single_model'
-      ? ['prompt', 'model', ...scoreCols, 'model_response']
-      : detected === 'side_by_side'
-        ? ['prompt', 'model_a', 'model_b', ...scoreCols, 'model_a_response', 'model_b_response']
-        : normCols;
+    // Create auto-detected mapping based on legacy detection and available columns
+    const autoMapping: ColumnMapping = {
+      promptCol: columns.find(c => c.toLowerCase() === 'prompt') || '',
+      responseCols: legacyDetected === 'side_by_side' 
+        ? columns.filter(c => c.includes('model_a_response') || c.includes('model_b_response'))
+        : columns.filter(c => c.includes('model_response')),
+      modelCols: legacyDetected === 'side_by_side'
+        ? columns.filter(c => (c.includes('model_a') || c.includes('model_b')) && !c.includes('response'))
+        : columns.filter(c => c.toLowerCase() === 'model'),
+      scoreCols: columns.filter(c => c.toLowerCase().includes('score')),
+      method: legacyDetected === 'unknown' ? 'single_model' : legacyDetected
+    };
     
-    const operationalData = normRows.map((row, index) => ({
-      __index: index, // Add original dataframe index
-      ...Object.fromEntries(allowedCols.filter(col => col in row).map(col => [col, row[col]]))
-    }));
+    setAutoDetectedMapping(autoMapping);
     
-    setOperationalRows(operationalData);
-    setCurrentRows(operationalData); // Start with operational data
+    // Always show the column selector after upload (clear, explicit flow for new users)
+    setShowColumnSelector(true);
+    setMethod('unknown');
+    setOperationalRows([]);
+    setCurrentRows([]);
     
     try {
       await detectAndValidate(file); // optional backend validation
     } catch (_) {}
   }
+
+  // New function to process data with flexible column mapping
+  function processDataWithMapping(rows: Record<string, any>[], mapping: ColumnMapping) {
+    setMethod(mapping.method);
+    setColumnMapping(mapping);
+    setFilterNotice(null);
+
+    // Create operational data using user-specified columns (first build standardized + score dicts)
+    const mappedRows = rows.map((row, index) => {
+      const opRow: Record<string, any> = { __index: index };
+      
+      // Map prompt column
+      if (mapping.promptCol && row[mapping.promptCol] !== undefined) {
+        opRow.prompt = row[mapping.promptCol];
+      }
+      
+      // Map response columns
+      if (mapping.method === 'single_model' && mapping.responseCols[0]) {
+        opRow.model_response = row[mapping.responseCols[0]];
+      } else if (mapping.method === 'side_by_side') {
+        if (mapping.responseCols[0]) opRow.model_a_response = row[mapping.responseCols[0]];
+        if (mapping.responseCols[1]) opRow.model_b_response = row[mapping.responseCols[1]];
+      }
+      
+      // Map model columns
+      if (mapping.method === 'single_model' && mapping.modelCols[0]) {
+        opRow.model = row[mapping.modelCols[0]];
+      } else if (mapping.method === 'side_by_side') {
+        if (mapping.modelCols[0]) opRow.model_a = row[mapping.modelCols[0]];
+        if (mapping.modelCols[1]) opRow.model_b = row[mapping.modelCols[1]];
+      }
+      
+      // Build score dictionaries per selected columns (backend contract)
+      if (mapping.scoreCols.length > 0) {
+        const toNumber = (v: any): number | undefined => {
+          if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+          if (typeof v === 'string' && v.trim() !== '') {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : undefined;
+          }
+          return undefined;
+        };
+        
+        const parseMaybeJsonDict = (v: any): Record<string, any> | null => {
+          if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>;
+          if (typeof v === 'string') {
+            const s = v.trim();
+            if (s.startsWith('{') && s.endsWith('}')) {
+              try { return JSON.parse(s); } catch (_) { return null; }
+            }
+          }
+          return null;
+        };
+
+        if (mapping.method === 'single_model') {
+          const scoreDict: Record<string, number> = {};
+          for (const col of mapping.scoreCols) {
+            const raw = row[col];
+            const asDict = parseMaybeJsonDict(raw);
+            if (asDict) {
+              for (const [k, v] of Object.entries(asDict)) {
+                const num = toNumber(v);
+                if (num !== undefined) scoreDict[k] = num;
+              }
+            } else {
+              const key = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '') || 'value';
+              const num = toNumber(raw);
+              if (num !== undefined) scoreDict[key] = num;
+            }
+          }
+          if (Object.keys(scoreDict).length > 0) (opRow as any).score = scoreDict;
+        } else {
+          const scoreADict: Record<string, number> = {};
+          const scoreBDict: Record<string, number> = {};
+          for (const col of mapping.scoreCols) {
+            const raw = row[col];
+            const asDict = parseMaybeJsonDict(raw);
+            const target = col.toLowerCase().includes('_b') ? scoreBDict
+                          : col.toLowerCase().includes('_a') ? scoreADict
+                          : null; // apply to both if null
+            if (asDict) {
+              for (const [k, v] of Object.entries(asDict)) {
+                const num = toNumber(v);
+                if (num !== undefined) {
+                  if (target === scoreADict) scoreADict[k] = num;
+                  else if (target === scoreBDict) scoreBDict[k] = num;
+                  else { scoreADict[k] = num; scoreBDict[k] = num; }
+                }
+              }
+            } else {
+              const base = col.replace(/^(score_)?/i, '').replace(/_?score$/i, '').replace(/_a$/i, '').replace(/_b$/i, '') || 'value';
+              const num = toNumber(raw);
+              if (num !== undefined) {
+                if (target === scoreADict) scoreADict[base] = num;
+                else if (target === scoreBDict) scoreBDict[base] = num;
+                else { scoreADict[base] = num; scoreBDict[base] = num; }
+              }
+            }
+          }
+          if (Object.keys(scoreADict).length > 0) (opRow as any).score_a = scoreADict;
+          if (Object.keys(scoreBDict).length > 0) (opRow as any).score_b = scoreBDict;
+        }
+      }
+
+      // Do not include any other columns to keep the operational data clean
+      return opRow;
+    });
+
+    // Filter out rows where any selected score is missing
+    let filteredCount = 0;
+    const scoreCols = mapping.scoreCols || [];
+    const hasScoresSelected = scoreCols.length > 0;
+    const isMissing = (v: any) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (typeof v === 'number' && Number.isNaN(v)) || (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+    const rowsAfterFilter = !hasScoresSelected ? mappedRows : mappedRows.filter((_, idx) => {
+      const original = rows[idx];
+      const missingAny = scoreCols.some(col => isMissing(original[col]));
+      if (missingAny) filteredCount += 1;
+      return !missingAny;
+    });
+
+    if (hasScoresSelected && filteredCount > 0) {
+      setFilterNotice(`Filtered out ${filteredCount} row(s) due to missing values in selected score columns: ${scoreCols.join(', ')}`);
+    }
+
+    // Now flatten score dicts for display
+    const { rows: flattenedRows } = flattenScores(rowsAfterFilter, mapping.method);
+
+    setOperationalRows(flattenedRows);
+    setCurrentRows(flattenedRows);
+  }
+
+  // Handle column mapping changes from the selector
+  const handleMappingChange = useCallback((mapping: ColumnMapping) => {
+    if (mappingValid && originalRows.length > 0) {
+      processDataWithMapping(originalRows, mapping);
+      setShowColumnSelector(false);
+    }
+  }, [mappingValid, originalRows]);
+
+  // Handle validation changes from the selector
+  const handleValidationChange = useCallback((isValid: boolean, errors: string[]) => {
+    setMappingValid(isValid);
+    setMappingErrors(errors);
+  }, []);
 
   const onView = useCallback((row: Record<string, any>) => {
     if (method === "single_model") {
@@ -542,17 +699,79 @@ function App() {
               Load File
               <input type="file" hidden accept=".jsonl,.json,.csv" onChange={onFileChange} />
             </Button>
+            {availableColumns.length > 0 && !showColumnSelector && (
+              <Button 
+                variant="outlined" 
+                onClick={() => setShowColumnSelector(true)}
+                size="small"
+              >
+                Configure Columns
+              </Button>
+            )}
           </Stack>
         </Toolbar>
       </AppBar>
       {/* offset for fixed AppBar */}
       <Box sx={{ height: (theme) => theme.mixins.toolbar.minHeight }} />
       <Container maxWidth={false} sx={{ py: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+        {/* Getting started helper - shown before any upload */}
+        {originalRows.length === 0 && !showColumnSelector && (
+          <Box sx={{ 
+            mb: 2, py: 3, px: 2, borderRadius: 2,
+            background: '#F8FAFC', color: 'text.secondary'
+          }}>
+            <Box sx={{ textAlign: 'left', maxWidth: 760 }}>
+              <Typography variant="h6" sx={{ mb: 1, color: 'primary.dark' }}>Easily Visualize and Analyze your Model Outputs</Typography>
+              <Typography variant="body2" sx={{ color: 'primary.dark' }}>1) Upload your dataset (.jsonl, .json, or .csv)</Typography>
+              <Typography variant="body2" sx={{ color: 'primary.dark' }}>2) Select which columns correspond to your prompts, responses, models, and scores</Typography>
+              <Typography variant="body2" sx={{ color: 'primary.dark' }}>3) Click Done to load your table and explore</Typography>
+            </Box>
+          </Box>
+        )}
+        
+        {/* Column Selector - shown when user needs to specify column mapping */}
+        {showColumnSelector && (
+          <ColumnSelector
+            columns={availableColumns}
+            onMappingChange={handleMappingChange}
+            onValidationChange={handleValidationChange}
+            autoDetectedMapping={autoDetectedMapping || undefined}
+          />
+        )}
+
+        {/* Show filter notice if any rows were dropped due to missing scores */}
+        {filterNotice && (
+          <Box sx={{ mb: 1, p: 1.5, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#92400E', borderRadius: 1 }}>
+            {filterNotice}
+          </Box>
+        )}
+
         {dataOverview && (
-          <Box sx={{ mb: 2, color: 'text.secondary' }}>
-            <strong>{dataOverview.rowCount}</strong> rows ·{' '}
-            <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
-            <strong>{dataOverview.uniqueModels}</strong> unique models
+          <Box sx={{ 
+            mb: 2, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 3
+          }}>
+            <Box sx={{ color: 'text.secondary' }}>
+              <strong>{dataOverview.rowCount}</strong> rows ·{' '}
+              <strong>{dataOverview.uniquePrompts}</strong> unique prompts ·{' '}
+              <strong>{dataOverview.uniqueModels}</strong> unique models
+            </Box>
+            <Box sx={{ 
+              color: 'primary.main', 
+              fontSize: 14, 
+              fontWeight: 500,
+              backgroundColor: '#F0F9FF',
+              px: 2,
+              py: 0.5,
+              borderRadius: 1,
+              border: '1px solid #0EA5E9'
+            }}>
+              Click headers to sort • Use filters to narrow results
+            </Box>
           </Box>
         )}
 

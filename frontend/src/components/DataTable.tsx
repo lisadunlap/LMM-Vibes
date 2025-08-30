@@ -147,7 +147,7 @@ const DataTable = React.memo(function DataTable({
     <>
       {rows.length > 1000 && (
         <Box sx={{ mb: 1, p: 1, backgroundColor: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 1, fontSize: 14 }}>
-          Showing first 1,000 of {rows.length.toLocaleString()} rows for performance. Use filters to narrow results or sort by clicking column headers.
+          Showing first 1,000 of {rows.length.toLocaleString()} rows for performance.
         </Box>
       )}
       <TableContainer sx={{ border: '1px solid #E5E7EB', borderRadius: 2, overflow: 'auto', backgroundColor: '#FFFFFF' }}>

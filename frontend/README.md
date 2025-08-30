@@ -42,11 +42,12 @@ Open `http://127.0.0.1:5173`.
 - **Index Preservation**: Original dataframe indices maintained through all operations
 - **Performance Optimization**: Smart loading with 1000+ row performance warnings
 
-### 🔍 **Filtering & Search**
-- **Multi-Column Filters**: Add/remove filters on categorical columns
-- **Negation Support**: Include/exclude value sets with NOT toggle
-- **Real-Time Updates**: Instant filter application with backend validation
-- **Custom Pandas Code**: Execute arbitrary pandas expressions for complex filtering
+### 🔍 **Advanced Data Operations**
+- **Operation Chain System**: Full data provenance tracking with sequential operation application
+- **Multi-Column Filters**: Add/remove filters on categorical columns with negation support
+- **Custom Pandas Code**: Execute arbitrary pandas expressions at any point in the chain
+- **Individual Operation Removal**: Remove any operation and automatically reapply remaining chain
+- **Visual Operation History**: Color-coded chain display showing exact sequence of transformations
 
 ### 📈 **Sorting & Organization**
 - **Click-to-Sort**: Click any column header to sort (asc → desc → none cycle)
@@ -104,45 +105,94 @@ Open `http://127.0.0.1:5173`.
 src/
 ├── App.tsx                     # Main shell with data management
 ├── components/
-│   ├── DataTable.tsx          # Sortable table with truncation
+│   ├── DataTable.tsx          # Sortable table with truncation and rich content
 │   ├── ConversationTrace.tsx  # Single conversation view
-│   └── SideBySideTrace.tsx    # Dual conversation comparison
+│   ├── SideBySideTrace.tsx    # Dual conversation comparison
+│   ├── FilterSummary.tsx      # Operation chain visualization
+│   └── FormattedCell.tsx      # Rich content rendering (Markdown/LaTeX/HTML)
 ├── lib/
 │   ├── api.ts                 # Backend API calls
 │   ├── parse.ts               # Client-side file parsing
 │   ├── traces.ts              # Message format utilities
 │   └── normalize.ts           # Score flattening
+├── types/
+│   └── operations.ts          # Operation chain type definitions
 └── theme.ts                   # MUI theme configuration
 ```
 
 ### 🗃️ **Data Layer Architecture**
 
-The app uses a three-layer data management system:
+The app uses a three-layer data management system with operation chain tracking:
 
 1. **Original Rows** (`originalRows`): Raw uploaded data, never modified
 2. **Operational Rows** (`operationalRows`): Cleaned data with allowed columns + index
-3. **Current Rows** (`currentRows`): Filtered/transformed data for display
+3. **Current Rows** (`currentRows`): Result of applying operation chain to operational data
+
+```
+Original Data → [Static Ops] → Operational Data → [Operation Chain] → Current Data
+                ↳ normalize                      ↳ filter → custom → sort
+                ↳ add __index                     
+                ↳ select columns                   
+```
 
 ### 🎯 **State Management**
 
 **Data States:**
 - `originalRows` - Immutable uploaded data
 - `operationalRows` - Processed data with index and allowed columns
-- `currentRows` - Filtered data ready for display
-- `sortedRows` - Final sorted data for rendering
+- `currentRows` - Result of operation chain application
+- `sortedRows` - Final sorted data for rendering (legacy, now part of operation chain)
 
-**Filter States:**
-- `filters` - Active column filters
-- `pendingColumn/Values/Negated` - UI state for building filters
+**Operation Chain:**
+- `operationChain` - Array of sequential data operations with full provenance
+- Each operation has unique ID, timestamp, and type (`filter` | `custom` | `sort`)
+- Operations applied sequentially: `operationalRows → op1 → op2 → op3 → currentRows`
 
-**Sort States:**
-- `sortColumn` - Currently sorted column
-- `sortDirection` - 'asc' | 'desc' | null
+**UI State:**
+- `pendingColumn/Values/Negated` - UI state for building new filter operations
+- Legacy filter/sort states maintained for backward compatibility
 
 **Group States:**
 - `groupBy` - Column to group by
 - `groupPreview` - Summary statistics per group
 - `groupPagination` - Page state for each group
+
+### 🔗 **Operation Chain System**
+
+The operation chain provides full data provenance and proper undo functionality:
+
+**Operation Types:**
+```typescript
+interface FilterOperation {
+  type: 'filter';
+  column: string;
+  values: string[];
+  negated: boolean;
+}
+
+interface CustomCodeOperation {
+  type: 'custom';
+  code: string; // pandas expression
+}
+
+interface SortOperation {
+  type: 'sort'; 
+  column: string;
+  direction: 'asc' | 'desc';
+}
+```
+
+**Chain Management:**
+- **Sequential Application**: Operations applied in order to ensure correct data flow
+- **Individual Removal**: Remove any operation by ID and reapply remaining chain
+- **Mixed Operations**: Combine filters, custom code, and sorting in any sequence
+- **Visual Feedback**: Color-coded operation display with numbered sequence
+
+**Example Chain:**
+1. **Filter**: `model = "gpt-4"` → 500 rows
+2. **Custom**: `df.query("score > 3")` → 234 rows  
+3. **Filter**: `prompt.contains("math")` → 89 rows
+4. **Sort**: `score desc` → 89 rows sorted
 
 ### ⚡ **Performance Optimizations**
 
@@ -265,7 +315,7 @@ stringsight serve --data my_evaluations.jsonl
 ```
 stringsight/
 ├── cli.py                 # Entry point (stringsight serve)
-├── api.py                 # FastAPI backend with data processing
+├── api.py                 # FastAPI backend with data processinggit 
 ├── frontend_dist/         # Pre-built React bundle
 │   ├── index.html
 │   ├── assets/           # JS/CSS bundles
